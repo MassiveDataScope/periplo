@@ -40,7 +40,7 @@ dependencies = [
     "croniter",
     "datafusion",
     # 1.6.3 SIGBUSes in the native DataFusion provider on macOS arm64.
-    "deltalake==1.6.1",
+    "deltalake==1.6.3",
     "httpx2>=2.13.0",
     "loom-kernel[config,rest]>=2.5.0",
     "pyarrow",
