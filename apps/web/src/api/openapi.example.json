@@ -1,0 +1,2784 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Periplo API (example contract)",
+    "version": "0.0.0",
+    "description": "Hand-derived from the HTTP contracts of the query, table discovery and ETL routes until the API publishes its own OpenAPI. Regenerate schema.d.ts with `npm run generate:api`."
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "paths": {
+    "/queries": {
+      "post": {
+        "operationId": "executeQuery",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Arrow IPC stream",
+            "headers": {
+              "X-Query-Id": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            },
+            "content": {
+              "application/vnd.apache.arrow.stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queries/{id}": {
+      "get": {
+        "operationId": "getQuery",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "cancelQuery",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Cancellation requested or already terminal"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catalog": {
+      "get": {
+        "operationId": "getCatalog",
+        "responses": {
+          "200": {
+            "description": "Published catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Catalog"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catalog/tables/{database}/{table}": {
+      "get": {
+        "operationId": "describeTable",
+        "parameters": [
+          {
+            "name": "database",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "table",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Table",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sources": {
+      "get": {
+        "operationId": "listSources",
+        "responses": {
+          "200": {
+            "description": "Sources and discovery state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/discovery": {
+      "post": {
+        "operationId": "startDiscovery",
+        "responses": {
+          "202": {
+            "description": "Discovery started or already running"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catalog/tables/{database}/{table}/stats": {
+      "get": {
+        "operationId": "getTableStats",
+        "parameters": [
+          {
+            "name": "database",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "table",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "What the Delta log knows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableStats"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catalog/tables/{database}/{table}/history": {
+      "get": {
+        "operationId": "getTableHistory",
+        "parameters": [
+          {
+            "name": "database",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "table",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Latest commits, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableHistory"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/etl/status": {
+      "get": {
+        "operationId": "getEtlStatus",
+        "responses": {
+          "200": {
+            "description": "Integration status; never touches the orchestrator",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EtlStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/etl": {
+      "get": {
+        "operationId": "listEtls",
+        "responses": {
+          "200": {
+            "description": "Deployments visible to Periplo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EtlList"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Integration off (etl_not_configured) or unknown deployment/run (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The orchestrator is unreachable or rejected the credential (etl_upstream)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/etl/{name}/grid": {
+      "get": {
+        "operationId": "getEtlGrid",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The most recent non-SCHEDULED runs of the deployment as a process x run matrix, oldest to newest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunGrid"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Integration off (etl_not_configured) or unknown deployment (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ambiguous deployment name (etl_ambiguous)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The orchestrator is unreachable or rejected the credential (etl_upstream)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/etl/{name}/runs": {
+      "get": {
+        "operationId": "listEtlRuns",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Runs, most recent first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunList"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Integration off (etl_not_configured) or unknown deployment/run (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ambiguous deployment name (etl_ambiguous)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The orchestrator is unreachable or rejected the credential (etl_upstream)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "runEtl",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Run created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The orchestrator rejected the request (etl_rejected)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Operating ETLs is disabled (etl_operate_disabled)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Integration off (etl_not_configured) or unknown deployment/run (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ambiguous deployment name (etl_ambiguous)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The orchestrator is unreachable or rejected the credential (etl_upstream)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/etl/{name}/schedule/resume": {
+      "post": {
+        "operationId": "resumeEtlSchedule",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Every schedule reactivated (and the deployment un-paused, if it was)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Etl"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The deployment has no schedule (etl_rejected)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Operating ETLs is disabled (etl_operate_disabled)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Integration off (etl_not_configured) or unknown deployment (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ambiguous deployment name (etl_ambiguous)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The orchestrator is unreachable or rejected the credential (etl_upstream)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/etl/{name}/schedule/pause": {
+      "post": {
+        "operationId": "pauseEtlSchedule",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Every schedule deactivated (the inverse of loom's failure hook)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Etl"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The deployment has no schedule (etl_rejected)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Operating ETLs is disabled (etl_operate_disabled)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Integration off (etl_not_configured) or unknown deployment (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ambiguous deployment name (etl_ambiguous)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The orchestrator is unreachable or rejected the credential (etl_upstream)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/etl/runs/{id}": {
+      "get": {
+        "operationId": "getEtlRun",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Run detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Integration off (etl_not_configured) or unknown deployment/run (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The orchestrator is unreachable or rejected the credential (etl_upstream)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/etl/runs/{id}/logs": {
+      "get": {
+        "operationId": "getEtlRunLogs",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "description": "The `next` of a previous page, opaque to the client; lines with timestamp >= after, ascending.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 200
+            }
+          },
+          {
+            "name": "task_run",
+            "in": "query",
+            "required": false,
+            "description": "Repeatable, up to 100 UUIDs. Without it: flow-level lines only. With one or more: those task runs' own lines (several make up a process's scope: its marker plus its steps).",
+            "schema": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "The orchestrator's own log text search, sent as a quoted phrase; at most 200 characters.",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "min_level",
+            "in": "query",
+            "required": false,
+            "description": "A floor on log level.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Log page; without `after`, the last `limit` lines",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Integration off (etl_not_configured) or unknown deployment/run (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The orchestrator is unreachable or rejected the credential (etl_upstream)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/etl/runs/{id}/tasks": {
+      "get": {
+        "operationId": "getEtlRunTasks",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The run's attempts, grouped into processes and steps",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunTasks"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Integration off (etl_not_configured) or unknown deployment/run (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The orchestrator is unreachable or rejected the credential (etl_upstream)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/etl/runs/{id}/steps/{task_run}": {
+      "get": {
+        "operationId": "getEtlRunStep",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "task_run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One step: its facts and the first page of its own logs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Integration off (etl_not_configured) or unknown deployment/run/step (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The orchestrator is unreachable or rejected the credential (etl_upstream)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "TableField": {
+        "type": "object",
+        "required": [
+          "name",
+          "type",
+          "nullable"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "nullable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TableDetail": {
+        "type": "object",
+        "required": [
+          "database",
+          "name",
+          "source",
+          "path",
+          "labels",
+          "delta_version",
+          "fields"
+        ],
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "labels": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "delta_version": {
+            "type": "integer"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TableField"
+            }
+          }
+        }
+      },
+      "QueryRequest": {
+        "type": "object",
+        "required": [
+          "sql"
+        ],
+        "properties": {
+          "sql": {
+            "type": "string",
+            "minLength": 1
+          },
+          "max_rows": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          }
+        }
+      },
+      "QueryError": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "QueryStatus": {
+        "type": "object",
+        "required": [
+          "id",
+          "state",
+          "rows",
+          "bytes",
+          "truncated",
+          "snapshots"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "running",
+              "completed",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "rows": {
+            "type": "integer"
+          },
+          "bytes": {
+            "type": "integer"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "snapshots": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "error": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/QueryError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "description": "Normalised client-side by @periplo/core/api; never inspected by screens.",
+        "additionalProperties": true
+      },
+      "LabelValue": {
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "order": {
+            "type": "integer"
+          }
+        }
+      },
+      "CatalogTable": {
+        "type": "object",
+        "required": [
+          "database",
+          "name",
+          "source",
+          "path",
+          "labels",
+          "unlabeled"
+        ],
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "labels": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "unlabeled": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "type": "object",
+        "required": [
+          "database",
+          "name",
+          "paths"
+        ],
+        "properties": {
+          "database": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Catalog": {
+        "type": "object",
+        "required": [
+          "published_at",
+          "label_values",
+          "tables",
+          "conflicts",
+          "group_by"
+        ],
+        "properties": {
+          "published_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "group_by": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Labels the explorer nests by, outermost first. Empty groups by database alone."
+          },
+          "label_values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/LabelValue"
+              }
+            }
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogTable"
+            }
+          },
+          "conflicts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Conflict"
+            }
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkTemplate"
+            }
+          }
+        }
+      },
+      "DiscoveryReport": {
+        "type": "object",
+        "required": [
+          "state",
+          "started_at",
+          "duration_ms",
+          "tables",
+          "listed_folders",
+          "branches_without_table"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "partial",
+              "failed"
+            ]
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "duration_ms": {
+            "type": "integer"
+          },
+          "tables": {
+            "type": "integer"
+          },
+          "listed_folders": {
+            "type": "integer"
+          },
+          "branches_without_table": {
+            "type": "integer"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Source": {
+        "type": "object",
+        "required": [
+          "name",
+          "location",
+          "template",
+          "report"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "template": {
+            "type": "string"
+          },
+          "report": {
+            "$ref": "#/components/schemas/DiscoveryReport"
+          }
+        }
+      },
+      "DiscoveryState": {
+        "type": "object",
+        "required": [
+          "state"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "idle",
+              "running"
+            ]
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "SourceList": {
+        "type": "object",
+        "required": [
+          "discovery",
+          "published_at",
+          "sources"
+        ],
+        "properties": {
+          "discovery": {
+            "$ref": "#/components/schemas/DiscoveryState"
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Source"
+            }
+          }
+        }
+      },
+      "ColumnStats": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "nulls": {
+            "type": "integer"
+          },
+          "min": {
+            "type": "string"
+          },
+          "max": {
+            "type": "string"
+          }
+        }
+      },
+      "TableStats": {
+        "type": "object",
+        "required": [
+          "rows",
+          "bytes",
+          "files",
+          "partition_columns",
+          "columns"
+        ],
+        "properties": {
+          "rows": {
+            "type": "integer"
+          },
+          "bytes": {
+            "type": "integer"
+          },
+          "files": {
+            "type": "integer"
+          },
+          "partition_columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ColumnStats"
+            }
+          },
+          "partitions": {
+            "type": "array",
+            "description": "The heaviest partitions in value order, read from the log. May be fewer than partitions_total.",
+            "items": {
+              "$ref": "#/components/schemas/PartitionStats"
+            }
+          },
+          "partitions_total": {
+            "type": "integer"
+          }
+        }
+      },
+      "PartitionStats": {
+        "type": "object",
+        "required": [
+          "values",
+          "rows",
+          "bytes",
+          "files"
+        ],
+        "properties": {
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "rows": {
+            "type": "integer"
+          },
+          "bytes": {
+            "type": "integer"
+          },
+          "files": {
+            "type": "integer"
+          }
+        }
+      },
+      "HistoryEntry": {
+        "type": "object",
+        "required": [
+          "version",
+          "timestamp",
+          "operation",
+          "parameters",
+          "metrics",
+          "extra"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "metrics": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "extra": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "TableHistory": {
+        "type": "object",
+        "required": [
+          "entries"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HistoryEntry"
+            }
+          }
+        }
+      },
+      "LinkTemplate": {
+        "type": "object",
+        "required": [
+          "label",
+          "key",
+          "url_template"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "url_template": {
+            "type": "string"
+          }
+        }
+      },
+      "EtlStatus": {
+        "type": "object",
+        "required": [
+          "configured",
+          "operate_enabled"
+        ],
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "operate_enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Schedule": {
+        "type": "object",
+        "required": [
+          "kind",
+          "cron",
+          "interval_seconds",
+          "timezone",
+          "active"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "cron",
+              "interval",
+              "rrule"
+            ]
+          },
+          "cron": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "interval_seconds": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "timezone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "FlowRun": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "state",
+          "state_message",
+          "expected_start_at",
+          "start_at",
+          "end_at",
+          "duration_seconds",
+          "created_by",
+          "run_count",
+          "retries",
+          "retry_delay_seconds",
+          "trigger",
+          "external_url",
+          "attempts"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "SCHEDULED",
+              "PENDING",
+              "RUNNING",
+              "COMPLETED",
+              "FAILED",
+              "CANCELLED",
+              "CRASHED",
+              "PAUSED",
+              "CANCELLING"
+            ]
+          },
+          "state_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expected_start_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "start_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "end_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "duration_seconds": {
+            "type": "number"
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "run_count": {
+            "type": "integer"
+          },
+          "retries": {
+            "type": "integer"
+          },
+          "retry_delay_seconds": {
+            "type": "number"
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "scheduled",
+              "manual"
+            ],
+            "description": "scheduled when the run carries the orchestrator's own auto-scheduled marker"
+          },
+          "external_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A deep link into the orchestrator's own UI, or null when none is configured."
+          },
+          "attempts": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/RunAttempt"
+            },
+            "description": "One entry per attempt when run_count > 1; null when run_count <= 1 or the response's attempt budget was already spent."
+          }
+        }
+      },
+      "RunAttempt": {
+        "type": "object",
+        "required": [
+          "index",
+          "start_at",
+          "end_at",
+          "state",
+          "duration_seconds"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer"
+          },
+          "start_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "SCHEDULED",
+              "PENDING",
+              "RUNNING",
+              "COMPLETED",
+              "FAILED",
+              "CANCELLED",
+              "CRASHED",
+              "PAUSED",
+              "CANCELLING"
+            ]
+          },
+          "duration_seconds": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      },
+      "RecentRun": {
+        "type": "object",
+        "required": [
+          "id",
+          "state",
+          "start_at",
+          "end_at",
+          "attempts"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "SCHEDULED",
+              "PENDING",
+              "RUNNING",
+              "COMPLETED",
+              "FAILED",
+              "CANCELLED",
+              "CRASHED",
+              "PAUSED",
+              "CANCELLING"
+            ]
+          },
+          "start_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "end_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "attempts": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/RunAttempt"
+            },
+            "description": "Copied from the FlowRun it derives from; same rules as FlowRun.attempts."
+          }
+        }
+      },
+      "Etl": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "flow_name",
+          "description",
+          "tags",
+          "paused",
+          "schedule",
+          "parameters",
+          "last_run",
+          "recent",
+          "next_run_at",
+          "schedule_inactive",
+          "cadence",
+          "mode",
+          "accepts_processes",
+          "external_url"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "flow_name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "schedule": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Schedule"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "last_run": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FlowRun"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recent": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecentRun"
+            }
+          },
+          "next_run_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "schedule_inactive": {
+            "type": "boolean"
+          },
+          "cadence": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "accepts_processes": {
+            "type": "boolean",
+            "description": "processes appears in parameter_openapi_schema.properties; gates \"Re-run from failed process\""
+          },
+          "external_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A deep link into the orchestrator's own UI, or null when none is configured."
+          }
+        }
+      },
+      "EtlCurrent": {
+        "type": "object",
+        "description": "Where a running run is right now: its process, step, and position among them. total counts processes seen so far in this run, not the deployment's typical process count (documented limitation).",
+        "required": [
+          "process",
+          "step",
+          "index",
+          "total"
+        ],
+        "properties": {
+          "process": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "step": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "index": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        }
+      },
+      "RunningRun": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "etl",
+          "state",
+          "start_at",
+          "created_by",
+          "trigger",
+          "current",
+          "typical_seconds"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "etl": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "SCHEDULED",
+              "PENDING",
+              "RUNNING",
+              "COMPLETED",
+              "FAILED",
+              "CANCELLED",
+              "CRASHED",
+              "PAUSED",
+              "CANCELLING"
+            ]
+          },
+          "start_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "scheduled",
+              "manual"
+            ]
+          },
+          "current": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EtlCurrent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "typical_seconds": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Median duration of the deployment's COMPLETED entries in recent."
+          }
+        }
+      },
+      "EtlUpcoming": {
+        "type": "object",
+        "required": [
+          "etl",
+          "expected_start_at"
+        ],
+        "properties": {
+          "etl": {
+            "type": "string"
+          },
+          "expected_start_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EtlHistoryBucket": {
+        "type": "object",
+        "required": [
+          "start",
+          "completed",
+          "failed",
+          "running"
+        ],
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed": {
+            "type": "integer"
+          },
+          "failed": {
+            "type": "integer"
+          },
+          "running": {
+            "type": "integer"
+          }
+        }
+      },
+      "EtlHistory": {
+        "type": "object",
+        "description": "One window of the dashboard's pulse: bucketed run counts, oldest to newest.",
+        "required": [
+          "interval",
+          "buckets",
+          "upcoming",
+          "median_seconds"
+        ],
+        "properties": {
+          "interval": {
+            "type": "string",
+            "enum": [
+              "1h",
+              "1d"
+            ]
+          },
+          "buckets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EtlHistoryBucket"
+            }
+          },
+          "upcoming": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EtlUpcoming"
+            },
+            "description": "SCHEDULED runs due in the next 6h, at most 50, soonest first."
+          },
+          "median_seconds": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      },
+      "Summary": {
+        "type": "object",
+        "required": [
+          "running",
+          "failed_24h",
+          "completed_24h",
+          "history",
+          "history_7d"
+        ],
+        "properties": {
+          "running": {
+            "type": "integer"
+          },
+          "failed_24h": {
+            "type": "integer"
+          },
+          "completed_24h": {
+            "type": "integer"
+          },
+          "history": {
+            "$ref": "#/components/schemas/EtlHistory"
+          },
+          "history_7d": {
+            "$ref": "#/components/schemas/EtlHistory"
+          }
+        }
+      },
+      "EtlList": {
+        "type": "object",
+        "required": [
+          "etls",
+          "summary",
+          "running",
+          "running_truncated"
+        ],
+        "properties": {
+          "etls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Etl"
+            }
+          },
+          "summary": {
+            "$ref": "#/components/schemas/Summary"
+          },
+          "running": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunningRun"
+            }
+          },
+          "running_truncated": {
+            "type": "boolean",
+            "description": "running was capped at 20 entries."
+          }
+        }
+      },
+      "RunList": {
+        "type": "object",
+        "required": [
+          "runs"
+        ],
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FlowRun"
+            }
+          }
+        }
+      },
+      "RunDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/FlowRun"
+          },
+          {
+            "type": "object",
+            "required": [
+              "parameters",
+              "deployment_id",
+              "deployment_name",
+              "flow_name",
+              "terminal"
+            ],
+            "properties": {
+              "parameters": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "deployment_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "deployment_name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "flow_name": {
+                "type": "string"
+              },
+              "terminal": {
+                "type": "boolean",
+                "description": "state in COMPLETED, FAILED, CANCELLED, CRASHED"
+              }
+            }
+          }
+        ]
+      },
+      "LogEntry": {
+        "type": "object",
+        "required": [
+          "id",
+          "timestamp",
+          "level",
+          "level_name",
+          "message",
+          "noise"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "level": {
+            "type": "integer"
+          },
+          "level_name": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "noise": {
+            "type": "boolean",
+            "description": "Starts with one of PERIPLO_ETL_LOG_NOISE's prefixes; folded by default in the web."
+          },
+          "task_run_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Opaque id of the step or process that logged the line (as in RunTasks); null for run-level lines."
+          }
+        }
+      },
+      "StepState": {
+        "type": "string",
+        "enum": [
+          "SCHEDULED",
+          "PENDING",
+          "RUNNING",
+          "COMPLETED",
+          "FAILED",
+          "CANCELLED",
+          "CRASHED",
+          "PAUSED",
+          "CANCELLING",
+          "INTERRUPTED"
+        ]
+      },
+      "Step": {
+        "type": "object",
+        "required": [
+          "name",
+          "task_run_id",
+          "state",
+          "start_at",
+          "end_at",
+          "duration_seconds"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "task_run_id": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/StepState"
+          },
+          "start_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "end_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "duration_seconds": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      },
+      "Process": {
+        "type": "object",
+        "required": [
+          "name",
+          "task_run_id",
+          "state",
+          "start_at",
+          "end_at",
+          "duration_seconds",
+          "expected_steps",
+          "steps"
+        ],
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "task_run_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/StepState"
+          },
+          "start_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "end_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "duration_seconds": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "expected_steps": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Step"
+            }
+          }
+        }
+      },
+      "GridCell": {
+        "type": "object",
+        "required": [
+          "process",
+          "state",
+          "duration_seconds"
+        ],
+        "properties": {
+          "process": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/StepState"
+          },
+          "duration_seconds": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      },
+      "GridRun": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "state",
+          "start_at",
+          "duration_seconds",
+          "cells"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "SCHEDULED",
+              "PENDING",
+              "RUNNING",
+              "COMPLETED",
+              "FAILED",
+              "CANCELLED",
+              "CRASHED",
+              "PAUSED",
+              "CANCELLING"
+            ]
+          },
+          "start_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "duration_seconds": {
+            "type": "number"
+          },
+          "cells": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GridCell"
+            }
+          }
+        }
+      },
+      "RunGrid": {
+        "type": "object",
+        "required": [
+          "runs",
+          "processes",
+          "truncated"
+        ],
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GridRun"
+            },
+            "description": "Oldest to newest, left to right."
+          },
+          "processes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Order of first appearance in the most recent run that has any, then any others."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "A marker, failed-step or mark query hit its hard page cap before exhausting."
+          }
+        }
+      },
+      "Attempt": {
+        "type": "object",
+        "required": [
+          "number",
+          "state",
+          "started_at",
+          "ended_at",
+          "message",
+          "processes"
+        ],
+        "properties": {
+          "number": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "SCHEDULED",
+              "PENDING",
+              "RUNNING",
+              "COMPLETED",
+              "FAILED",
+              "CANCELLED",
+              "CRASHED",
+              "PAUSED",
+              "CANCELLING"
+            ]
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ended_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "processes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Process"
+            }
+          }
+        }
+      },
+      "RunTasks": {
+        "type": "object",
+        "required": [
+          "attempts",
+          "expected_steps_known"
+        ],
+        "properties": {
+          "attempts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Attempt"
+            }
+          },
+          "expected_steps_known": {
+            "type": "boolean"
+          }
+        }
+      },
+      "StepFacts": {
+        "type": "object",
+        "required": [
+          "reads",
+          "writes",
+          "rows",
+          "delta_version"
+        ],
+        "properties": {
+          "reads": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "writes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rows": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "delta_version": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      },
+      "StepDetail": {
+        "type": "object",
+        "required": [
+          "step",
+          "process",
+          "facts",
+          "logs"
+        ],
+        "properties": {
+          "step": {
+            "$ref": "#/components/schemas/Step"
+          },
+          "process": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "facts": {
+            "$ref": "#/components/schemas/StepFacts"
+          },
+          "logs": {
+            "$ref": "#/components/schemas/LogPage"
+          }
+        }
+      },
+      "LogPage": {
+        "type": "object",
+        "required": [
+          "entries",
+          "next",
+          "truncated"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LogEntry"
+            }
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Raw timestamp of the last entry, the received `after` if the page was empty, else null."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "True when the page came full (entries.length == limit)."
+          }
+        }
+      },
+      "RunRequest": {
+        "type": "object",
+        "properties": {
+          "parameters": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true,
+            "description": "null runs with the deployment's own parameters."
+          }
+        }
+      }
+    }
+  }
+}

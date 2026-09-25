@@ -1,0 +1,97 @@
+.peek {
+  padding: 0;
+}
+
+.body {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-inline-size: 0;
+  min-block-size: 0;
+  block-size: 100%;
+}
+
+/* Adds a border to `TableHeader`'s own header (shared with the table page, which has none). */
+.header {
+  border-block-end: var(--nt-border-width) solid var(--nt-color-border);
+}
+
+.open {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--nt-size-control);
+  padding: 0 var(--nt-space-3);
+  border: var(--nt-border-width) solid var(--nt-color-accent);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-accent);
+  color: var(--nt-color-on-accent);
+  font-weight: var(--nt-font-weight-medium);
+  text-decoration: none;
+}
+
+.open:hover {
+  background: var(--nt-color-accent-hover);
+  border-color: var(--nt-color-accent-hover);
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--nt-size-control);
+  block-size: var(--nt-size-control);
+  padding: 0;
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-sm);
+  background: none;
+  color: var(--nt-color-text-muted);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--nt-color-surface-hover);
+  color: var(--nt-color-text);
+}
+
+.tab {
+  min-inline-size: 0;
+  min-block-size: 0;
+  overflow: hidden;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-6);
+  block-size: var(--nt-size-statusbar);
+  padding: 0 var(--nt-space-4);
+  border-block-start: var(--nt-border-width) solid var(--nt-color-border);
+  background: var(--nt-color-surface);
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-xs);
+}
+
+.position {
+  font-weight: var(--nt-font-weight-medium);
+}
+
+.hints {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-4);
+  margin-inline-start: auto;
+}
+
+.hints span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nt-space-1);
+}
+
+.hints kbd {
+  padding: 0 var(--nt-space-1);
+  border: var(--nt-border-width) solid var(--nt-color-border-strong);
+  border-radius: var(--nt-radius-sm);
+  font: inherit;
+  color: var(--nt-color-text);
+}

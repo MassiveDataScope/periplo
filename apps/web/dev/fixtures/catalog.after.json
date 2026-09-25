@@ -1,0 +1,187 @@
+{
+  "published_at": "2026-01-10T09:30:00Z",
+  "group_by": [
+    "layer",
+    "zone"
+  ],
+  "label_values": {
+    "layer": [
+      {
+        "value": "landing",
+        "title": "Landing",
+        "description": "Data as received from each system.",
+        "order": 1
+      },
+      {
+        "value": "curated",
+        "title": "Curated",
+        "description": "Cleaned, conformed and ready to analyse.",
+        "order": 2
+      }
+    ],
+    "zone": [
+      {
+        "value": "open",
+        "title": "Open",
+        "order": 1
+      },
+      {
+        "value": "restricted",
+        "title": "Restricted",
+        "description": "Personal data: access is audited.",
+        "order": 2
+      }
+    ]
+  },
+  "tables": [
+    {
+      "database": "landing_shop",
+      "name": "orders",
+      "source": "lake",
+      "path": "landing/shop/orders",
+      "labels": {
+        "layer": "landing",
+        "domain": "shop",
+        "zone": "open"
+      },
+      "unlabeled": []
+    },
+    {
+      "database": "landing_shop",
+      "name": "customers",
+      "source": "lake",
+      "path": "landing/shop/customers",
+      "labels": {
+        "layer": "landing",
+        "domain": "shop",
+        "zone": "open"
+      },
+      "unlabeled": []
+    },
+    {
+      "database": "landing_shop",
+      "name": "order",
+      "source": "lake",
+      "path": "landing/shop/order",
+      "labels": {
+        "layer": "landing",
+        "domain": "shop",
+        "zone": "open"
+      },
+      "unlabeled": []
+    },
+    {
+      "database": "landing_inventory",
+      "name": "products",
+      "source": "lake",
+      "path": "landing/inventory/products",
+      "labels": {
+        "layer": "landing",
+        "domain": "inventory",
+        "zone": "restricted"
+      },
+      "unlabeled": []
+    },
+    {
+      "database": "curated_shop",
+      "name": "orders",
+      "source": "lake",
+      "path": "curated/shop/orders",
+      "labels": {
+        "layer": "curated",
+        "domain": "shop",
+        "zone": "open"
+      },
+      "unlabeled": []
+    },
+    {
+      "database": "curated_shop",
+      "name": "daily_sales",
+      "source": "lake",
+      "path": "curated/shop/daily_sales",
+      "labels": {
+        "layer": "curated",
+        "domain": "shop",
+        "zone": "open"
+      },
+      "unlabeled": []
+    },
+    {
+      "database": "curated_inventory_eu",
+      "name": "stock_moves",
+      "source": "lake",
+      "path": "curated/inventory/eu/stock_moves",
+      "labels": {
+        "layer": "curated",
+        "domain": "inventory",
+        "zone": "restricted"
+      },
+      "unlabeled": [
+        "eu"
+      ]
+    },
+    {
+      "database": "experiments_pricing",
+      "name": "scratch",
+      "source": "lake",
+      "path": "experiments/pricing/scratch",
+      "labels": {
+        "layer": "experiments",
+        "domain": "pricing"
+      },
+      "unlabeled": []
+    },
+    {
+      "database": "partner_feed",
+      "name": "rates",
+      "source": "partner_feed",
+      "path": "rates",
+      "labels": {
+        "layer": "landing",
+        "zone": "restricted"
+      },
+      "unlabeled": []
+    },
+    {
+      "database": "partner_feed",
+      "name": "contracts",
+      "source": "partner_feed",
+      "path": "contracts",
+      "labels": {
+        "layer": "landing",
+        "zone": "restricted"
+      },
+      "unlabeled": []
+    },
+    {
+      "database": "adhoc",
+      "name": "notes",
+      "source": "adhoc",
+      "path": "notes",
+      "labels": {},
+      "unlabeled": []
+    },
+    {
+      "database": "curated_shop",
+      "name": "refunds",
+      "source": "lake",
+      "path": "curated/shop/refunds",
+      "labels": {
+        "layer": "curated",
+        "domain": "shop",
+        "zone": "open"
+      },
+      "unlabeled": []
+    }
+  ],
+  "conflicts": [
+    {
+      "database": "landing_shop",
+      "name": "returns",
+      "paths": [
+        "lake: landing/shop/returns",
+        "lake: landing/shop/Returns"
+      ]
+    }
+  ]
+}

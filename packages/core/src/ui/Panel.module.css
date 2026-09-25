@@ -1,0 +1,37 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-surface-raised);
+  box-shadow: var(--nt-shadow-raised);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nt-space-3);
+  padding: var(--nt-space-2) var(--nt-space-3);
+  border-bottom: var(--nt-border-width) solid var(--nt-color-border);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--nt-font-size-md);
+  font-weight: var(--nt-font-weight-strong);
+}
+
+.actions {
+  display: flex;
+  gap: var(--nt-space-2);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  padding: var(--nt-space-3);
+  overflow: auto;
+}

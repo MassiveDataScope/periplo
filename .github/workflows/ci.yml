@@ -1,0 +1,114 @@
+# Checks of every pull request and of every push to master. Each job calls one reusable
+# workflow of the-reacher-data/loom-actions, pinned by commit, with only the permissions
+# that workflow's jobs ask for. `gate` is the single required check: it fails unless every
+# other job succeeded. Codecov and Sonar report without blocking.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions: {}
+
+jobs:
+  python:
+    permissions:
+      contents: read
+      pull-requests: write # the quality report comment
+    # staging: refijar al SHA de release antes del export final
+    uses: the-reacher-data/loom-actions/.github/workflows/python-service-ci.yml@8f54f12da7a0ee139e16767f3c9c25f88f219697 # feature/release-on-label-monorepo
+    with:
+      python-version: "3.12"
+      working-directory: apps/api
+      semantic-branch-config: apps/api/pyproject.toml
+      coverage-threshold: 97
+      image: true
+      image-context: .
+      dockerfile: Dockerfile
+      image-scan-severity: high
+      # Runs inside the image, as its own user, with /bin/sh: the console, the API schema
+      # and the unprivileged user of the all-in-one image.
+      image-smoke-command: |
+        set -eu
+        uvicorn --factory periplo.bootstrap:create_app &
+        for _ in $(seq 30); do
+          python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/live', timeout=2)" 2>/dev/null && break
+          sleep 1
+        done
+        python -c "import urllib.request as u; page = u.urlopen('http://127.0.0.1:8080/', timeout=5).read().decode(); assert '<title>Periplo</title>' in page, 'console not served'; u.urlopen('http://127.0.0.1:8080/openapi.json', timeout=5).read()"
+        test "$(id -u)" = 10001
+      codecov: true
+      codecov-flag: api
+      sonar: ${{ vars.SONAR_ENABLED == 'true' && github.actor != 'dependabot[bot]' }}
+      sonar-blocking: false
+      sonar-organization: massive-data-scope
+      sonar-project-key: MassiveDataScope_periplo
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  node:
+    permissions:
+      contents: read
+    # staging: refijar al SHA de release antes del export final
+    uses: the-reacher-data/loom-actions/.github/workflows/node-ci.yml@8f54f12da7a0ee139e16767f3c9c25f88f219697 # feature/release-on-label-monorepo
+    with:
+      node-version: "22"
+      workspaces: "@periplo/core periplo-web"
+      e2e-command: "npm run test:e2e -w @periplo/core"
+      e2e-workspace-dir: packages/core
+      codecov: true
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  security:
+    permissions:
+      contents: read
+      security-events: write # CodeQL alerts
+      pull-requests: write # dependency review comment
+      actions: read # CodeQL
+    # staging: refijar al SHA de release antes del export final
+    uses: the-reacher-data/loom-actions/.github/workflows/repo-security.yml@8f54f12da7a0ee139e16767f3c9c25f88f219697 # feature/release-on-label-monorepo
+    with:
+      gitleaks-config: .gitleaks.toml
+      codeql-languages: "python,javascript-typescript"
+      dependency-review: true
+      # The generic publication scan, the tests of scripts/ and the check that the ETL
+      # fixtures match their generator. The job has contents: read and no secrets.
+      extra-check-command: "python3 scripts/publication_scan.py . && uv run --no-project --with pytest --with pyyaml pytest scripts/tests && node apps/web/dev/fixtures/generate-etl.mjs --check"
+      extra-check-python-version: "3.12"
+      extra-check-node-version: "22"
+
+  docs:
+    permissions:
+      contents: read
+    # staging: refijar al SHA de release antes del export final
+    uses: the-reacher-data/loom-actions/.github/workflows/pages.yml@8f54f12da7a0ee139e16767f3c9c25f88f219697 # feature/release-on-label-monorepo
+    with:
+      deploy: false
+      python-version: "3.12"
+      # The same build as `make docs`; the full history lets hatch-vcs read the version.
+      build-command: "uv run --project apps/api --locked --with-requirements docs/requirements.txt sphinx-build -E -W --keep-going -b html docs docs/_build/html"
+      output-dir: docs/_build/html
+      fetch-depth: 0
+
+  gate:
+    needs: [python, node, security, docs]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require every check to succeed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          failed=$(jq -r '[to_entries[] | select(.value.result != "success") | "\(.key) (\(.value.result))"] | join(", ")' <<< "$NEEDS")
+          if [ -n "$failed" ]; then echo "::error title=CI failed::$failed"; exit 1; fi
+          echo "All checks succeeded."

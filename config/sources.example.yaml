@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+# Where Periplo looks for Delta tables and how it reads their paths.
+# Nothing here is specific to any lake: replace the fictional names with yours.
+# Credentials never go in this file; the API takes them from its environment.
+version: 1
+
+sources:
+  - name: lake
+    uri: s3://example-lake/                      # bucket and root prefix
+    template: "{layer}/{domain}/{area}/{table}"  # what each folder above a table means
+    include: [a, b]                              # optional: first-level folders to look into
+    labels: { environment: prod }                # optional: labels for every table of this source
+
+  - name: lake_staging                           # a twin bucket with the same layout
+    uri: s3://example-lake-staging/
+    template: "{layer}/{domain}/{area}/{table}"
+    database_prefix: stg_                        # keeps its names apart from `lake`
+    labels: { environment: staging }
+
+explorer:                                        # optional
+  group_by: [stage, access]                      # nests the explorer: stage, then access, then database
+  values:
+    layer:                                       # a folder name can stand for several labels
+      a: { labels: { stage: refined, access: open } }
+      b: { labels: { stage: refined, access: restricted } }
+    stage:                                       # titles, descriptions and order make values readable
+      refined: { title: "Refined", description: "Cleaned and ready to analyse.", order: 1 }
+    access:
+      open: { title: "Open", order: 1 }
+      restricted: { title: "Restricted", description: "Personal data.", order: 2 }

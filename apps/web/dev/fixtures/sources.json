@@ -1,0 +1,60 @@
+{
+  "sources": [
+    {
+      "name": "lake",
+      "location": "s3://example-lake/",
+      "template": "{layer}/{domain}/{table}",
+      "report": {
+        "state": "ok",
+        "started_at": "2026-01-10T07:59:58Z",
+        "duration_ms": 1840,
+        "tables": 8,
+        "listed_folders": 19,
+        "branches_without_table": 2,
+        "error": null
+      }
+    },
+    {
+      "name": "partner_feed",
+      "location": "s3://example-partner/feed/",
+      "template": "{table}",
+      "report": {
+        "state": "ok",
+        "started_at": "2026-01-10T07:59:58Z",
+        "duration_ms": 1840,
+        "tables": 2,
+        "listed_folders": 3,
+        "branches_without_table": 0,
+        "error": null
+      }
+    },
+    {
+      "name": "adhoc",
+      "location": "s3://example-lake-adhoc/",
+      "template": "{table}",
+      "report": {
+        "state": "partial",
+        "started_at": "2026-01-10T07:59:58Z",
+        "duration_ms": 1840,
+        "tables": 1,
+        "listed_folders": 5000,
+        "branches_without_table": 0,
+        "error": null
+      }
+    },
+    {
+      "name": "archive",
+      "location": "s3://example-archive/",
+      "template": "{year}/{table}",
+      "report": {
+        "state": "failed",
+        "started_at": "2026-01-10T07:59:58Z",
+        "duration_ms": 1840,
+        "tables": 0,
+        "listed_folders": 0,
+        "branches_without_table": 0,
+        "error": "Access denied while listing the source location."
+      }
+    }
+  ]
+}

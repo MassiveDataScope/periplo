@@ -1,0 +1,44 @@
+# Publishes the documentation site to GitHub Pages from master. The reusable workflow only
+# builds the site and uploads the Pages artifact; the deploy runs here, with the Pages
+# permissions, and only when an artifact was uploaded (public repository, default branch).
+name: Docs
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  build:
+    permissions:
+      contents: read
+    # staging: refijar al SHA de release antes del export final
+    uses: the-reacher-data/loom-actions/.github/workflows/pages.yml@8f54f12da7a0ee139e16767f3c9c25f88f219697 # feature/release-on-label-monorepo
+    with:
+      deploy: true
+      python-version: "3.12"
+      # The same build as `make docs`; the full history lets hatch-vcs read the version.
+      build-command: "uv run --project apps/api --locked --with-requirements docs/requirements.txt sphinx-build -E -W --keep-going -b html docs docs/_build/html"
+      output-dir: docs/_build/html
+      fetch-depth: 0
+
+  deploy:
+    needs: build
+    if: ${{ needs.build.outputs.pages-artifact == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

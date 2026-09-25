@@ -1,0 +1,49 @@
+{
+  "flow_states": [
+    {"type": "RUNNING", "name": "Running", "timestamp": "2026-09-23T08:00:00Z", "message": null},
+    {"type": "SCHEDULED", "name": "AwaitingRetry", "timestamp": "2026-09-23T08:10:00Z", "message": "worker lost"},
+    {"type": "RUNNING", "name": "Running", "timestamp": "2026-09-23T08:11:00Z", "message": null},
+    {"type": "SCHEDULED", "name": "AwaitingRetry", "timestamp": "2026-09-23T08:21:00Z", "message": "worker lost"},
+    {"type": "RUNNING", "name": "Running", "timestamp": "2026-09-23T08:22:00Z", "message": null},
+    {"type": "FAILED", "name": "Failed", "timestamp": "2026-09-23T08:32:00Z", "message": "InvalidOperationError"}
+  ],
+  "marks": [],
+  "task_runs": [
+    {
+      "id": "proc-a1", "name": "AlphaProcess-aaa", "task_key": "_run_proc-a1",
+      "tags": [], "state_type": "RUNNING",
+      "start_time": "2026-09-23T08:00:01Z", "end_time": null,
+      "expected_start_time": "2026-09-23T08:00:01Z", "total_run_time": null
+    },
+    {
+      "id": "step-a1", "name": "AlphaStep", "task_key": "_step_marker-a1",
+      "tags": ["loom-step"], "state_type": "COMPLETED",
+      "start_time": "2026-09-23T08:00:02Z", "end_time": "2026-09-23T08:00:05Z",
+      "expected_start_time": "2026-09-23T08:00:02Z", "total_run_time": 3.0
+    },
+    {
+      "id": "proc-a2", "name": "AlphaProcess-bbb", "task_key": "_run_proc-a2",
+      "tags": [], "state_type": "COMPLETED",
+      "start_time": "2026-09-23T08:11:01Z", "end_time": "2026-09-23T08:11:05Z",
+      "expected_start_time": "2026-09-23T08:11:01Z", "total_run_time": 4.0
+    },
+    {
+      "id": "step-a2", "name": "AlphaStep", "task_key": "_step_marker-a2",
+      "tags": ["loom-step"], "state_type": "COMPLETED",
+      "start_time": "2026-09-23T08:11:02Z", "end_time": "2026-09-23T08:11:04Z",
+      "expected_start_time": "2026-09-23T08:11:02Z", "total_run_time": 2.0
+    },
+    {
+      "id": "proc-a3", "name": "AlphaProcess-ccc", "task_key": "_run_proc-a3",
+      "tags": [], "state_type": "FAILED",
+      "start_time": "2026-09-23T08:22:01Z", "end_time": "2026-09-23T08:22:05Z",
+      "expected_start_time": "2026-09-23T08:22:01Z", "total_run_time": 4.0
+    },
+    {
+      "id": "step-a3", "name": "AlphaStep", "task_key": "_step_marker-a3",
+      "tags": ["loom-step"], "state_type": "FAILED",
+      "start_time": "2026-09-23T08:22:02Z", "end_time": "2026-09-23T08:22:04Z",
+      "expected_start_time": "2026-09-23T08:22:02Z", "total_run_time": 2.0
+    }
+  ]
+}

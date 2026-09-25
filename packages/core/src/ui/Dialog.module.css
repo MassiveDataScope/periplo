@@ -1,0 +1,43 @@
+.dialog {
+  box-sizing: border-box;
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  min-block-size: 0;
+  max-inline-size: 96vw;
+  max-block-size: 92vh;
+  padding: 0;
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-surface-raised);
+  color: var(--nt-color-text);
+  box-shadow: var(--nt-shadow-overlay);
+}
+
+/* Author `display: flex` above beats the UA sheet's `dialog:not([open]) { display: none }`, so say it again here: a closed dialog must not paint its border. */
+.dialog:not([open]) {
+  display: none;
+}
+
+.dialog::backdrop {
+  background: color-mix(in srgb, var(--nt-color-text) 42%, transparent);
+}
+
+/* Grows from the bottom-left: generous room above and to the right keeps whatever is behind the scrim in view there. */
+.dialog[data-anchor="corner"] {
+  inset: var(--nt-space-8) var(--nt-space-8) var(--nt-space-4) var(--nt-space-4);
+  margin: auto 0 0 0;
+  max-inline-size: none;
+  max-block-size: none;
+}
+
+/* Its mirror: grows from the bottom-right, generous room above and to the left. */
+.dialog[data-anchor="corner-end"] {
+  inset: var(--nt-space-8) var(--nt-space-4) var(--nt-space-4) var(--nt-space-8);
+  margin: auto 0 0 auto;
+  max-inline-size: none;
+  max-block-size: none;
+}

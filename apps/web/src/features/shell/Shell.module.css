@@ -1,0 +1,122 @@
+/* rail | catalog | work: three siblings. The column is a real column, never a layer over the work. */
+.frame {
+  display: grid;
+  grid-template-columns: auto var(--catalog-width) minmax(0, 1fr);
+  min-block-size: 0;
+  block-size: 100%;
+}
+
+.frame[data-catalog="strip"] {
+  grid-template-columns: auto var(--nt-size-catalog-strip) minmax(0, 1fr);
+}
+
+.catalog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  min-block-size: 0;
+  border-inline-end: var(--nt-border-width) solid var(--nt-color-border);
+  background: var(--nt-color-surface);
+}
+
+.work {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  min-block-size: 0;
+  overflow: auto;
+}
+
+/* The folded column: one strip with the icon and, written downwards, where you are. */
+.strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--nt-space-2);
+  inline-size: 100%;
+  block-size: 100%;
+  padding: var(--nt-space-3) 0;
+  border: 0;
+  background: none;
+  color: var(--nt-color-text-muted);
+  cursor: pointer;
+}
+
+.strip:hover {
+  background: var(--nt-color-surface-hover);
+  color: var(--nt-color-text);
+}
+
+.stripLabel {
+  overflow: hidden;
+  font-size: var(--nt-font-size-sm);
+  font-weight: var(--nt-font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  writing-mode: vertical-rl;
+}
+
+.handle {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: calc(-1 * var(--nt-space-1));
+  z-index: 1;
+  inline-size: var(--nt-space-2);
+  cursor: col-resize;
+}
+
+.handle:hover,
+.handle:focus-visible {
+  background: var(--nt-color-accent);
+  opacity: 0.4;
+  outline: none;
+}
+
+/* Narrow screens: the column has to overlay, and only then. */
+.frame[data-narrow] {
+  grid-template-columns: auto var(--nt-size-catalog-strip) minmax(0, 1fr);
+}
+
+.frame[data-narrow][data-catalog="open"] .catalog {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-start: var(--nt-size-rail-collapsed);
+  z-index: 4;
+  inline-size: var(--catalog-width);
+  box-shadow: var(--nt-shadow-overlay);
+}
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+}
+
+/* Fold the column from the column itself: top-right corner, always in every section. */
+.collapse {
+  position: absolute;
+  inset-block-start: var(--nt-space-2);
+  inset-inline-end: var(--nt-space-2);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--nt-size-control);
+  block-size: var(--nt-size-control);
+  border: 0;
+  border-radius: var(--nt-radius-sm);
+  background: none;
+  color: var(--nt-color-text-subtle);
+  cursor: pointer;
+}
+
+.collapse:hover {
+  background: var(--nt-color-surface-hover);
+  color: var(--nt-color-text);
+}
+
+.collapse:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: calc(-1 * var(--nt-focus-width));
+}

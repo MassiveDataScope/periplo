@@ -1,0 +1,81 @@
+[
+  {
+    "name": "preview of a table",
+    "sql": "SELECT * FROM landing_shop.orders LIMIT 100",
+    "rows": 3
+  },
+  {
+    "name": "preview of a table named like a reserved word",
+    "sql": "SELECT * FROM landing_shop.\"order\" LIMIT 100",
+    "rows": 1,
+    "first": {
+      "id": "1"
+    }
+  },
+  {
+    "name": "join keeping every row of the starting table",
+    "sql": "SELECT o.*, c.name\nFROM landing_shop.orders AS o\nLEFT JOIN curated_shop.customers AS c ON o.customer_id = c.customer_id\nLIMIT 1000",
+    "rows": 3
+  },
+  {
+    "name": "join keeping matching rows and chosen columns",
+    "sql": "SELECT c.name, o.order_id, o.amount\nFROM curated_shop.customers AS c\nINNER JOIN landing_shop.orders AS o ON c.customer_id = o.customer_id\nLIMIT 1000",
+    "rows": 3
+  },
+  {
+    "name": "join with a table named like a reserved word and a clashing alias",
+    "sql": "SELECT o.*, o2.order_id\nFROM landing_shop.\"order\" AS o\nINNER JOIN landing_shop.orders AS o2 ON o.id = o2.customer_id\nLIMIT 1000",
+    "rows": 2
+  },
+  {
+    "name": "join of three tables, the third suggested against the base table",
+    "sql": "SELECT o.*, c.name\nFROM landing_shop.orders AS o\nLEFT JOIN curated_shop.customers AS c ON o.customer_id = c.customer_id\nLEFT JOIN landing_shop.\"order\" AS o2 ON o.order_id = o2.id\nLIMIT 1000",
+    "rows": 3
+  },
+  {
+    "name": "check join: matched, unmatched and row count per step",
+    "sql": "SELECT 0 AS step_order, 'c' AS step,\n  (SELECT COUNT(*) FROM (SELECT o.customer_id AS k0 FROM landing_shop.orders AS o) AS prev INNER JOIN curated_shop.customers AS c ON prev.k0 = c.customer_id) AS matched,\n  (SELECT COUNT(*) FROM (SELECT o.customer_id AS k0 FROM landing_shop.orders AS o) AS prev LEFT JOIN curated_shop.customers AS c ON prev.k0 = c.customer_id WHERE c.customer_id IS NULL) AS left_without_match,\n  (SELECT COUNT(*) FROM curated_shop.customers AS c LEFT JOIN (SELECT o.customer_id AS k0 FROM landing_shop.orders AS o) AS prev ON prev.k0 = c.customer_id WHERE prev.k0 IS NULL) AS right_without_match,\n  (SELECT COUNT(*) FROM (SELECT o.customer_id AS k0 FROM landing_shop.orders AS o) AS prev LEFT JOIN curated_shop.customers AS c ON prev.k0 = c.customer_id) AS rows_after_join\nUNION ALL\nSELECT 1 AS step_order, 'o2' AS step,\n  (SELECT COUNT(*) FROM (SELECT o.order_id AS k0 FROM landing_shop.orders AS o\nLEFT JOIN curated_shop.customers AS c ON o.customer_id = c.customer_id) AS prev INNER JOIN landing_shop.\"order\" AS o2 ON prev.k0 = o2.id) AS matched,\n  (SELECT COUNT(*) FROM (SELECT o.order_id AS k0 FROM landing_shop.orders AS o\nLEFT JOIN curated_shop.customers AS c ON o.customer_id = c.customer_id) AS prev LEFT JOIN landing_shop.\"order\" AS o2 ON prev.k0 = o2.id WHERE o2.id IS NULL) AS left_without_match,\n  (SELECT COUNT(*) FROM landing_shop.\"order\" AS o2 LEFT JOIN (SELECT o.order_id AS k0 FROM landing_shop.orders AS o\nLEFT JOIN curated_shop.customers AS c ON o.customer_id = c.customer_id) AS prev ON prev.k0 = o2.id WHERE prev.k0 IS NULL) AS right_without_match,\n  (SELECT COUNT(*) FROM (SELECT o.order_id AS k0 FROM landing_shop.orders AS o\nLEFT JOIN curated_shop.customers AS c ON o.customer_id = c.customer_id) AS prev LEFT JOIN landing_shop.\"order\" AS o2 ON prev.k0 = o2.id) AS rows_after_join\nORDER BY step_order",
+    "rows": 2,
+    "first": {
+      "step": "c",
+      "matched": "3",
+      "left_without_match": "0",
+      "right_without_match": "0",
+      "rows_after_join": "3"
+    }
+  },
+  {
+    "name": "distribution: most frequent values, nulls included",
+    "sql": "SELECT CAST(note AS VARCHAR) AS label, count(*) AS n\nFROM landing_shop.orders\nGROUP BY 1\nORDER BY n DESC, label\nLIMIT 12",
+    "rows": 3
+  },
+  {
+    "name": "distribution: histogram of a decimal",
+    "sql": "WITH bounds AS (SELECT min(CAST(amount AS DOUBLE)) AS lo, max(CAST(amount AS DOUBLE)) AS hi FROM landing_shop.orders)\nSELECT CAST(CASE WHEN hi = lo THEN 0 ELSE LEAST(19, CAST(floor((CAST(amount AS DOUBLE) - lo) / (hi - lo) * 20) AS INT)) END AS VARCHAR) AS label,\n  count(*) AS n, min(lo) AS lo, min(hi) AS hi\nFROM landing_shop.orders CROSS JOIN bounds\nWHERE amount IS NOT NULL\nGROUP BY 1",
+    "rows": 2
+  },
+  {
+    "name": "distribution: histogram of a single value",
+    "sql": "WITH bounds AS (SELECT min(CAST(id AS DOUBLE)) AS lo, max(CAST(id AS DOUBLE)) AS hi FROM landing_shop.\"order\")\nSELECT CAST(CASE WHEN hi = lo THEN 0 ELSE LEAST(19, CAST(floor((CAST(id AS DOUBLE) - lo) / (hi - lo) * 20) AS INT)) END AS VARCHAR) AS label,\n  count(*) AS n, min(lo) AS lo, min(hi) AS hi\nFROM landing_shop.\"order\" CROSS JOIN bounds\nWHERE id IS NOT NULL\nGROUP BY 1",
+    "rows": 1,
+    "first": {
+      "label": "0",
+      "n": "1"
+    }
+  },
+  {
+    "name": "distribution: size a column up before grouping by it",
+    "sql": "SELECT count(*) AS total, count(customer_id) AS filled, approx_distinct(customer_id) AS distinct_values\nFROM landing_shop.orders",
+    "rows": 1,
+    "first": {
+      "total": "3",
+      "filled": "3",
+      "distinct_values": "2"
+    }
+  },
+  {
+    "name": "distribution: rows per day",
+    "sql": "SELECT CAST(date_trunc('day', created_at) AS VARCHAR) AS label, count(*) AS n\nFROM landing_shop.orders\nWHERE created_at IS NOT NULL\nGROUP BY 1\nORDER BY 1",
+    "rows": 2
+  }
+]

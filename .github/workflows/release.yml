@@ -1,0 +1,87 @@
+# Merging a pull request labelled `release` into master releases everything merged since
+# the last tag: the tag and GitHub release, the image on GHCR and Docker Hub, and the
+# `periplo` distribution on PyPI. A merge without the label releases nothing. The dispatch
+# resumes a run that stopped halfway, given the merge commit.
+name: Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      merge_sha:
+        description: "Commit on master to release, to resume a run that stopped halfway"
+        type: string
+        required: true
+
+# One release at a time, and a second merge waits instead of cancelling the first.
+concurrency:
+  group: release-${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  release:
+    # Only the published repository releases: forks and copies of this tree never tag,
+    # push images or upload to PyPI. `image` and `publish` need this job's outputs.
+    if: ${{ github.repository == 'MassiveDataScope/periplo' }}
+    permissions:
+      contents: write
+    # staging: refijar al SHA de release antes del export final
+    uses: the-reacher-data/loom-actions/.github/workflows/release-on-label.yml@8f54f12da7a0ee139e16767f3c9c25f88f219697 # feature/release-on-label-monorepo
+    with:
+      build-distribution: true
+      package-name: periplo
+      package-dir: apps/api
+      semantic-branch-config: apps/api/pyproject.toml
+      check-distribution: true
+      python-version: "3.12"
+      merge-sha: ${{ inputs.merge_sha || '' }}
+
+  image:
+    needs: release
+    if: ${{ needs.release.result == 'success' && needs.release.outputs.version != '' }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    # staging: refijar al SHA de release antes del export final
+    uses: the-reacher-data/loom-actions/.github/workflows/image-release.yml@8f54f12da7a0ee139e16767f3c9c25f88f219697 # feature/release-on-label-monorepo
+    with:
+      version: ${{ needs.release.outputs.version }}
+      expected-sha: ${{ github.event.pull_request.merge_commit_sha || inputs.merge_sha }}
+      ghcr-image: ghcr.io/massivedatascope/periplo
+      dockerhub-image: thereacherdata/periplo
+      platforms: "linux/amd64,linux/arm64"
+      dockerfile: Dockerfile
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  # PyPI's trusted publishing does not support reusable workflows: the token minted inside
+  # one names that workflow, not this file, and the publisher on PyPI names this file. So
+  # the upload lives here, on the distributions the release left behind.
+  publish:
+    needs: release
+    if: ${{ needs.release.outputs.distribution-built == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: distributions
+          path: dist
+
+      # skip-existing so a re-run finishes an upload that landed one file and failed on
+      # the next: a version on PyPI cannot be replaced.
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1 2026-07-28 (handles Metadata-Version 2.5)
+        with:
+          skip-existing: true

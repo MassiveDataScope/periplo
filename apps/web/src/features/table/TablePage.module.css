@@ -1,0 +1,103 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  block-size: 100%;
+}
+
+.header {
+  display: grid;
+  gap: var(--nt-space-1);
+  padding: var(--nt-space-3) var(--nt-space-4) var(--nt-space-2);
+}
+
+.page > [role="tablist"] {
+  padding-inline: var(--nt-space-2);
+}
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nt-space-1);
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+}
+
+.crumbs span {
+  display: inline-flex;
+  gap: var(--nt-space-1);
+}
+
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nt-space-2);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nt-space-2) var(--nt-space-8);
+  margin: var(--nt-space-2) 0 0;
+  padding-block-start: var(--nt-space-2);
+  border-block-start: var(--nt-border-width) solid var(--nt-color-border-subtle);
+}
+
+.figure dt {
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-2xs);
+  font-weight: var(--nt-font-weight-medium);
+  letter-spacing: var(--nt-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+.figure dd {
+  margin: 0;
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-figure);
+  font-weight: var(--nt-font-weight-medium);
+  font-feature-settings: var(--nt-font-features-data);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-xl);
+  font-weight: var(--nt-font-weight-strong);
+  letter-spacing: -0.01em;
+  line-height: var(--nt-font-line-height-tight);
+  overflow-wrap: anywhere;
+}
+
+.panel {
+  flex: 1;
+  min-block-size: 0;
+}
+
+/* The way back to wherever the table was opened from. */
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nt-space-1);
+  justify-self: start;
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-sm);
+  text-decoration: none;
+}
+
+.back:hover {
+  color: var(--nt-color-accent);
+}
+
+.backIcon {
+  inline-size: var(--nt-space-3);
+  block-size: var(--nt-space-3);
+  transform: rotate(180deg);
+}

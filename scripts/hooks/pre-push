@@ -1,0 +1,57 @@
+#!/bin/sh
+# Refuses a push whose new commits add internal references, account or instance ids, keys,
+# or private terms (see scripts/publication_scan.py).
+#
+# Install once per clone:   git config core.hooksPath scripts/hooks
+# Private terms come from $PERIPLO_PUBLICATION_TERMS when it is set (a missing file then
+# refuses the push); otherwise from publish/terms.txt when this clone has one, which only a
+# private clone does; otherwise from ~/.config/periplo/publication-terms.txt. Without any
+# of them only the generic rules apply. The terms file in use is never scanned itself.
+set -eu
+
+remote=$1
+zero=0000000000000000000000000000000000000000
+repo=$(git rev-parse --show-toplevel)
+scanner="$repo/scripts/publication_scan.py"
+empty_tree=$(git hash-object -t tree /dev/null)
+
+if [ -n "${PERIPLO_PUBLICATION_TERMS+set}" ]; then
+    terms=$PERIPLO_PUBLICATION_TERMS
+    if [ ! -f "$terms" ]; then
+        echo "pre-push: PERIPLO_PUBLICATION_TERMS names a file that does not exist: $terms" >&2
+        exit 1
+    fi
+elif [ -f "$repo/publish/terms.txt" ]; then
+    terms="$repo/publish/terms.txt"
+else
+    terms="$HOME/.config/periplo/publication-terms.txt"
+fi
+
+if [ -f "$terms" ]; then
+    set -- --terms-file "$terms"
+else
+    echo "pre-push: no private terms file; applying the generic rules only" >&2
+    set --
+fi
+
+status=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+    if [ "$local_sha" = "$zero" ]; then
+        continue # Deleting a remote branch publishes nothing.
+    fi
+    if [ "$remote_sha" = "$zero" ]; then
+        # A new remote branch: scan from before the first commit this remote does not have.
+        first=$(git rev-list --reverse "$local_sha" --not --remotes="$remote" | head -n 1)
+        if [ -z "$first" ]; then
+            continue
+        fi
+        base=$(git rev-parse --verify --quiet "$first^" || echo "$empty_tree")
+    else
+        base=$remote_sha
+    fi
+    if ! python3 "$scanner" "$repo" --changed "$base..$local_sha" ${1+"$@"}; then
+        echo "pre-push: $local_ref -> $remote_ref blocked by the publication scan" >&2
+        status=1
+    fi
+done
+exit $status

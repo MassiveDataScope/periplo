@@ -1,0 +1,182 @@
+.rail {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--nt-space-4);
+  box-sizing: border-box;
+  inline-size: var(--nt-size-rail);
+  padding: var(--nt-space-3) var(--nt-space-2);
+  border-inline-end: var(--nt-border-width) solid var(--nt-color-border);
+  background: var(--nt-color-surface);
+  transition: inline-size var(--nt-motion-medium) var(--nt-motion-ease);
+}
+
+.rail[data-collapsed="true"] {
+  inline-size: var(--nt-size-rail-collapsed);
+}
+
+/* Collapsed, names and shortcuts leave the layout but stay as each control's accessible name. */
+.rail[data-collapsed="true"] .label,
+.rail[data-collapsed="true"] .wordmark,
+.rail[data-collapsed="true"] .shortcut {
+  display: none;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-2);
+  min-block-size: var(--nt-size-header);
+  padding-inline: var(--nt-space-1-5);
+  border-radius: var(--nt-radius-md);
+  color: var(--nt-color-text);
+  text-decoration: none;
+}
+
+.logo {
+  inline-size: var(--nt-size-control-xl);
+  block-size: var(--nt-size-control-lg);
+}
+
+
+.wordmark {
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-lg);
+  font-weight: var(--nt-font-weight-strong);
+  letter-spacing: -0.01em;
+  line-height: var(--nt-font-line-height-tight);
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nt-space-0-5);
+}
+
+nav.items {
+  flex: 1;
+}
+
+.item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-3);
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: var(--nt-size-control-xl);
+  padding: 0 var(--nt-space-2-5);
+  border: 0;
+  border-radius: var(--nt-radius-md);
+  background: none;
+  color: var(--nt-color-text-muted);
+  font: inherit;
+  font-size: var(--nt-font-size-lg);
+  font-weight: var(--nt-font-weight-medium);
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.item svg {
+  flex: none;
+  inline-size: var(--nt-space-5);
+  block-size: var(--nt-space-5);
+}
+
+.label {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shortcut {
+  padding: 0 var(--nt-space-1);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-sm);
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family);
+  font-size: var(--nt-font-size-xs);
+}
+
+.item:hover {
+  background: var(--nt-color-surface-hover);
+  color: var(--nt-color-text);
+}
+
+/* Where you are: the entry inverts to ink on paper. Unmistakable, and it needs no colour at all. */
+.item[aria-current="page"],
+.item[data-current="true"] {
+  background: var(--nt-color-text);
+  color: var(--nt-color-bg);
+}
+
+.item[aria-current="page"]:hover,
+.item[data-current="true"]:hover {
+  background: var(--nt-color-text);
+  color: var(--nt-color-bg);
+}
+
+.brand:focus-visible,
+.item:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: calc(-1 * var(--nt-focus-width));
+}
+
+.badge {
+  position: absolute;
+  inset-block-start: var(--nt-space-2);
+  inset-inline-start: var(--nt-space-6);
+  inline-size: var(--nt-space-2);
+  block-size: var(--nt-space-2);
+  border-radius: var(--nt-radius-full);
+  background: var(--nt-color-warning);
+}
+
+/* Whose lake this is: the company's name under the product mark. */
+.workspace {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-2);
+  min-block-size: var(--nt-size-control-xl);
+  padding-inline: var(--nt-space-2);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-bg);
+  font-weight: var(--nt-font-weight-medium);
+}
+
+.workspaceLogo,
+.workspaceInitial {
+  flex: none;
+  inline-size: var(--nt-space-6);
+  block-size: var(--nt-space-6);
+  border-radius: var(--nt-radius-sm);
+  object-fit: contain;
+}
+
+.workspaceInitial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--nt-color-accent);
+  color: var(--nt-color-on-accent);
+  font-weight: var(--nt-font-weight-strong);
+  text-transform: uppercase;
+}
+
+/* A promise, always in sight: this tool cannot damage the lake. */
+.seal {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-2);
+  margin: 0;
+  padding: var(--nt-space-1-5) var(--nt-space-2-5);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-success-surface);
+  color: var(--nt-color-success);
+  font-size: var(--nt-font-size-sm);
+  font-weight: var(--nt-font-weight-medium);
+}

@@ -1,0 +1,26 @@
+# Build context of the all-in-one image (./Dockerfile). An allowlist: anything new in the
+# repository stays out of the context — and out of the image — until it is named here.
+# (apps/api/Dockerfile builds from apps/api and uses apps/api/.dockerignore instead.)
+*
+
+!package.json
+!package-lock.json
+!packages/core/
+!apps/web/
+!apps/api/pyproject.toml
+!apps/api/uv.lock
+!apps/api/src/
+!config/sources.example.yaml
+
+# Never from the host, even inside an allowed folder: dependencies are installed for the
+# image's platform, and build output is produced by the image's own build.
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+**/test-results
+**/playwright-report
+**/coverage
+**/__pycache__
+**/*.pyc
+**/.env
+**/.env.*

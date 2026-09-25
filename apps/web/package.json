@@ -1,0 +1,49 @@
+{
+  "name": "periplo-web",
+  "private": true,
+  "version": "0.0.0",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "generate:api": "openapi-typescript src/api/openapi.example.json -o src/api/schema.d.ts",
+    "fixtures:etl": "node dev/fixtures/generate-etl.mjs"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/lang-sql": "^6.9.0",
+    "@codemirror/view": "^6.36.5",
+    "@observablehq/plot": "^0.6.17",
+    "@periplo/core": "*",
+    "codemirror": "^6.0.1",
+    "i18next": "26.4.2",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-i18next": "17.0.14"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.35.0",
+    "@testing-library/react": "^16.3.3",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.2",
+    "@vitest/coverage-v8": "~3.2.7",
+    "apache-arrow": "^18.1.0",
+    "eslint": "^9.35.0",
+    "eslint-plugin-i18next": "6.1.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^16.3.0",
+    "jsdom": "^30.1.0",
+    "openapi-typescript": "7.13.0",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.42.0",
+    "vite": "^7.1.4",
+    "vitest": "^3.2.4"
+  }
+}

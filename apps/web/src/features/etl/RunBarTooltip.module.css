@@ -1,0 +1,16 @@
+/* Floating content for RunBarTooltip: fixed-positioned, portalled to <body>, above everything else on the page. */
+
+.tooltip {
+  position: fixed;
+  z-index: var(--nt-z-popover, 20);
+  max-inline-size: 18rem;
+  padding: var(--nt-space-2) var(--nt-space-2-5);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-bg);
+  border: var(--nt-border-width) solid var(--nt-color-border-strong);
+  box-shadow: var(--nt-shadow-overlay);
+  font-size: var(--nt-font-size-xs);
+  color: var(--nt-color-text);
+  line-height: 1.4;
+  pointer-events: none;
+}

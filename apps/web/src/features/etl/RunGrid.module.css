@@ -1,0 +1,152 @@
+/* The process x run grid: a matrix table, sticky header row and process column, each cell a bar sized to its own
+   duration within its row. */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nt-space-2);
+  min-inline-size: 0;
+}
+
+.empty {
+  margin: 0;
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-sm);
+}
+
+.notice {
+  margin: 0;
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-xs);
+}
+
+.scroll {
+  overflow: auto;
+  max-inline-size: 100%;
+  max-block-size: 60vh;
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-md);
+}
+
+.table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-feature-settings: var(--nt-font-features-data);
+}
+
+.corner,
+.runHeader,
+.processHeader {
+  position: sticky;
+  background: var(--nt-color-surface);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-2xs);
+  font-weight: var(--nt-font-weight-medium);
+  letter-spacing: var(--nt-font-tracking-wide);
+  text-transform: uppercase;
+  color: var(--nt-color-text-muted);
+}
+
+.corner,
+.runHeader {
+  inset-block-start: 0;
+  z-index: 2;
+  min-inline-size: 3.5rem;
+  padding: var(--nt-space-1-5) var(--nt-space-1);
+  border-block-end: var(--nt-border-width) solid var(--nt-color-border);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.corner {
+  inset-inline-start: 0;
+  z-index: 3;
+  text-align: start;
+}
+
+.runHeader[data-selected="true"] {
+  color: var(--nt-color-text);
+  border-block-end: 2px solid var(--nt-color-accent);
+  background: var(--nt-color-accent-surface);
+}
+
+.processHeader {
+  inset-inline-start: 0;
+  z-index: 1;
+  max-inline-size: 12rem;
+  padding: 0 var(--nt-space-2);
+  overflow: hidden;
+  border-inline-end: var(--nt-border-width) solid var(--nt-color-border);
+  text-align: start;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+tr[data-selected="true"] .processHeader {
+  color: var(--nt-color-text);
+  font-weight: var(--nt-font-weight-strong);
+  background: var(--nt-color-accent-surface);
+}
+
+.cell {
+  padding: 2px;
+  border-block-end: var(--nt-border-width) solid var(--nt-color-border-subtle);
+  vertical-align: bottom;
+}
+
+.cell[data-selected-col="true"],
+.cell[data-selected-row="true"] {
+  background: var(--nt-color-accent-surface);
+}
+
+.cellButton {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.cellButton:disabled {
+  cursor: default;
+}
+
+.cellButton:focus-visible {
+  outline: var(--nt-border-width) solid var(--nt-color-focus);
+  outline-offset: -2px;
+}
+
+.bar {
+  display: block;
+  inline-size: 100%;
+  min-block-size: 2px;
+  border-radius: var(--nt-radius-sm) var(--nt-radius-sm) 0 0;
+  background: var(--nt-color-border-strong);
+  transition: block-size var(--nt-motion-tick) linear;
+}
+
+.cellButton[data-tone="success"] .bar {
+  background: var(--nt-color-state-ok);
+}
+
+.cellButton[data-tone="danger"] .bar {
+  background: var(--nt-color-danger);
+}
+
+.cellButton[data-tone="info"] .bar {
+  background: var(--nt-color-info);
+}
+
+.cellButton[data-tone="neutral"] .bar {
+  background: var(--nt-color-text-subtle);
+}
+
+.cellButton[data-empty="true"] {
+  border: 1px dashed var(--nt-color-border);
+  border-radius: var(--nt-radius-sm);
+}

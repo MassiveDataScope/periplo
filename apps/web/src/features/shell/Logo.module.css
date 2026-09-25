@@ -1,0 +1,49 @@
+.logo {
+  flex: none;
+  color: var(--nt-color-text);
+  overflow: visible;
+}
+
+.body {
+  fill: currentColor;
+}
+
+.line,
+.periscope,
+.shell {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.periscope[data-size="sm"] {
+  stroke-width: 3;
+}
+
+.shell {
+  stroke: currentColor;
+  stroke-width: 1.4;
+}
+
+/* Reading the lake: the periscope goes up, looks, and comes down. */
+.logo[data-busy] .periscope {
+  animation: scan var(--nt-motion-slow) var(--nt-motion-ease) infinite alternate;
+}
+
+@keyframes scan {
+  from {
+    transform: translateY(3px);
+  }
+
+  to {
+    transform: translateY(-1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo[data-busy] .periscope {
+    animation: none;
+  }
+}

@@ -1,0 +1,173 @@
+/* Running now: airy two-line rows in a bordered frame; a finished row lingers in its colour, then slides out. */
+
+.overline {
+  display: flex;
+  align-items: baseline;
+  gap: var(--nt-space-3);
+  margin: 0 0 var(--nt-space-3);
+}
+
+.srOnly {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.frame {
+  overflow: hidden;
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-bg);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 12rem;
+  align-items: center;
+  gap: var(--nt-space-6);
+  min-block-size: 3.5rem;
+  padding: var(--nt-space-2) var(--nt-space-4);
+  color: var(--nt-color-text);
+  text-decoration: none;
+  transition:
+    opacity 240ms cubic-bezier(0.2, 0, 0, 1),
+    transform 240ms cubic-bezier(0.2, 0, 0, 1),
+    max-block-size 240ms,
+    padding-block 240ms;
+  max-block-size: 5rem;
+}
+
+.row + .row {
+  border-block-start: var(--nt-border-width) solid var(--nt-color-border-subtle);
+}
+
+.row:hover {
+  background: var(--nt-color-surface-hover);
+}
+
+.row:hover .etl {
+  color: var(--nt-color-accent);
+}
+
+.etl {
+  display: block;
+  font-family: var(--nt-font-family-mono);
+  font-weight: var(--nt-font-weight-medium);
+  font-size: var(--nt-font-size-sm);
+}
+
+.step {
+  display: block;
+  margin-block-start: var(--nt-space-0-5, 2px);
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-xs);
+}
+
+.clock {
+  display: grid;
+  gap: var(--nt-space-1-5);
+}
+
+.line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--nt-space-2);
+  white-space: nowrap;
+}
+
+.elapsed {
+  font-family: var(--nt-font-family-mono);
+  font-weight: var(--nt-font-weight-medium);
+  font-size: var(--nt-font-size-sm);
+  font-feature-settings: var(--nt-font-features-data);
+}
+
+.typ {
+  color: var(--nt-color-text-subtle);
+  font-size: var(--nt-font-size-2xs);
+}
+
+.track {
+  position: relative;
+  block-size: 4px;
+  border-radius: var(--nt-radius-full);
+  background: var(--nt-color-surface-sunken);
+}
+
+.fill {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  border-radius: var(--nt-radius-full);
+  background: var(--nt-color-info);
+  transition: inline-size var(--nt-motion-tick) linear;
+}
+
+.row[data-slow] .fill {
+  background: var(--nt-color-warning);
+}
+
+.row[data-slow] .elapsed,
+.row[data-slow] .typ {
+  color: var(--nt-color-warning);
+}
+
+.row[data-done] {
+  background: var(--nt-color-surface);
+}
+
+.row[data-done] .fill {
+  background: var(--nt-color-state-ok);
+}
+
+.row[data-done] .typ {
+  color: var(--nt-color-state-ok);
+  font-weight: var(--nt-font-weight-medium);
+}
+
+.row[data-failed] {
+  background: var(--nt-color-danger-surface);
+}
+
+.row[data-failed] .fill {
+  background: var(--nt-color-danger);
+}
+
+.row[data-failed] .typ {
+  color: var(--nt-color-danger);
+  font-weight: var(--nt-font-weight-medium);
+}
+
+.row[data-leaving] {
+  opacity: 0;
+  transform: translateX(1.5rem);
+  max-block-size: 0;
+  padding-block: 0;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row {
+    transition: none;
+  }
+}
+
+.more {
+  display: block;
+  inline-size: 100%;
+  min-block-size: var(--nt-size-control-lg);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-block-start: 0;
+  border-radius: 0 0 var(--nt-radius-md) var(--nt-radius-md);
+  background: var(--nt-color-surface);
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family);
+  font-size: var(--nt-font-size-sm);
+  text-align: start;
+  padding-inline: var(--nt-space-3);
+  cursor: pointer;
+}
