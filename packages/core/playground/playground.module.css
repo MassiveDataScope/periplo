@@ -1,0 +1,33 @@
+.page {
+  display: grid;
+  gap: var(--nt-space-4);
+  max-inline-size: 60rem;
+  margin: 0 auto;
+  padding: var(--nt-space-6) var(--nt-space-4);
+}
+
+.toolbar,
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nt-space-2);
+}
+
+.toolbar {
+  justify-content: space-between;
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--nt-font-size-lg);
+}
+
+.stack {
+  display: grid;
+  gap: var(--nt-space-3);
+}
+
+.gridHost {
+  block-size: 28rem;
+}

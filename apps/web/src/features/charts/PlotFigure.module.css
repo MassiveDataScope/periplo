@@ -1,0 +1,35 @@
+/* Plot writes its own SVG: it is themed from here and through CSS variables in its options, never with literal colours. */
+.figure {
+  inline-size: min(40rem, 100%);
+}
+
+.plot {
+  color: var(--nt-color-text-subtle);
+  border-radius: var(--nt-radius-sm);
+}
+
+.plot:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: var(--nt-focus-offset);
+}
+
+.plot svg {
+  display: block;
+  max-inline-size: 100%;
+  block-size: auto;
+  font-feature-settings: var(--nt-font-features-data);
+}
+
+.plot [aria-label="tip"] text {
+  fill: var(--nt-color-text);
+}
+
+/* Reserved height: the read-out appearing must not make anything jump. */
+.readout {
+  min-block-size: var(--nt-space-5);
+  margin: var(--nt-space-1) 0 0;
+  color: var(--nt-color-text);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+  font-feature-settings: var(--nt-font-features-data);
+}

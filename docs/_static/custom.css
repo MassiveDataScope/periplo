@@ -1,0 +1,13 @@
+.periplo-hero {
+  padding: 1rem 0 1.5rem;
+  text-align: center;
+}
+
+.periplo-hero img {
+  display: inline-block;
+  width: 120px;
+  height: auto;
+  background: #ffffff;
+  border-radius: 6px;
+  padding: 8px 20px;
+}

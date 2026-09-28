@@ -1,0 +1,8 @@
+# Documentation toolchain, pinned to exact versions so a local build matches CI.
+# The API package itself comes from apps/api (see `make docs`), so autodoc imports
+# the real modules and the version is read from the installed distribution.
+sphinx==9.0.4
+furo==2025.12.19
+myst-parser==5.1.0
+sphinx-copybutton==0.5.2
+sphinx-design==0.7.0

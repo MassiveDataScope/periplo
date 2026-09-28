@@ -1,0 +1,291 @@
+/* Floating, non-modal: fixed to the viewport corner, never a backdrop, never `<dialog>`. */
+.window {
+  box-sizing: border-box;
+  position: fixed;
+  inset-block-end: var(--nt-space-4);
+  inset-inline-end: var(--nt-space-4);
+  z-index: var(--nt-z-overlay, 40);
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 20rem;
+  min-block-size: 0;
+  max-inline-size: calc(100vw - 2 * var(--nt-space-4));
+  max-block-size: calc(100vh - 2 * var(--nt-space-4));
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-surface-raised);
+  color: var(--nt-color-text);
+  box-shadow: var(--nt-shadow-overlay);
+}
+
+.window[data-state="minimized"] {
+  inline-size: 24rem;
+  block-size: auto;
+  max-block-size: none;
+  overflow: hidden;
+}
+
+.window[data-state="maximized"] {
+  inset: var(--nt-space-4);
+  inline-size: auto;
+  block-size: auto;
+  max-inline-size: none;
+  max-block-size: none;
+}
+
+.visuallyHidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-3);
+  min-inline-size: 0;
+  padding: var(--nt-space-2) var(--nt-space-3);
+  border-block-end: var(--nt-border-width) solid var(--nt-color-border);
+}
+
+.title {
+  min-inline-size: 0;
+  margin: 0;
+  border: 0;
+  overflow: hidden;
+  color: inherit;
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-md);
+  font-weight: var(--nt-font-weight-medium);
+  line-height: var(--nt-font-line-height-tight);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.title:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: var(--nt-focus-offset);
+}
+
+.run {
+  font-weight: var(--nt-font-weight-strong);
+}
+
+.duration {
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-xs);
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+}
+
+.dot {
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+.mark[data-tone="success"] {
+  color: var(--nt-color-state-ok);
+}
+
+.mark[data-tone="danger"] {
+  color: var(--nt-color-danger);
+}
+
+.mark[data-tone="info"] {
+  color: var(--nt-color-state-run);
+}
+
+.mark[data-tone="neutral"] {
+  color: var(--nt-color-text-muted);
+}
+
+.nav {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--nt-space-1);
+  margin-inline-start: auto;
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--nt-size-control);
+  block-size: var(--nt-size-control);
+  padding: 0;
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-sm);
+  background: none;
+  color: var(--nt-color-text-muted);
+  cursor: pointer;
+}
+
+.iconButton:hover:not(:disabled) {
+  background: var(--nt-color-surface-hover);
+  color: var(--nt-color-text);
+}
+
+.iconButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.iconButton[aria-pressed="true"] {
+  background: var(--nt-color-surface-hover);
+  color: var(--nt-color-text);
+}
+
+.notRunIn {
+  margin: 0;
+  padding: var(--nt-space-4);
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-sm);
+}
+
+.scopeRow {
+  display: inline-flex;
+  align-self: flex-start;
+  margin: var(--nt-space-2) var(--nt-space-3) 0;
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-sm);
+  overflow: hidden;
+}
+
+.scopeButton {
+  padding: 0 var(--nt-space-2);
+  min-block-size: var(--nt-size-control);
+  border: 0;
+  border-inline-start: var(--nt-border-width) solid var(--nt-color-border);
+  background: var(--nt-color-bg);
+  color: var(--nt-color-text-muted);
+  font: inherit;
+  font-size: var(--nt-font-size-xs);
+  cursor: pointer;
+}
+
+.scopeButton:first-child {
+  border-inline-start: 0;
+}
+
+.scopeButton[aria-pressed="true"] {
+  background: var(--nt-color-surface-hover);
+  color: var(--nt-color-text);
+  font-weight: var(--nt-font-weight-medium);
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--nt-space-4);
+  min-inline-size: 0;
+  padding: var(--nt-space-2) var(--nt-space-3);
+  border-block-end: var(--nt-border-width) solid var(--nt-color-border);
+  font-size: var(--nt-font-size-xs);
+}
+
+.fact {
+  color: var(--nt-color-text-muted);
+}
+
+.factLabel {
+  color: inherit;
+}
+
+.factValue {
+  margin-inline-start: var(--nt-space-1);
+  overflow-wrap: anywhere;
+  color: var(--nt-color-text);
+  font-family: var(--nt-font-family-mono);
+}
+
+.link {
+  color: var(--nt-color-accent);
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.params {
+  color: var(--nt-color-text-muted);
+}
+
+.params summary {
+  cursor: pointer;
+}
+
+.paramsBody {
+  max-inline-size: 20rem;
+  margin: var(--nt-space-1) 0 0;
+  padding: var(--nt-space-2);
+  overflow: auto;
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-surface-sunken);
+  color: var(--nt-color-text);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-2xs);
+}
+
+.body {
+  flex: 1;
+  min-inline-size: 0;
+  min-block-size: 0;
+  overflow: hidden;
+  padding: var(--nt-space-2) var(--nt-space-3) var(--nt-space-3);
+}
+
+/* Resize handles: invisible hit areas along the top edge, left edge and top-left corner; a focus ring is the only
+ * thing that shows without hovering, so the window's own paper does not gain a visible frame just for this. */
+.handleTop,
+.handleLeft,
+.handleCorner {
+  position: absolute;
+  z-index: 1;
+  touch-action: none;
+}
+
+.handleTop {
+  inset-block-start: -3px;
+  inset-inline: 0.75rem 0.75rem;
+  block-size: 6px;
+  cursor: ns-resize;
+}
+
+.handleLeft {
+  inset-inline-start: -3px;
+  inset-block: 0.75rem 0.75rem;
+  inline-size: 6px;
+  cursor: ew-resize;
+}
+
+.handleCorner {
+  inset-block-start: -3px;
+  inset-inline-start: -3px;
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  cursor: nwse-resize;
+}
+
+.handleTop:focus-visible,
+.handleLeft:focus-visible,
+.handleCorner:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: var(--nt-focus-offset);
+}

@@ -1,0 +1,31 @@
+.mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nt-space-1-5);
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-sm);
+}
+
+.dot {
+  box-sizing: border-box;
+  inline-size: var(--nt-space-2);
+  block-size: var(--nt-space-2);
+  border: var(--nt-border-width) solid var(--nt-color-border-strong);
+  border-radius: var(--nt-radius-full);
+}
+
+.mark[data-state="on-time"] .dot {
+  border-color: var(--nt-color-success);
+  background: var(--nt-color-success);
+}
+
+/* Late: half-filled, so it differs from on-time by shape as well as by colour. */
+.mark[data-state="late"] {
+  color: var(--nt-color-warning);
+  font-weight: var(--nt-font-weight-medium);
+}
+
+.mark[data-state="late"] .dot {
+  border-color: var(--nt-color-warning);
+  background: linear-gradient(to right, var(--nt-color-warning) 50%, transparent 50%);
+}

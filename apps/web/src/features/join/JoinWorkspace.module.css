@@ -1,0 +1,653 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nt-space-3);
+  min-block-size: 0;
+  block-size: 100%;
+  padding-block-end: var(--nt-space-4);
+  overflow: auto;
+}
+
+.srOnly {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.mono {
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+}
+
+.dim {
+  color: var(--nt-color-text-subtle);
+}
+
+.warning {
+  margin: 0;
+  color: var(--nt-color-warning);
+  font-size: var(--nt-font-size-sm);
+  font-weight: var(--nt-font-weight-medium);
+}
+
+/* ---- header chain + table picker ---- */
+/* The header chain spans the whole workspace; the board and the instrument column share the row below. */
+.chain {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nt-space-2);
+  padding: 0 var(--nt-space-4);
+}
+
+.chainItem {
+  padding: var(--nt-space-0-5) var(--nt-space-2);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-surface);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+  font-weight: var(--nt-font-weight-medium);
+}
+
+.pickerWrap {
+  position: relative;
+}
+
+.addTable {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nt-space-1);
+  padding: var(--nt-space-0-5) var(--nt-space-2);
+  border: var(--nt-border-width) dashed var(--nt-color-border-strong);
+  border-radius: var(--nt-radius-sm);
+  background: none;
+  color: var(--nt-color-accent);
+  font: inherit;
+  font-weight: var(--nt-font-weight-medium);
+  cursor: pointer;
+}
+
+.picker {
+  position: absolute;
+  z-index: 5;
+  inset-block-start: calc(100% + var(--nt-space-1));
+  inset-inline-start: 0;
+  display: grid;
+  gap: var(--nt-space-1-5);
+  inline-size: 22rem;
+  padding: var(--nt-space-2);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-surface-raised);
+  box-shadow: var(--nt-shadow-raised);
+}
+
+.choices {
+  margin: 0;
+  padding: 0;
+  max-block-size: 14rem;
+  overflow: auto;
+  list-style: none;
+}
+
+.choice {
+  display: block;
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: var(--nt-size-row);
+  padding: 0 var(--nt-space-2);
+  border: 0;
+  border-radius: var(--nt-radius-sm);
+  background: none;
+  color: var(--nt-color-text);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+  text-align: start;
+  cursor: pointer;
+}
+
+.choice:hover {
+  background: var(--nt-color-surface-hover);
+}
+
+/* ---- board + instrument column (D3) ---- */
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 21.25rem;
+  gap: var(--nt-space-4);
+  align-items: start;
+  padding: 0 var(--nt-space-4);
+}
+
+.board {
+  position: relative;
+  display: flex;
+  gap: var(--nt-space-6);
+  align-items: flex-start;
+  overflow-x: auto;
+  padding-block-end: var(--nt-space-2);
+  /* A pointer drag must not scroll the page or select text while it draws a wire. */
+  touch-action: none;
+}
+
+/* Decorative overlay (R4/R10): the bands and the Pairs list are the accessible truth, this is not. */
+.connectors {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  inline-size: 100%;
+  block-size: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.connector {
+  fill: none;
+  stroke: var(--nt-color-type-nested);
+  stroke-width: 1.5;
+  opacity: 0.7;
+}
+
+.connector[data-family="integer"] {
+  stroke: var(--nt-color-type-integer);
+}
+
+.connector[data-family="decimal"] {
+  stroke: var(--nt-color-type-decimal);
+}
+
+.connector[data-family="text"] {
+  stroke: var(--nt-color-type-text);
+}
+
+.connector[data-family="temporal"] {
+  stroke: var(--nt-color-type-temporal);
+}
+
+.connector[data-family="boolean"] {
+  stroke: var(--nt-color-type-boolean);
+}
+
+.connector[data-suggested="true"] {
+  stroke-dasharray: 4 3;
+  opacity: 0.55;
+}
+
+.liveWire {
+  fill: none;
+  stroke: var(--nt-color-accent);
+  stroke-width: 2;
+  stroke-dasharray: 3 3;
+}
+
+.instrument {
+  display: grid;
+  gap: var(--nt-space-3);
+  position: sticky;
+  inset-block-start: 0;
+}
+
+.instrumentCard {
+  display: grid;
+  gap: var(--nt-space-2);
+  padding: var(--nt-space-3);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-bg);
+}
+
+.instrumentHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nt-space-2);
+}
+
+.overline {
+  margin: 0;
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-xs);
+  font-weight: var(--nt-font-weight-strong);
+  letter-spacing: var(--nt-font-tracking-caps);
+  text-transform: uppercase;
+}
+
+.checkList {
+  display: grid;
+  gap: var(--nt-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checkRow {
+  display: grid;
+  gap: var(--nt-space-1);
+  padding: var(--nt-space-1-5);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-surface);
+}
+
+.checkRow[data-tone="warn"] {
+  background: color-mix(in srgb, var(--nt-color-warning) 12%, var(--nt-color-surface));
+}
+
+.checkRow[data-tone="bad"] {
+  background: color-mix(in srgb, var(--nt-color-danger) 14%, var(--nt-color-surface));
+}
+
+.checkFigures {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--nt-space-2);
+  margin: 0;
+}
+
+.checkFigures dt {
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-2xs);
+  text-transform: uppercase;
+}
+
+.checkFigures dd {
+  margin: 0;
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+  font-weight: var(--nt-font-weight-medium);
+}
+
+.checkFigures dd[data-tone="warn"] {
+  color: var(--nt-color-warning);
+}
+
+.checkFigures dd[data-tone="bad"] {
+  color: var(--nt-color-danger);
+}
+
+.receiptSql {
+  margin: 0;
+  padding: var(--nt-space-2) var(--nt-space-3);
+  overflow: auto;
+  min-block-size: 6rem;
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-surface-sunken);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+  white-space: pre-wrap;
+}
+
+.receiptBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nt-space-2);
+}
+
+/* ---- table card ---- */
+.card {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  gap: var(--nt-space-2);
+  min-inline-size: 0;
+  flex: 0 0 17.5rem;
+  inline-size: 17.5rem;
+  padding: var(--nt-space-3);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-bg);
+}
+
+.card[data-armed="true"] {
+  border-color: var(--nt-color-accent);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-2);
+}
+
+.aliasChip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--nt-space-5);
+  block-size: var(--nt-space-5);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-surface-sunken);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-xs);
+  font-weight: var(--nt-font-weight-strong);
+  text-transform: uppercase;
+}
+
+.cardTitle {
+  flex: 1;
+  overflow: hidden;
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-md);
+  font-weight: var(--nt-font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--nt-space-5);
+  block-size: var(--nt-space-5);
+  border: 0;
+  border-radius: var(--nt-radius-sm);
+  background: none;
+  color: var(--nt-color-text-subtle);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: var(--nt-color-surface-hover);
+}
+
+.kinds {
+  display: inline-flex;
+  gap: var(--nt-space-0-5);
+  padding: var(--nt-space-0-5);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-surface-sunken);
+}
+
+.kindOption {
+  min-block-size: var(--nt-space-6);
+  padding: 0 var(--nt-space-2);
+  border: 0;
+  border-radius: var(--nt-radius-sm);
+  background: none;
+  color: var(--nt-color-text-muted);
+  font: inherit;
+  font-size: var(--nt-font-size-sm);
+  font-weight: var(--nt-font-weight-medium);
+  cursor: pointer;
+}
+
+.kindOption[aria-checked="true"] {
+  background: var(--nt-color-surface-raised);
+  box-shadow: var(--nt-shadow-raised);
+  color: var(--nt-color-text);
+}
+
+.band {
+  display: grid;
+  gap: var(--nt-space-1);
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--nt-space-1-5);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-surface);
+  list-style: none;
+}
+
+.bandRow {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-1-5);
+}
+
+.bandRow .mono {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A suggested pair reads the same underline treatment as its dashed wire, until it is touched. */
+.bandRow[data-suggested="true"] .mono {
+  border-block-end: 1px dashed var(--nt-color-border-strong);
+}
+
+.removePair {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--nt-space-5);
+  block-size: var(--nt-space-5);
+  border: 0;
+  border-radius: var(--nt-radius-sm);
+  background: none;
+  color: var(--nt-color-text-subtle);
+  cursor: pointer;
+}
+
+.removePair:hover {
+  background: var(--nt-color-surface-hover);
+}
+
+.outputLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nt-space-2);
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-sm);
+}
+
+.outputActions {
+  display: inline-flex;
+  gap: var(--nt-space-1);
+}
+
+.outputActions button {
+  padding: 0 var(--nt-space-1-5);
+  border: 0;
+  background: none;
+  color: var(--nt-color-accent);
+  font: inherit;
+  font-size: var(--nt-font-size-xs);
+  cursor: pointer;
+}
+
+.finder {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-1-5);
+  min-block-size: var(--nt-size-control);
+  padding: 0 var(--nt-space-2);
+  border: var(--nt-border-width) solid var(--nt-color-border-strong);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-bg);
+  color: var(--nt-color-text-subtle);
+}
+
+.finder:focus-within {
+  border-color: var(--nt-color-focus);
+  outline: var(--nt-border-width) solid var(--nt-color-focus);
+}
+
+/* D1: up to five likely matches, listed on a compact card while another column is armed elsewhere. */
+.likely {
+  display: grid;
+  gap: var(--nt-space-0-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.likelyButton {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-1-5);
+  inline-size: 100%;
+  min-block-size: var(--nt-space-6);
+  padding: 0 var(--nt-space-1-5);
+  border: var(--nt-border-width) dashed var(--nt-color-border-strong);
+  border-radius: var(--nt-radius-sm);
+  background: none;
+  color: var(--nt-color-text);
+  font: inherit;
+  font-size: var(--nt-font-size-sm);
+  text-align: start;
+  cursor: pointer;
+}
+
+.likelyButton:hover {
+  background: var(--nt-color-surface-hover);
+}
+
+/* D2: Selected | Others tabs of an opened card. */
+.tabs {
+  display: inline-flex;
+  gap: var(--nt-space-0-5);
+  padding: var(--nt-space-0-5);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-surface-sunken);
+}
+
+.tabs button {
+  min-block-size: var(--nt-space-6);
+  padding: 0 var(--nt-space-2);
+  border: 0;
+  border-radius: var(--nt-radius-sm);
+  background: none;
+  color: var(--nt-color-text-muted);
+  font: inherit;
+  font-size: var(--nt-font-size-sm);
+  font-weight: var(--nt-font-weight-medium);
+  cursor: pointer;
+}
+
+.tabs button[aria-selected="true"] {
+  background: var(--nt-color-surface-raised);
+  box-shadow: var(--nt-shadow-raised);
+  color: var(--nt-color-text);
+}
+
+.finder input {
+  flex: 1;
+  min-inline-size: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--nt-color-text);
+  font: inherit;
+}
+
+.columnList {
+  display: grid;
+  gap: var(--nt-space-0-5);
+  margin: 0;
+  padding: 0;
+  max-block-size: 14.5rem;
+  overflow: auto;
+  list-style: none;
+}
+
+.column {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-1-5);
+}
+
+.columnButton {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--nt-space-1-5);
+  min-block-size: var(--nt-space-6);
+  padding: 0 var(--nt-space-1-5);
+  border: var(--nt-border-width) solid transparent;
+  border-radius: var(--nt-radius-sm);
+  background: none;
+  color: var(--nt-color-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.columnButton:hover {
+  background: var(--nt-color-surface-hover);
+}
+
+.columnButton[aria-selected="true"] {
+  border-color: var(--nt-color-accent);
+  background: var(--nt-color-surface);
+}
+
+.columnButton[data-dim="true"] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.columnButton:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: calc(-1 * var(--nt-focus-width));
+}
+
+.expander {
+  justify-self: start;
+  padding: var(--nt-space-1) 0;
+  border: 0;
+  background: none;
+  color: var(--nt-color-accent);
+  font: inherit;
+  font-size: var(--nt-font-size-sm);
+  cursor: pointer;
+}
+
+/* ---- collapsed strip + result ---- */
+.strip {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-2);
+  padding: var(--nt-space-2) var(--nt-space-4);
+  border-block: var(--nt-border-width) solid var(--nt-color-border);
+  background: var(--nt-color-surface);
+}
+
+.resultArea {
+  flex: 1;
+  min-block-size: 16rem;
+  padding: 0 var(--nt-space-4);
+}
+
+/* Starting a join from the menu: one question, the base table. */
+.start {
+  display: grid;
+  gap: var(--nt-space-3);
+  max-inline-size: 32rem;
+  padding: var(--nt-space-6);
+}
+
+.startTitle {
+  margin: 0;
+  font-size: var(--nt-font-size-xl);
+  font-weight: var(--nt-font-weight-strong);
+}
+
+.startHint {
+  margin: 0;
+  color: var(--nt-color-text-muted);
+}
+
+a.choice {
+  text-decoration: none;
+}
+
+.startSteps {
+  display: grid;
+  gap: var(--nt-space-2);
+  margin: 0;
+  padding-inline-start: var(--nt-space-5);
+  color: var(--nt-color-text-muted);
+}
+
+.startSteps li::marker {
+  font-family: var(--nt-font-family-mono);
+  color: var(--nt-color-text-subtle);
+}
+
+.startSection {
+  margin-block-start: var(--nt-space-2);
+}

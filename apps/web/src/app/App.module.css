@@ -1,0 +1,10 @@
+.shell {
+  block-size: 100vh;
+}
+
+.loadingMark {
+  display: block;
+  inline-size: var(--nt-space-12);
+  block-size: var(--nt-space-12);
+  margin: var(--nt-space-6) auto var(--nt-space-3);
+}

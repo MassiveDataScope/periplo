@@ -1,0 +1,7 @@
+{
+  "name": "periplo",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "workspaces": ["apps/web", "packages/*"],
+  "engines": { "node": ">=22" }
+}

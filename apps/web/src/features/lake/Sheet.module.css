@@ -1,0 +1,390 @@
+.sheet {
+  overflow: hidden;
+  container-type: inline-size;
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-bg);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-3);
+  padding: var(--nt-space-2) var(--nt-space-3);
+  border-block-end: var(--nt-border-width) solid var(--nt-color-border);
+  background: var(--nt-color-surface);
+}
+
+.filter {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-1-5);
+  inline-size: 18rem;
+  max-inline-size: 100%;
+  min-block-size: var(--nt-size-control);
+  padding: 0 var(--nt-space-2);
+  border: var(--nt-border-width) solid var(--nt-color-border-strong);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-bg);
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+}
+
+.filter:focus-within {
+  border-color: var(--nt-color-focus);
+  outline: var(--nt-border-width) solid var(--nt-color-focus);
+}
+
+.filter input {
+  flex: 1;
+  min-inline-size: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--nt-color-text);
+  font: inherit;
+}
+
+.count {
+  margin-inline-start: auto;
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-xs);
+  letter-spacing: var(--nt-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+/* Wider than the pane? The sheet scrolls sideways; the actions stay pinned to the right edge. */
+.scroll {
+  overflow-x: auto;
+}
+
+/* Fixed layout: the name column absorbs the width and truncates; figures and actions keep their room. */
+.table {
+  inline-size: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-feature-settings: var(--nt-font-features-data);
+}
+
+.table th,
+.table td {
+  block-size: var(--nt-size-control-xl);
+  padding: 0 var(--nt-space-3);
+  border-block-end: var(--nt-border-width) solid var(--nt-color-border-subtle);
+  font-weight: var(--nt-font-weight-regular);
+  text-align: start;
+  white-space: nowrap;
+}
+
+.table thead th {
+  block-size: var(--nt-size-control-lg);
+  border-block-end-color: var(--nt-color-border);
+  background: var(--nt-color-surface);
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-2xs);
+  font-weight: var(--nt-font-weight-medium);
+  letter-spacing: var(--nt-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+.table [data-align="end"] {
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+  text-align: end;
+}
+
+.row:hover,
+.row:focus-within {
+  background: var(--nt-color-surface);
+}
+
+/* The current row: a 3px ink spine on its first cell, the same mark the unfolded database uses on Home. */
+.row[aria-current="true"] {
+  background: var(--nt-color-surface);
+}
+
+.row[aria-current="true"] > :first-child {
+  box-shadow: inset var(--nt-size-spine) 0 0 var(--nt-color-text);
+}
+
+.row[aria-current="true"] .name {
+  font-weight: var(--nt-font-weight-strong);
+}
+
+.table th[scope="row"] {
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: normal;
+}
+
+.name {
+  display: block;
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nt-color-text);
+  cursor: pointer;
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-md);
+  font-weight: var(--nt-font-weight-medium);
+  text-decoration: none;
+}
+
+.row:hover .name {
+  color: var(--nt-color-accent);
+}
+
+.cell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nt-space-2);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+}
+
+.skeleton {
+  display: inline-block;
+  inline-size: 4rem;
+  block-size: var(--nt-space-2);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-surface-sunken);
+}
+
+.actions {
+  position: sticky;
+  inset-inline-end: 0;
+  white-space: nowrap;
+  background: var(--nt-color-bg);
+  text-align: end;
+}
+
+.table thead .actions {
+  background: var(--nt-color-surface);
+}
+
+.row:hover .actions,
+.row:focus-within .actions {
+  background: var(--nt-color-surface);
+}
+
+.actions a,
+.actions button {
+  margin-inline-start: var(--nt-space-1);
+  padding: 0 var(--nt-space-2);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-bg);
+  color: var(--nt-color-text);
+  font: inherit;
+  font-size: var(--nt-font-size-sm);
+  font-weight: var(--nt-font-weight-medium);
+  line-height: var(--nt-space-5);
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    border-color var(--nt-motion-fast),
+    color var(--nt-motion-fast);
+}
+
+/* Always there, quiet until the row is hovered: a column that only appears on hover reads as cut off. */
+.actions a,
+.actions button {
+  color: var(--nt-color-text-muted);
+}
+
+.row:hover .actions a,
+.row:hover .actions button,
+.row:focus-within .actions a,
+.row:focus-within .actions button {
+  border-color: var(--nt-color-border-strong);
+  color: var(--nt-color-text);
+}
+
+.row:hover .actions button,
+.row:focus-within .actions button {
+  border-color: var(--nt-color-text);
+  background: var(--nt-color-text);
+  color: var(--nt-color-bg);
+}
+
+.empty {
+  color: var(--nt-color-text-muted);
+  text-align: center;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--nt-space-2);
+  padding: var(--nt-space-2) var(--nt-space-3);
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-sm);
+}
+
+.footer button {
+  padding: 0 var(--nt-space-2);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-bg);
+  color: var(--nt-color-text);
+  font: inherit;
+  font-size: var(--nt-font-size-sm);
+  line-height: var(--nt-space-6);
+  cursor: pointer;
+}
+
+.footer button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+/* Page chrome shared by the database and layer pages. */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nt-space-4);
+  box-sizing: border-box;
+  min-block-size: 100%;
+  padding: var(--nt-space-4) var(--nt-space-6) var(--nt-space-8);
+  overflow: auto;
+}
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nt-space-1);
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+}
+
+.crumbs a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.crumbs a:hover {
+  color: var(--nt-color-accent);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-xl);
+  font-weight: var(--nt-font-weight-strong);
+  letter-spacing: -0.01em;
+  line-height: var(--nt-font-line-height-tight);
+}
+
+.title[data-sans] {
+  font-family: var(--nt-font-family);
+}
+
+.note {
+  margin: 0;
+  color: var(--nt-color-text-muted);
+}
+
+.figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nt-space-2) var(--nt-space-8);
+  margin: 0;
+  padding-block: var(--nt-space-2);
+  border-block: var(--nt-border-width) solid var(--nt-color-border-subtle);
+}
+
+.figures dt {
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-2xs);
+  font-weight: var(--nt-font-weight-medium);
+  letter-spacing: var(--nt-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+.figures dd {
+  margin: 0;
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-figure);
+  font-weight: var(--nt-font-weight-medium);
+  font-feature-settings: var(--nt-font-features-data);
+}
+
+.notFound {
+  padding: var(--nt-space-8);
+  text-align: center;
+}
+
+.starCell {
+  inline-size: var(--nt-space-6);
+  padding-inline-end: 0 !important;
+}
+
+.star {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nt-color-text-subtle);
+  font-size: var(--nt-font-size-md);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.star[aria-pressed="true"] {
+  color: var(--nt-color-warning);
+}
+
+/* Under the name: the database and, in the same breath, the last SQL run there. */
+.where {
+  display: flex;
+  gap: var(--nt-space-1-5);
+  max-inline-size: 100%;
+  overflow: hidden;
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-xs);
+  font-weight: var(--nt-font-weight-regular);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.where i {
+  color: var(--nt-color-border-strong);
+  font-style: normal;
+}
+
+.where code {
+  overflow: hidden;
+  font: inherit;
+  text-overflow: ellipsis;
+}
+
+/* Column widths for the fixed layout: the name column is the only unsized one and takes the rest. */
+
+.colStar {
+  inline-size: var(--nt-space-6);
+}
+
+.colFigure {
+  inline-size: 6.5rem;
+}
+
+.colColumns {
+  inline-size: 5rem;
+}
+
+.colWrite {
+  inline-size: 9.5rem;
+}
+
+.colActions {
+  inline-size: 8.5rem;
+}

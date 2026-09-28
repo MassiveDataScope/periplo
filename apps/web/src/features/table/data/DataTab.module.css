@@ -1,0 +1,120 @@
+/* The toolbar and the editor/join builder sit above the result; `ResultPane` owns its own grid below. */
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  block-size: 100%;
+}
+
+.shell > .tab {
+  flex: 1;
+  min-block-size: 0;
+}
+
+.tab {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-block-size: 0;
+  block-size: 100%;
+}
+
+.tab[data-schema="open"] {
+  grid-template-columns: minmax(0, 1fr) var(--nt-size-schema);
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  min-block-size: 0;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nt-space-2);
+  padding: var(--nt-space-2) var(--nt-space-3);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.sources {
+  display: inline-flex;
+  gap: var(--nt-space-0-5);
+  padding: var(--nt-space-0-5);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-surface-sunken);
+}
+
+.sourceOption {
+  min-block-size: var(--nt-space-6);
+  padding: 0 var(--nt-space-3);
+  border: 0;
+  border-radius: var(--nt-radius-sm);
+  background: none;
+  color: var(--nt-color-text-muted);
+  font: inherit;
+  font-weight: var(--nt-font-weight-medium);
+  cursor: pointer;
+}
+
+.sourceOption[aria-checked="true"] {
+  background: var(--nt-color-surface-raised);
+  box-shadow: var(--nt-shadow-raised);
+  color: var(--nt-color-text);
+}
+
+.sourceOption:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: calc(-1 * var(--nt-focus-width));
+}
+
+.activeSql {
+  margin: 0;
+  padding: 0 var(--nt-space-3) var(--nt-space-2);
+  overflow: hidden;
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.activeSqlLabel {
+  font-weight: var(--nt-font-weight-strong);
+}
+
+.activeSql code {
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+}
+
+/* The data takes whatever height is left: the rows are the point of this tab. */
+.grid {
+  flex: 1;
+  min-block-size: 12rem;
+}
+
+/* The single item of the grid's column header menu: "Join on this column…". */
+.headerMenuItem {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-1-5);
+  inline-size: 100%;
+  min-block-size: var(--nt-size-control);
+  padding: 0 var(--nt-space-2);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-surface-raised);
+  color: var(--nt-color-text);
+  font: inherit;
+  font-size: var(--nt-font-size-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.headerMenuItem:hover {
+  background: var(--nt-color-surface-hover);
+}

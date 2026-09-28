@@ -1,0 +1,17 @@
+# Secret scanning for this repository: gitleaks' default rules plus the fake credentials
+# that tests and examples use on purpose. Allow a value here only when it is known to be
+# fake; a real secret must be rotated and removed, never allowlisted.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fake credentials used by tests and examples"
+regexTarget = "secret"
+regexes = [
+    '''^pnu_secret_key_123$''',
+    '''^sk-SECRET-KEY-123$''',
+    '''^pnu_FAKE[A-Z]+$''',
+    '''fake-password-change-me''',
+    '''do-not-log-this-token''',
+]

@@ -1,0 +1,316 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  block-size: 100%;
+}
+
+/* A framed sheet with soft corners and a grey header row: the table is the object on the page. */
+.scroll {
+  position: relative;
+  flex: 1;
+  min-block-size: 0;
+  overflow: auto;
+  margin: 0 var(--nt-space-3);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-bg);
+  font-size: var(--nt-font-size-md);
+  font-feature-settings: var(--nt-font-features-data);
+  line-height: var(--nt-font-line-height-tight);
+}
+
+.canvas {
+  position: relative;
+  min-inline-size: 100%;
+}
+
+.headerRow {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  min-inline-size: 100%;
+  background: var(--nt-color-surface);
+  border-block-end: var(--nt-border-width) solid var(--nt-color-border);
+}
+
+/* Horizontal rules only, and they span the viewport so no empty rectangle is left beside the last column. */
+.row {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  box-sizing: border-box;
+  min-inline-size: 100%;
+  border-block-end: var(--nt-border-width) solid var(--nt-color-border-subtle);
+}
+
+.row:hover,
+.row[data-active="true"] {
+  background: var(--nt-color-surface);
+}
+
+/* Row-number gutter: a sunken well, sticky under the same ruled paper as the data it counts. */
+.gutter {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+  display: flex;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: flex-end;
+  block-size: 100%;
+  padding-inline-end: var(--nt-space-3);
+  border-inline-end: var(--nt-border-width) solid var(--nt-color-border);
+  background: var(--nt-color-surface-sunken);
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-xs);
+}
+
+.row .gutter {
+  background:
+    repeating-linear-gradient(to bottom, var(--nt-color-rule) 0 var(--nt-border-width), transparent var(--nt-border-width) var(--nt-space-1)),
+    var(--nt-color-surface-sunken);
+}
+
+/*
+ * Frozen first data column, right after the 48px gutter: ResultsGrid.tsx keeps its transform in
+ * step with the horizontal scroll offset so it stays in view (position: sticky was tried and
+ * rejected here — inherited from .cell's inset-block-start: 0, it reads as "stick to the
+ * viewport's top", not "top of my own row", and misplaces the cell by a full row height).
+ */
+.headerCell:nth-child(2),
+.cell:nth-child(2) {
+  box-shadow: var(--nt-border-width) 0 0 var(--nt-color-border);
+}
+
+.cell:nth-child(2) {
+  z-index: 1;
+}
+
+.headerCell:nth-child(2) {
+  z-index: 3;
+}
+
+.headerCell,
+.cell {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  display: flex;
+  box-sizing: border-box;
+  align-items: center;
+  block-size: 100%;
+  padding: 0 var(--nt-space-3);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.headerCell[data-align="end"],
+.cell[data-align="end"] {
+  justify-content: flex-end;
+}
+
+/*
+ * Ruled paper: a hairline every 4px behind every data cell, drawn per cell so rows align. The
+ * solid layer is a custom property, not a second `background` declaration, so hovering a row only
+ * repaints a colour, not the whole layered background.
+ */
+.cell {
+  --nt-cell-bg: var(--nt-color-bg);
+  background: repeating-linear-gradient(to bottom, var(--nt-color-rule) 0 var(--nt-border-width), transparent var(--nt-border-width) var(--nt-space-1)), var(--nt-cell-bg);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+}
+
+.row:hover .cell,
+.row[data-active="true"] .cell {
+  --nt-cell-bg: var(--nt-color-surface);
+}
+
+.cell[data-kind="empty"] {
+  color: var(--nt-color-null);
+}
+
+/* NULL as a hollow ring: the word stays in the DOM for assistive tech, painted away for sighted users. */
+.cell[data-kind="null"] {
+  font-size: 0;
+  color: transparent;
+}
+
+.cell[data-kind="null"]::before {
+  content: "";
+  box-sizing: border-box;
+  inline-size: var(--nt-size-glyph);
+  block-size: var(--nt-size-glyph);
+  border: var(--nt-border-width) solid var(--nt-color-text-subtle);
+  border-radius: var(--nt-radius-full);
+}
+
+/* Booleans as glyphs only: a filled green dot for true, a hollow rust one for false. The word stays for AT. */
+.cell[data-value="true"],
+.cell[data-value="false"] {
+  gap: 0;
+  font-size: 0;
+  color: transparent;
+}
+
+.cell[data-value="true"]::before,
+.cell[data-value="false"]::before {
+  content: "";
+  box-sizing: border-box;
+  inline-size: var(--nt-size-glyph);
+  block-size: var(--nt-size-glyph);
+  border: var(--nt-border-width) solid;
+  border-radius: var(--nt-radius-full);
+}
+
+.cell[data-value="true"]::before {
+  border-color: var(--nt-color-success);
+  background: var(--nt-color-success);
+}
+
+.cell[data-value="false"]::before {
+  border-color: var(--nt-color-type-boolean);
+}
+
+/* An instrument-panel dial: a 2px top rule in the column's own data-type colour. */
+.headerCell {
+  gap: var(--nt-space-1-5);
+  border-block-start: var(--nt-focus-width) solid transparent;
+  color: var(--nt-color-text-muted);
+}
+
+.headerCell[data-family="integer"] {
+  border-block-start-color: var(--nt-color-type-integer);
+}
+
+.headerCell[data-family="decimal"] {
+  border-block-start-color: var(--nt-color-type-decimal);
+}
+
+.headerCell[data-family="text"] {
+  border-block-start-color: var(--nt-color-type-text);
+}
+
+.headerCell[data-family="temporal"] {
+  border-block-start-color: var(--nt-color-type-temporal);
+}
+
+.headerCell[data-family="boolean"] {
+  border-block-start-color: var(--nt-color-type-boolean);
+}
+
+.headerCell[data-family="nested"] {
+  border-block-start-color: var(--nt-color-type-nested);
+}
+
+.headerCell[data-active="true"] {
+  background: var(--nt-color-surface-hover);
+  color: var(--nt-color-text);
+}
+
+/* Mono because it is an identifier the analyst will type; caps read like a dial's label. */
+.columnName {
+  overflow: hidden;
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-xs);
+  font-weight: var(--nt-font-weight-medium);
+  letter-spacing: 0.06em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+}
+
+.headerCell:focus-visible,
+.cell:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: calc(-1 * var(--nt-focus-width));
+  background: var(--nt-color-selection);
+}
+
+.headerMenu {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: var(--nt-space-3);
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity var(--nt-motion-fast);
+}
+
+.headerCell:hover .headerMenu,
+.headerCell:focus-within .headerMenu {
+  opacity: 1;
+}
+
+/* The only vertical mark in the grid: a short rule that is also the resize handle. */
+.resizeHandle {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  inline-size: var(--nt-space-2);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.resizeHandle::after {
+  content: "";
+  inline-size: var(--nt-border-width);
+  block-size: 50%;
+  background: var(--nt-color-border);
+}
+
+.resizeHandle:hover::after {
+  inline-size: var(--nt-focus-width);
+  block-size: 100%;
+  background: var(--nt-color-accent);
+}
+
+.notice {
+  margin-block-end: var(--nt-space-2);
+  padding: var(--nt-space-2) var(--nt-space-3);
+  border: var(--nt-border-width) solid var(--nt-color-warning);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-surface);
+  font-size: var(--nt-font-size-sm);
+}
+
+.notice[data-kind="failed"] {
+  border-color: var(--nt-color-danger);
+  background: var(--nt-color-danger-surface);
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nt-space-2);
+  max-block-size: 40%;
+  padding: var(--nt-space-3);
+  border: var(--nt-border-width) solid var(--nt-color-border-strong);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-surface);
+}
+
+.detailHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nt-space-3);
+}
+
+.detailActions {
+  display: flex;
+  gap: var(--nt-space-2);
+}
+
+.detailValue {
+  margin: 0;
+  overflow: auto;
+  font-family: var(--nt-font-family-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

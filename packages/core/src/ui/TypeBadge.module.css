@@ -1,0 +1,54 @@
+.badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--nt-size-type-badge);
+  block-size: var(--nt-size-type-badge);
+  border-radius: var(--nt-radius-sm);
+  background: var(--badge-surface);
+  color: var(--badge-color);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-xs);
+  font-weight: var(--nt-font-weight-strong);
+  line-height: 1;
+}
+
+.badge[data-variant="plain"] {
+  background: none;
+}
+
+.glyphIcon {
+  inline-size: var(--nt-space-3);
+  block-size: var(--nt-space-3);
+}
+
+.badge[data-family="integer"] {
+  --badge-color: var(--nt-color-type-integer);
+  --badge-surface: var(--nt-color-type-integer-surface);
+}
+
+.badge[data-family="decimal"] {
+  --badge-color: var(--nt-color-type-decimal);
+  --badge-surface: var(--nt-color-type-decimal-surface);
+}
+
+.badge[data-family="text"] {
+  --badge-color: var(--nt-color-type-text);
+  --badge-surface: var(--nt-color-type-text-surface);
+}
+
+.badge[data-family="temporal"] {
+  --badge-color: var(--nt-color-type-temporal);
+  --badge-surface: var(--nt-color-type-temporal-surface);
+}
+
+.badge[data-family="boolean"] {
+  --badge-color: var(--nt-color-type-boolean);
+  --badge-surface: var(--nt-color-type-boolean-surface);
+}
+
+.badge[data-family="nested"] {
+  --badge-color: var(--nt-color-type-nested);
+  --badge-surface: var(--nt-color-type-nested-surface);
+}
