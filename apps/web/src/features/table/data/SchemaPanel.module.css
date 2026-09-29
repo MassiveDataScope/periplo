@@ -1,0 +1,325 @@
+/* Flush to the right edge, top to bottom: chrome, not a floating card. */
+.schema {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  border-inline-start: var(--nt-border-width) solid var(--nt-color-border);
+  background: var(--nt-color-surface);
+  container-type: inline-size;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--nt-space-2) var(--nt-space-2) var(--nt-space-1) var(--nt-space-3);
+}
+
+.title,
+.overline {
+  margin: 0;
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-xs);
+  font-weight: var(--nt-font-weight-strong);
+  letter-spacing: var(--nt-font-tracking-caps);
+  text-transform: uppercase;
+}
+
+.count {
+  color: var(--nt-color-text-subtle);
+  font-weight: var(--nt-font-weight-regular);
+}
+
+.overline {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  padding: var(--nt-space-2) var(--nt-space-3) var(--nt-space-1);
+  background: var(--nt-color-surface);
+}
+
+.iconButton,
+.insert {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--nt-radius-sm);
+  background: none;
+  color: var(--nt-color-text-muted);
+  cursor: pointer;
+}
+
+.iconButton {
+  inline-size: var(--nt-size-control);
+  block-size: var(--nt-size-control);
+}
+
+.iconButton:hover,
+.insert:hover {
+  background: var(--nt-color-surface-hover);
+  color: var(--nt-color-text);
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-1-5);
+  min-block-size: var(--nt-size-control);
+  margin: 0 var(--nt-space-3);
+  padding: 0 var(--nt-space-2);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-bg);
+  color: var(--nt-color-text-subtle);
+}
+
+.search:focus-within {
+  border-color: var(--nt-color-focus);
+  outline: var(--nt-border-width) solid var(--nt-color-focus);
+}
+
+.search input {
+  flex: 1;
+  min-inline-size: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--nt-color-text);
+  font: inherit;
+}
+
+.families {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nt-space-1);
+  padding: var(--nt-space-2) var(--nt-space-3);
+}
+
+/* Legend and filter at once: it teaches the colour code while it narrows 70 columns to "dates only". */
+.family {
+  display: inline-flex;
+  align-items: center;
+  block-size: var(--nt-space-5);
+  padding-inline: 0 var(--nt-space-2);
+  border: var(--nt-border-width) solid transparent;
+  border-radius: var(--nt-radius-full);
+  background: var(--family-surface);
+  color: var(--family-color);
+  font: inherit;
+  font-size: var(--nt-font-size-xs);
+  font-feature-settings: var(--nt-font-features-data);
+  cursor: pointer;
+}
+
+.family[aria-pressed="true"] {
+  border-color: var(--family-color);
+  font-weight: var(--nt-font-weight-medium);
+}
+
+.family[data-family="integer"] {
+  --family-color: var(--nt-color-type-integer);
+  --family-surface: var(--nt-color-type-integer-surface);
+}
+
+.family[data-family="decimal"] {
+  --family-color: var(--nt-color-type-decimal);
+  --family-surface: var(--nt-color-type-decimal-surface);
+}
+
+.family[data-family="text"] {
+  --family-color: var(--nt-color-type-text);
+  --family-surface: var(--nt-color-type-text-surface);
+}
+
+.family[data-family="temporal"] {
+  --family-color: var(--nt-color-type-temporal);
+  --family-surface: var(--nt-color-type-temporal-surface);
+}
+
+.family[data-family="boolean"] {
+  --family-color: var(--nt-color-type-boolean);
+  --family-surface: var(--nt-color-type-boolean-surface);
+}
+
+.family[data-family="nested"] {
+  --family-color: var(--nt-color-type-nested);
+  --family-surface: var(--nt-color-type-nested-surface);
+}
+
+.list {
+  flex: 1;
+  min-block-size: 0;
+  overflow: auto;
+  padding-block-end: var(--nt-space-2);
+}
+
+.columns {
+  margin: 0;
+  padding: 0 var(--nt-space-1);
+  list-style: none;
+}
+
+/* One line per column and no rules between them: 70 columns stay scannable. */
+.column {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-2);
+  block-size: var(--nt-size-row);
+  padding-inline: var(--nt-space-2);
+  border-radius: var(--nt-radius-sm);
+}
+
+.column:hover,
+.column:focus-within {
+  background: var(--nt-color-surface-hover);
+}
+
+.name {
+  flex: 1;
+  min-inline-size: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: none;
+  color: var(--nt-color-text);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.type {
+  flex: none;
+  max-inline-size: 40%;
+  overflow: hidden;
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The exact type is the first thing to go when the panel is narrow; it stays in the tooltip. */
+@container (inline-size < 17rem) {
+  .type {
+    display: none;
+  }
+}
+
+.partition {
+  display: inline-flex;
+  flex: none;
+  color: var(--nt-color-text-muted);
+}
+
+.partition svg {
+  inline-size: var(--nt-space-3);
+  block-size: var(--nt-space-3);
+}
+
+/* Filled dot = NOT NULL, hollow = nullable. Replaces the words "not null" repeated on every row. */
+.nullable {
+  flex: none;
+  box-sizing: border-box;
+  inline-size: var(--nt-space-1-5);
+  block-size: var(--nt-space-1-5);
+  border: var(--nt-border-width) solid var(--nt-color-border-strong);
+  border-radius: var(--nt-radius-full);
+}
+
+.nullable[data-nullable="false"] {
+  border-color: var(--nt-color-text-muted);
+  background: var(--nt-color-text-muted);
+}
+
+.nulls {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--nt-space-1-5);
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-xs);
+  font-feature-settings: var(--nt-font-features-data);
+}
+
+.nullBar {
+  inline-size: var(--nt-size-nullbar-w);
+  block-size: var(--nt-size-nullbar-h);
+  overflow: hidden;
+  border-radius: var(--nt-radius-full);
+  background: var(--nt-color-surface-sunken);
+}
+
+.nullFill {
+  display: block;
+  block-size: 100%;
+  border-radius: var(--nt-radius-full);
+  background: var(--nt-color-border-strong);
+}
+
+.nullFigure {
+  inline-size: 2.5rem;
+  text-align: end;
+}
+
+/* Neutral on purpose: a third of nulls is not an error. Only a mostly-empty column is called out. */
+.nulls[data-high="true"] .nullFill {
+  background: var(--nt-color-warning);
+}
+
+.nulls[data-high="true"] .nullFigure {
+  color: var(--nt-color-warning);
+  font-weight: var(--nt-font-weight-medium);
+}
+
+/* Always in the tab order; visible on hover or focus, where it covers the figures. */
+.insert {
+  position: absolute;
+  inset-inline-end: var(--nt-space-1);
+  inline-size: var(--nt-space-5);
+  block-size: var(--nt-space-5);
+  background: var(--nt-color-surface-hover);
+  opacity: 0;
+}
+
+.column:hover .insert,
+.insert:focus-visible {
+  opacity: 1;
+}
+
+@media (pointer: coarse) {
+  .insert {
+    position: static;
+    opacity: 1;
+  }
+}
+
+.name:focus-visible,
+.insert:focus-visible,
+.iconButton:focus-visible,
+.family:focus-visible,
+.link:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: calc(-1 * var(--nt-focus-width));
+}
+
+.noMatch {
+  margin: 0;
+  padding: var(--nt-space-3);
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-sm);
+}
+
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nt-color-accent);
+  font: inherit;
+  cursor: pointer;
+}

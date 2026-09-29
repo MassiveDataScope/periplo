@@ -1,0 +1,45 @@
+.workspace {
+  box-sizing: border-box;
+  padding: var(--nt-space-4) var(--nt-space-6);
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  gap: var(--nt-space-3);
+  min-block-size: 0;
+}
+
+.results {
+  min-block-size: 20rem;
+}
+
+.editor {
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-bg);
+  font-family: var(--nt-font-family-mono);
+}
+
+.editor :global(.cm-editor) {
+  min-block-size: 8rem;
+  max-block-size: 16rem;
+  background: var(--nt-color-bg);
+  color: var(--nt-color-text);
+}
+
+.editor :global(.cm-gutters) {
+  border-inline-end: var(--nt-border-width) solid var(--nt-color-border);
+  background: var(--nt-color-surface);
+  color: var(--nt-color-text-muted);
+}
+
+.editor :global(.cm-activeLine),
+.editor :global(.cm-activeLineGutter) {
+  background: var(--nt-color-surface);
+}
+
+.editor :global(.cm-cursor) {
+  border-inline-start-color: var(--nt-color-text);
+}
+
+.editor :global(.cm-editor.cm-focused) {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+}

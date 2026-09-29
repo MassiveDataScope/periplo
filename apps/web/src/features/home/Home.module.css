@@ -1,0 +1,317 @@
+.home {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nt-space-8);
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-inline-size: 70rem;
+  margin-inline: auto;
+  padding: var(--nt-space-8);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-4);
+}
+
+.homeLogo,
+.brandLogo {
+  flex: none;
+  inline-size: 4.5rem;
+  block-size: 4rem;
+  object-fit: contain;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--nt-font-family);
+  letter-spacing: -0.02em;
+  font-size: var(--nt-font-size-2xl);
+  font-weight: var(--nt-font-weight-strong);
+  line-height: var(--nt-font-line-height-tight);
+}
+
+.summary,
+.muted {
+  margin: var(--nt-space-1) 0 0;
+  color: var(--nt-color-text-muted);
+}
+
+.muted {
+  font-size: var(--nt-font-size-sm);
+}
+
+.warningLink {
+  color: var(--nt-color-warning);
+  font-weight: var(--nt-font-weight-medium);
+}
+
+.jump {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nt-space-2);
+}
+
+/* The one loud thing on the page: reaching a table is what people come here for. */
+.jumpBox {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-3);
+  min-block-size: var(--nt-size-header);
+  padding: 0 var(--nt-space-4);
+  border: var(--nt-border-width) solid var(--nt-color-border-strong);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-surface-raised);
+  box-shadow: var(--nt-shadow-raised);
+  color: var(--nt-color-text-subtle);
+}
+
+.jumpBox:focus-within {
+  border-color: var(--nt-color-focus);
+  outline: var(--nt-border-width) solid var(--nt-color-focus);
+}
+
+.jumpBox input {
+  flex: 1;
+  min-inline-size: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--nt-color-text);
+  font: inherit;
+  font-size: var(--nt-font-size-lg);
+}
+
+.kbd {
+  padding: 0 var(--nt-space-1-5);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-sm);
+  font-family: var(--nt-font-family);
+  font-size: var(--nt-font-size-xs);
+}
+
+.results {
+  margin: var(--nt-space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.result {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--nt-space-4);
+  min-block-size: var(--nt-size-control-lg);
+  padding: var(--nt-space-1-5) var(--nt-space-4);
+  border-radius: var(--nt-radius-sm);
+  color: var(--nt-color-text);
+  text-decoration: none;
+}
+
+[aria-selected="true"] > .result,
+.result:hover {
+  background: var(--nt-color-selection);
+}
+
+.resultName {
+  font-family: var(--nt-font-family-mono);
+}
+
+.resultName strong {
+  font-weight: var(--nt-font-weight-strong);
+}
+
+/* Layout only: colour, font and case come from the shared `.nt-overline`. */
+.overline {
+  display: flex;
+  align-items: baseline;
+  gap: var(--nt-space-3);
+  margin: 0 0 var(--nt-space-3);
+}
+
+.overlineNote {
+  font-weight: var(--nt-font-weight-regular);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.overlineEnd {
+  margin-inline-start: auto;
+  font-weight: var(--nt-font-weight-regular);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.overlineFigures {
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+  font-feature-settings: var(--nt-font-features-data);
+}
+
+.overlineCount {
+  padding: 0 var(--nt-space-1-5);
+  border-radius: var(--nt-radius-full);
+  background: var(--nt-color-warning-surface);
+  color: var(--nt-color-warning);
+  font-family: var(--nt-font-family-mono);
+  font-weight: var(--nt-font-weight-medium);
+  letter-spacing: 0;
+}
+
+.overlineEnd a {
+  color: var(--nt-color-accent);
+  font-size: var(--nt-font-size-sm);
+  font-weight: var(--nt-font-weight-medium);
+  text-decoration: none;
+}
+
+/* Problems read in normal ink; colour and shape live in the icon alone. */
+.issue {
+  display: grid;
+  grid-template-columns: auto 12rem minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--nt-space-3);
+  min-block-size: var(--nt-size-control-xl);
+  padding-inline: var(--nt-space-4);
+  color: var(--nt-color-text);
+  text-decoration: none;
+}
+
+li + li > .issue {
+  border-block-start: var(--nt-border-width) solid var(--nt-color-border-subtle);
+}
+
+.issue:hover {
+  background: var(--nt-color-surface-hover);
+}
+
+.issue[data-severity="warning"] > svg:first-child {
+  color: var(--nt-color-warning);
+}
+
+.issue[data-severity="danger"] > svg:first-child {
+  color: var(--nt-color-danger);
+}
+
+.issueSubject {
+  overflow: hidden;
+  font-weight: var(--nt-font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.issueSubject[data-name] {
+  font-family: var(--nt-font-family-mono);
+}
+
+.issueMessage {
+  overflow: hidden;
+  color: var(--nt-color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.issueGo,
+.issue > svg:last-child {
+  color: var(--nt-color-text-subtle);
+  font-size: var(--nt-font-size-sm);
+}
+
+.issue:hover .issueGo {
+  color: var(--nt-color-accent);
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr));
+  gap: var(--nt-space-3);
+}
+
+.action {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--nt-space-0-5) var(--nt-space-2-5);
+  box-sizing: border-box;
+  min-block-size: 3.5rem;
+  padding: var(--nt-space-2-5) var(--nt-space-3);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-bg);
+  color: var(--nt-color-text);
+  font: inherit;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    border-color var(--nt-motion-fast),
+    background var(--nt-motion-fast);
+}
+
+.action:hover {
+  border-color: var(--nt-color-border-strong);
+  background: var(--nt-color-surface-hover);
+}
+
+.action > svg {
+  margin-block-start: var(--nt-space-0-5);
+  color: var(--nt-color-text-subtle);
+}
+
+.action:hover > svg {
+  color: var(--nt-color-accent);
+}
+
+.actionLabel {
+  font-weight: var(--nt-font-weight-medium);
+}
+
+.actionHint {
+  grid-column: 2;
+  overflow: hidden;
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The usable width depends on the catalog panel, not on the window: hence a container query. */
+@container (max-width: 44rem) {
+  .issue {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    padding-block: var(--nt-space-2);
+  }
+
+  .issueMessage {
+    grid-column: 2;
+    white-space: normal;
+  }
+
+  .issueGo {
+    display: none;
+  }
+}
+
+.primaryLink {
+  align-self: center;
+  color: var(--nt-color-accent);
+  font-weight: var(--nt-font-weight-medium);
+}
+
+.home :is(a, button):focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: var(--nt-focus-offset);
+}
+
+.panel {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-bg);
+  list-style: none;
+}

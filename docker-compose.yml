@@ -1,0 +1,64 @@
+name: periplo
+
+# One service: the all-in-one image (./Dockerfile) serves the web console and the API from
+# one process and one port, so there is no proxy to configure and no CORS to open.
+# `docker compose up -d --build`, then http://localhost:8080
+services:
+  periplo:
+    image: ${PERIPLO_IMAGE:-periplo:dev}
+    build:
+      context: .
+    environment:
+      # Every PERIPLO_* variable is read by apps/api/src/periplo/settings.py.
+      PERIPLO_SOURCES_FILE: /etc/periplo/sources.yaml
+      PERIPLO_ENV: ${PERIPLO_ENV:-prod}
+      PERIPLO_LOG_LEVEL: ${PERIPLO_LOG_LEVEL:-INFO}
+      PERIPLO_MAX_CONCURRENT_QUERIES: ${PERIPLO_MAX_CONCURRENT_QUERIES:-2}
+      PERIPLO_QUERY_TIMEOUT_SECONDS: ${PERIPLO_QUERY_TIMEOUT_SECONDS:-60}
+      PERIPLO_MAX_RESULT_ROWS: ${PERIPLO_MAX_RESULT_ROWS:-100000}
+      PERIPLO_MAX_RESULT_BYTES: ${PERIPLO_MAX_RESULT_BYTES:-67108864}
+      PERIPLO_DISCOVERY_FOLDER_BUDGET: ${PERIPLO_DISCOVERY_FOLDER_BUDGET:-20000}
+      PERIPLO_METADATA_TTL_SECONDS: ${PERIPLO_METADATA_TTL_SECONDS:-30}
+      PERIPLO_METADATA_CACHE_BYTES: ${PERIPLO_METADATA_CACHE_BYTES:-33554432}
+      PERIPLO_METADATA_SNAPSHOTS: ${PERIPLO_METADATA_SNAPSHOTS:-64}
+      # ETL orchestrator (Prefect): off until PERIPLO_PREFECT_API_URL is set; see .env.example.
+      PERIPLO_PREFECT_API_URL: ${PERIPLO_PREFECT_API_URL:-}
+      PERIPLO_PREFECT_API_KEY: ${PERIPLO_PREFECT_API_KEY:-}
+      PERIPLO_PREFECT_AUTH_STRING: ${PERIPLO_PREFECT_AUTH_STRING:-}
+      PERIPLO_PREFECT_UI_URL: ${PERIPLO_PREFECT_UI_URL:-}
+      PERIPLO_PREFECT_TAGS: ${PERIPLO_PREFECT_TAGS:-}
+      # WARNING: with ALLOW_OPERATE on, anyone who can reach the pod can run, resume or pause
+      # ETLs, because the console has no authentication yet.
+      PERIPLO_ETL_ALLOW_OPERATE: ${PERIPLO_ETL_ALLOW_OPERATE:-false}
+      PERIPLO_PREFECT_TIMEOUT_SECONDS: ${PERIPLO_PREFECT_TIMEOUT_SECONDS:-10}
+      PERIPLO_ETL_LOG_NOISE: ${PERIPLO_ETL_LOG_NOISE:-}
+      # Credentials come from the default AWS chain; nothing else configures storage yet.
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+    # Lets PERIPLO_PREFECT_API_URL point at an orchestrator on the host (or a tunnel to it) as
+    # http://host.docker.internal:<port>/api; Docker Desktop has it already, Linux needs this line.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - type: bind
+        source: ${PERIPLO_SOURCES_FILE:-./config/sources.example.yaml}
+        target: /etc/periplo/sources.yaml
+        read_only: true
+        bind:
+          create_host_path: false
+    ports:
+      - "127.0.0.1:${PERIPLO_PORT:-8080}:8080"
+    # The image's own HEALTHCHECK probes /health/live; readiness (/health/ready) is for
+    # load balancers, which must not send traffic before the first discovery.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 2g
+    cpus: 2
+    stop_grace_period: 30s
+    restart: unless-stopped

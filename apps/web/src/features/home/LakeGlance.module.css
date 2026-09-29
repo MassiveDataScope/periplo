@@ -1,0 +1,451 @@
+/* One sheet for the whole lake: a band per layer; database rows and their child rows share one column template. */
+.glance {
+  --col-layer: 16rem;
+  --cols: minmax(0, 1fr) 4rem 6rem 9rem var(--nt-space-6);
+  overflow: hidden;
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-bg);
+  container-type: inline-size;
+}
+
+.head {
+  display: grid;
+  grid-template-columns: var(--col-layer) minmax(0, 1fr);
+  min-block-size: var(--nt-size-control-lg);
+  border-block-end: var(--nt-border-width) solid var(--nt-color-border);
+  background: var(--nt-color-surface);
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-2xs);
+  font-weight: var(--nt-font-weight-medium);
+  letter-spacing: var(--nt-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+.head > span:first-child {
+  display: flex;
+  align-items: center;
+  padding-inline: var(--nt-space-4);
+}
+
+.cols {
+  display: grid;
+  grid-template-columns: var(--cols);
+  column-gap: var(--nt-space-3);
+  align-items: center;
+  padding-inline: var(--nt-space-3);
+}
+
+.cols [data-align="end"] {
+  text-align: end;
+}
+
+.band {
+  display: grid;
+  grid-template-columns: var(--col-layer) minmax(0, 1fr);
+}
+
+.band + .band {
+  border-block-start: var(--nt-border-width) solid var(--nt-color-border);
+}
+
+/* The layer cell stays in view while its rows scroll past. */
+.layer {
+  position: sticky;
+  inset-block-start: var(--nt-space-2);
+  display: grid;
+  align-self: start;
+  gap: var(--nt-space-0-5);
+  min-inline-size: 0;
+  padding: var(--nt-space-3) var(--nt-space-4);
+}
+
+.layerName {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--nt-space-2);
+  color: var(--nt-color-text);
+  font-weight: var(--nt-font-weight-medium);
+  text-decoration: none;
+}
+
+a.layerName:hover {
+  color: var(--nt-color-accent);
+}
+
+.layerName[data-raw] {
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+}
+
+.layerName[data-rest] {
+  color: var(--nt-color-text-muted);
+  font-weight: var(--nt-font-weight-regular);
+}
+
+.pill {
+  padding: 0 var(--nt-space-1-5);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-full);
+  background: var(--nt-color-surface);
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family);
+  font-size: var(--nt-font-size-xs);
+  font-weight: var(--nt-font-weight-regular);
+}
+
+.figures,
+.num {
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+  font-feature-settings: var(--nt-font-features-data);
+}
+
+.desc {
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-sm);
+}
+
+.rows {
+  min-inline-size: 0;
+  border-inline-start: var(--nt-border-width) solid var(--nt-color-border-subtle);
+}
+
+.rows > * {
+  border-block-end: var(--nt-border-width) solid var(--nt-color-border-subtle);
+}
+
+.rows > :last-child {
+  border-block-end: 0;
+}
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-3);
+  min-block-size: var(--nt-size-control-xl);
+  padding-inline: var(--nt-space-3);
+}
+
+.filter {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-1-5);
+  inline-size: 16rem;
+  max-inline-size: 100%;
+  min-block-size: var(--nt-size-control);
+  padding: 0 var(--nt-space-2);
+  border: var(--nt-border-width) solid var(--nt-color-border-strong);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-bg);
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+}
+
+.filter:focus-within {
+  border-color: var(--nt-color-focus);
+  outline: var(--nt-border-width) solid var(--nt-color-focus);
+}
+
+.filter input {
+  flex: 1;
+  min-inline-size: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--nt-color-text);
+  font: inherit;
+}
+
+/* A database row: 32 px, a button. Inverted ink is "the current one", as in the rail. */
+.dbRow {
+  inline-size: 100%;
+  min-block-size: var(--nt-size-control-lg);
+  border: 0;
+  background: none;
+  color: var(--nt-color-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.dbRow:hover {
+  background: var(--nt-color-surface-hover);
+}
+
+.dbRow:hover .name {
+  color: var(--nt-color-accent);
+}
+
+.dbRow:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: calc(-1 * var(--nt-focus-width));
+}
+
+.dbRow[aria-expanded="true"],
+.dbRow[aria-expanded="true"]:hover {
+  background: var(--nt-color-text);
+  color: var(--nt-color-bg);
+}
+
+.dbRow[aria-expanded="true"] .name,
+.dbRow[aria-expanded="true"] .num,
+.dbRow[aria-expanded="true"] .chevron,
+.dbRow[aria-expanded="true"] .fresh {
+  color: var(--nt-color-bg);
+}
+
+.dbRow[aria-expanded="true"] .skeleton {
+  background: var(--nt-color-text-muted);
+}
+
+.dbRow[aria-expanded="true"]:focus-visible {
+  outline-color: var(--nt-color-accent);
+}
+
+.name {
+  display: block;
+  min-inline-size: 0;
+  overflow: hidden;
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-md);
+  font-weight: var(--nt-font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fresh {
+  overflow: hidden;
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-xs);
+  white-space: nowrap;
+}
+
+.chevron {
+  inline-size: var(--nt-space-3);
+  block-size: var(--nt-space-3);
+  color: var(--nt-color-text-subtle);
+  transition: transform var(--nt-motion-medium) var(--nt-motion-ease);
+}
+
+.dbRow[aria-expanded="true"] .chevron {
+  transform: rotate(90deg);
+}
+
+.skeleton {
+  display: inline-block;
+  inline-size: 3rem;
+  block-size: var(--nt-space-2);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-surface-hover);
+  vertical-align: middle;
+}
+
+/* Child rows: the same sheet, one level down. 28 px, on surface, an ink edge that says "these belong to the row above". */
+/* Child rows have a real actions column instead of the chevron track of a database row. */
+.kids {
+  --cols: minmax(0, 1fr) 5.5rem 6rem 9rem 4.5rem;
+  background: var(--nt-color-surface);
+  box-shadow: inset var(--nt-focus-width) 0 0 var(--nt-color-text);
+}
+
+.kids > * {
+  border-block-end: var(--nt-border-width) solid var(--nt-color-border-subtle);
+}
+
+.kids > :last-child {
+  border-block-end: 0;
+}
+
+.kidsHead {
+  min-block-size: var(--nt-space-6);
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-2xs);
+  font-weight: var(--nt-font-weight-medium);
+  letter-spacing: var(--nt-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+.kidsHead > :first-child {
+  padding-inline-start: var(--nt-space-5);
+}
+
+.kidRow {
+  min-block-size: var(--nt-size-row);
+}
+
+.kidRow:hover,
+.kidRow:focus-within {
+  background: var(--nt-color-surface-hover);
+}
+
+.kidName {
+  display: block;
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  padding-inline-start: var(--nt-space-5);
+  overflow: hidden;
+  color: var(--nt-color-text);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-md);
+  font-weight: var(--nt-font-weight-medium);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kidName:hover {
+  color: var(--nt-color-accent);
+}
+
+.kidName:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: calc(-1 * var(--nt-focus-width));
+  border-radius: var(--nt-radius-sm);
+}
+
+.cell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nt-space-1-5);
+}
+
+.kidActions {
+  min-inline-size: 0;
+  text-align: end;
+  white-space: nowrap;
+}
+
+.kidActions a,
+.kidActions button {
+  margin-inline-start: var(--nt-space-1);
+  padding: 0 var(--nt-space-2);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-sm);
+  background: none;
+  color: var(--nt-color-text-muted);
+  font: inherit;
+  font-size: var(--nt-font-size-xs);
+  font-weight: var(--nt-font-weight-medium);
+  line-height: var(--nt-space-5);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.kidsFoot {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-4);
+  min-block-size: var(--nt-size-control-lg);
+  padding: 0 var(--nt-space-3) 0 var(--nt-space-5);
+  color: var(--nt-color-text-subtle);
+  font-size: var(--nt-font-size-sm);
+}
+
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nt-color-accent);
+  font: inherit;
+  font-weight: var(--nt-font-weight-medium);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.fold {
+  margin-inline-start: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nt-color-text-muted);
+  font: inherit;
+  font-size: var(--nt-font-size-sm);
+  cursor: pointer;
+}
+
+.fold:hover {
+  color: var(--nt-color-text);
+}
+
+/* Beyond ten databases: one row of the sheet stands for the rest. */
+.more {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-2);
+  inline-size: 100%;
+  min-block-size: var(--nt-size-control-lg);
+  padding: 0 var(--nt-space-3);
+  border: 0;
+  background: none;
+  color: var(--nt-color-text-muted);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.more:hover {
+  background: var(--nt-color-surface-hover);
+  color: var(--nt-color-accent);
+}
+
+.empty {
+  margin: 0;
+  padding: var(--nt-space-2) var(--nt-space-3);
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-sm);
+}
+
+@container (max-width: 44rem) {
+  .head,
+  .band {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .head > span:first-child {
+    display: none;
+  }
+
+  .layer {
+    position: static;
+    padding: var(--nt-space-2) var(--nt-space-3);
+    border-block-end: var(--nt-border-width) solid var(--nt-color-border-subtle);
+    background: var(--nt-color-surface);
+  }
+
+  .rows {
+    border-inline-start: 0;
+  }
+
+  .glance {
+    --cols: minmax(0, 1fr) 4rem var(--nt-space-6);
+  }
+
+  .cols > :nth-child(3),
+  .cols > :nth-child(4) {
+    display: none;
+  }
+}
+
+.kidRow:hover .kidActions a,
+.kidRow:hover .kidActions button,
+.kidRow:focus-within .kidActions a,
+.kidRow:focus-within .kidActions button {
+  border-color: var(--nt-color-text);
+  background: var(--nt-color-text);
+  color: var(--nt-color-bg);
+}

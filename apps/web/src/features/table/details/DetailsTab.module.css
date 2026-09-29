@@ -1,0 +1,325 @@
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nt-space-6);
+  box-sizing: border-box;
+  block-size: 100%;
+  padding: var(--nt-space-4) var(--nt-space-4) var(--nt-space-8);
+  overflow: auto;
+}
+
+.sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+  gap: var(--nt-space-6) var(--nt-space-8);
+}
+
+.section {
+  min-inline-size: 0;
+}
+
+/* Space below every section/group heading in this tab; the heading itself is the shared `.nt-overline`. */
+.section > h3,
+.metadataGrid section > h4 {
+  margin-block-end: var(--nt-space-2);
+}
+
+.fact {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-2);
+  min-block-size: var(--nt-size-control-lg);
+  border-block-end: var(--nt-border-width) solid var(--nt-color-border-subtle);
+}
+
+.factLabel {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--nt-space-1-5);
+  inline-size: 8rem;
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-2xs);
+  font-weight: var(--nt-font-weight-medium);
+  letter-spacing: var(--nt-font-tracking-caps);
+  text-transform: uppercase;
+}
+
+.factLabel svg {
+  color: var(--nt-color-text-subtle);
+}
+
+.factValue {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copy {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--nt-size-control);
+  block-size: var(--nt-size-control);
+  border: 0;
+  border-radius: var(--nt-radius-sm);
+  background: none;
+  color: var(--nt-color-text-subtle);
+  cursor: pointer;
+}
+
+.copy:hover {
+  background: var(--nt-color-surface-hover);
+  color: var(--nt-color-text);
+}
+
+.copy:focus-visible,
+.link:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: calc(-1 * var(--nt-focus-width));
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nt-space-1);
+  padding-block: var(--nt-space-1);
+}
+
+.chip {
+  padding: 0 var(--nt-space-2);
+  border-radius: var(--nt-radius-full);
+  background: var(--nt-color-surface-sunken);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+}
+
+.chipKey,
+.muted {
+  color: var(--nt-color-text-muted);
+}
+
+.muted {
+  margin: 0;
+  font-size: var(--nt-font-size-sm);
+}
+
+.partitions {
+  display: grid;
+  gap: var(--nt-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.partitions li {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-2);
+  min-block-size: var(--nt-size-row);
+}
+
+.partitions code {
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+}
+
+/* The instrument sheet: mono-caps header on surface, ruled-paper figure cells, an ink tag for the operation. */
+/* The sheet may be wider than the pane: it scrolls on its own, nothing gets cut. */
+.operationsScroll {
+  overflow-x: auto;
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-md);
+}
+
+.operations {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-feature-settings: var(--nt-font-features-data);
+}
+
+.operations th,
+.operations td {
+  block-size: var(--nt-size-control-lg);
+  padding: 0 var(--nt-space-3);
+  border-block-end: var(--nt-border-width) solid var(--nt-color-border-subtle);
+  text-align: start;
+  white-space: nowrap;
+}
+
+.operations th {
+  border-block-end-color: var(--nt-color-border);
+  background: var(--nt-color-surface);
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-2xs);
+  font-weight: var(--nt-font-weight-medium);
+  letter-spacing: var(--nt-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+.operations [data-align="end"] {
+  text-align: end;
+}
+
+.operations tbody tr {
+  --nt-row-bg: var(--nt-color-bg);
+}
+
+.operations tbody tr:hover,
+.operations tbody tr[data-open] {
+  --nt-row-bg: var(--nt-color-surface);
+  background: var(--nt-color-surface);
+}
+
+.version {
+  color: var(--nt-color-text);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+}
+
+/* When: the relative age up top, the absolute ISO stamp underneath in a quiet mono line. */
+.when {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nt-space-0-5);
+  padding-block: var(--nt-space-1);
+}
+
+.timestamp {
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-xs);
+}
+
+/* Ruled paper behind the written/updated/deleted/duration cells, same rhythm as the grid. */
+.figure {
+  background:
+    repeating-linear-gradient(to bottom, var(--nt-color-rule) 0 var(--nt-border-width), transparent var(--nt-border-width) var(--nt-space-1)), var(--nt-row-bg);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+}
+
+/* A mono-caps tag with a 2px left rule coloured by the kind of operation; the text itself never depends on colour. */
+.operation {
+  padding-inline-start: var(--nt-space-1-5);
+  border-inline-start: var(--nt-focus-width) solid var(--nt-color-text-muted);
+  color: var(--nt-color-text);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-2xs);
+  font-weight: var(--nt-font-weight-medium);
+  letter-spacing: var(--nt-font-tracking-caps);
+  text-transform: uppercase;
+}
+
+.operation[data-op="WRITE"],
+.operation[data-op="APPEND"] {
+  border-inline-start-color: var(--nt-color-type-integer);
+}
+
+.operation[data-op="MERGE"],
+.operation[data-op="UPDATE"] {
+  border-inline-start-color: var(--nt-color-type-decimal);
+}
+
+.operation[data-op="DELETE"],
+.operation[data-op="TRUNCATE"] {
+  border-inline-start-color: var(--nt-color-danger);
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nt-space-1);
+  color: var(--nt-color-accent);
+  font-size: var(--nt-font-size-sm);
+}
+
+.link svg {
+  inline-size: var(--nt-space-3);
+  block-size: var(--nt-space-3);
+}
+
+.expand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--nt-size-control);
+  block-size: var(--nt-size-control);
+  border: 0;
+  border-radius: var(--nt-radius-sm);
+  background: none;
+  color: var(--nt-color-text-subtle);
+  cursor: pointer;
+}
+
+.expand:hover {
+  background: var(--nt-color-surface-hover);
+  color: var(--nt-color-text);
+}
+
+.expand svg {
+  transition: transform var(--nt-motion-medium) var(--nt-motion-ease);
+}
+
+.expand[aria-expanded="true"] svg {
+  transform: rotate(90deg);
+}
+
+/* The unfolded commit: an ink spine on the left, like a note pinned to the row above it. */
+.metadata td {
+  block-size: auto;
+  padding: var(--nt-space-3) var(--nt-space-4) var(--nt-space-4);
+  background: var(--nt-color-surface);
+  box-shadow: inset var(--nt-size-spine) 0 0 var(--nt-color-text);
+  white-space: normal;
+}
+
+.metadataBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nt-space-3);
+}
+
+.summary {
+  margin: 0;
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+}
+
+.metadataGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--nt-space-4) var(--nt-space-8);
+}
+
+/* Keys and values as the writer spelled them: this is the raw record, in mono. */
+.pairs {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--nt-space-0-5) var(--nt-space-3);
+  margin: 0;
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+}
+
+.pairs div {
+  display: contents;
+}
+
+.pairs dt {
+  color: var(--nt-color-text-subtle);
+}
+
+.pairs dd {
+  margin: 0;
+  color: var(--nt-color-text);
+  overflow-wrap: anywhere;
+}

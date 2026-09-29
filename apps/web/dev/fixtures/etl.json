@@ -1,0 +1,5072 @@
+{
+  "deployments": [
+    {
+      "id": "c23e3e62-a56c-4211-808c-374f7490effa",
+      "name": "orders_snapshot_daily",
+      "flow_name": "orders_snapshot_daily",
+      "description": "Daily snapshot of the orders database into the core and mart layers of the lake.",
+      "tags": [
+        "cadence:daily",
+        "source:postgres",
+        "target:lake",
+        "team:data-platform"
+      ],
+      "paused": false,
+      "schedule": {
+        "kind": "cron",
+        "cron": "0 3 * * *",
+        "interval_seconds": null,
+        "timezone": "UTC",
+        "active": true
+      },
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "9ed419bc-eac6-4f59-969d-aadf00f64706",
+      "name": "suppliers_catalog_weekly",
+      "flow_name": "suppliers_catalog_weekly",
+      "description": "Weekly load of the suppliers' CSV catalog from SFTP into the core schema.",
+      "tags": [
+        "cadence:weekly",
+        "source:sftp_csv",
+        "target:core",
+        "team:data-platform"
+      ],
+      "paused": false,
+      "schedule": {
+        "kind": "cron",
+        "cron": "0 5 * * 3",
+        "interval_seconds": null,
+        "timezone": "UTC",
+        "active": true
+      },
+      "parameters": {
+        "source_kind": "sftp_csv",
+        "feed": "suppliers"
+      }
+    },
+    {
+      "id": "f75414e3-002a-4f1f-8369-c6342683bdc3",
+      "name": "customer_facts_daily",
+      "flow_name": "customer_facts_daily",
+      "description": "Rebuilds the customer fact table from the core orders and returns.",
+      "tags": [
+        "cadence:daily",
+        "source:table",
+        "target:mart",
+        "team:data-platform"
+      ],
+      "paused": false,
+      "schedule": {
+        "kind": "cron",
+        "cron": "0 4 * * *",
+        "interval_seconds": null,
+        "timezone": "UTC",
+        "active": false
+      },
+      "parameters": {
+        "source_kind": "table",
+        "feed": "customer_facts"
+      }
+    },
+    {
+      "id": "0799dc72-cc58-440f-a076-b71dfb91e8b6",
+      "name": "staging_orders_dev",
+      "flow_name": "staging_orders_dev",
+      "description": "Development copy of the orders pipeline; runs against a scratch schema.",
+      "tags": [
+        "stage:dev",
+        "cadence:daily",
+        "source:postgres",
+        "team:data-platform"
+      ],
+      "paused": false,
+      "schedule": {
+        "kind": "cron",
+        "cron": "0 2 * * *",
+        "interval_seconds": null,
+        "timezone": "UTC",
+        "active": true
+      },
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "718ae4e0-2736-4d13-8280-8bba4fb3f41e",
+      "name": "suppliers_catalog_backfill_by_month",
+      "flow_name": "suppliers_catalog_backfill_by_month",
+      "description": "One-off backfill of the suppliers' catalog for a given month range.",
+      "tags": [
+        "mode:backfill",
+        "cadence:manual",
+        "team:data-platform"
+      ],
+      "paused": false,
+      "schedule": null,
+      "parameters": {
+        "from_month": "2026-01",
+        "to_month": "2026-01",
+        "processes": null
+      }
+    },
+    {
+      "id": "caf27910-88b0-4056-819d-f58999d772ef",
+      "name": "orders_snapshot_backfill_by_month",
+      "flow_name": "orders_snapshot_backfill_by_month",
+      "description": "One-off backfill of order snapshots for a given month range.",
+      "tags": [
+        "mode:backfill",
+        "cadence:manual",
+        "team:data-platform"
+      ],
+      "paused": false,
+      "schedule": null,
+      "parameters": {
+        "from_month": "2026-01",
+        "to_month": "2026-01",
+        "processes": null
+      }
+    },
+    {
+      "id": "5af909c4-2644-4cf6-9e0d-dd07ad7277ae",
+      "name": "inventory_sync_hourly",
+      "flow_name": "inventory_sync_hourly",
+      "description": "Syncs stock levels from the warehouse API every hour.",
+      "tags": [
+        "cadence:hourly",
+        "source:http_api",
+        "target:core",
+        "team:data-platform"
+      ],
+      "paused": false,
+      "schedule": {
+        "kind": "interval",
+        "cron": null,
+        "interval_seconds": 3600,
+        "timezone": "UTC",
+        "active": true
+      },
+      "parameters": {
+        "source_kind": "http_api",
+        "processes": null
+      }
+    },
+    {
+      "id": "49427c1e-a6b0-4fbe-b5e3-268dadc29831",
+      "name": "returns_reconciliation_daily",
+      "flow_name": "returns_reconciliation_daily",
+      "description": "Reconciles returns reported by the payments API with the orders. Meant to run daily but has no schedule configured.",
+      "tags": [
+        "cadence:daily",
+        "source:http_api",
+        "target:mart",
+        "team:data-platform"
+      ],
+      "paused": false,
+      "schedule": null,
+      "parameters": {
+        "source_kind": "http_api",
+        "feed": "returns"
+      }
+    }
+  ],
+  "deploymentMeta": {
+    "c23e3e62-a56c-4211-808c-374f7490effa": {
+      "schema": "shop_orders",
+      "sourceKind": "postgres"
+    },
+    "9ed419bc-eac6-4f59-969d-aadf00f64706": {
+      "schema": "shop_suppliers",
+      "sourceKind": "sftp_csv"
+    },
+    "f75414e3-002a-4f1f-8369-c6342683bdc3": {
+      "schema": "shop_customer_facts",
+      "sourceKind": "table"
+    },
+    "0799dc72-cc58-440f-a076-b71dfb91e8b6": {
+      "schema": "shop_orders_dev",
+      "sourceKind": "postgres"
+    },
+    "718ae4e0-2736-4d13-8280-8bba4fb3f41e": {
+      "schema": "shop_suppliers",
+      "sourceKind": "sftp_csv"
+    },
+    "caf27910-88b0-4056-819d-f58999d772ef": {
+      "schema": "shop_orders",
+      "sourceKind": "postgres"
+    },
+    "5af909c4-2644-4cf6-9e0d-dd07ad7277ae": {
+      "schema": "shop_inventory",
+      "sourceKind": "http_api"
+    },
+    "49427c1e-a6b0-4fbe-b5e3-268dadc29831": {
+      "schema": "shop_returns",
+      "sourceKind": "http_api"
+    }
+  },
+  "runs": [
+    {
+      "id": "7e099b9d-c915-4153-a8e3-781a7e6b94fb",
+      "deployment_id": "c23e3e62-a56c-4211-808c-374f7490effa",
+      "name": "amber-jackal",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-12T03:00:00.000Z",
+      "start_at": "2026-09-12T03:00:03.000Z",
+      "end_at": "2026-09-12T03:04:03.000Z",
+      "duration_seconds": 240,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "5282d863-5fd8-4257-a8d9-821eafb1c0a3",
+      "deployment_id": "c23e3e62-a56c-4211-808c-374f7490effa",
+      "name": "tidy-raven",
+      "state": "FAILED",
+      "state_name": "Failed",
+      "state_message": "Flow run encountered an exception: EmptyUserPartitionError: refusing to publish an empty partition",
+      "expected_start_at": "2026-09-13T03:00:00.000Z",
+      "start_at": "2026-09-13T03:00:03.000Z",
+      "end_at": "2026-09-13T03:08:18.000Z",
+      "duration_seconds": 495,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "8e524f57-35fd-43cf-8de2-2e07a62de661",
+      "deployment_id": "c23e3e62-a56c-4211-808c-374f7490effa",
+      "name": "silver-koala",
+      "state": "CRASHED",
+      "state_name": "Crashed",
+      "state_message": "Process exited with signal SIGKILL: process exceeded its memory limit",
+      "expected_start_at": "2026-09-14T03:00:00.000Z",
+      "start_at": "2026-09-14T03:00:03.000Z",
+      "end_at": "2026-09-14T03:06:03.000Z",
+      "duration_seconds": 360,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "360fccc3-2201-485d-b4dc-584713c9fcda",
+      "deployment_id": "c23e3e62-a56c-4211-808c-374f7490effa",
+      "name": "eager-raven",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-15T03:00:00.000Z",
+      "start_at": "2026-09-15T03:00:03.000Z",
+      "end_at": "2026-09-15T03:07:03.000Z",
+      "duration_seconds": 420,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "84783cb7-7aba-4d08-b84c-4ccfe3da7fdb",
+      "deployment_id": "c23e3e62-a56c-4211-808c-374f7490effa",
+      "name": "quiet-wombat",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-16T03:00:00.000Z",
+      "start_at": "2026-09-16T03:00:03.000Z",
+      "end_at": "2026-09-16T03:07:03.000Z",
+      "duration_seconds": 420,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "c71fcec8-16ac-476d-9ea1-0bea99a7b0d4",
+      "deployment_id": "c23e3e62-a56c-4211-808c-374f7490effa",
+      "name": "tidy-jackal",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-17T03:00:00.000Z",
+      "start_at": "2026-09-17T03:00:03.000Z",
+      "end_at": "2026-09-17T03:11:03.000Z",
+      "duration_seconds": 660,
+      "created_by": "prefect-scheduler",
+      "run_count": 2,
+      "retries": 1,
+      "retry_delay_seconds": 60,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "1a36775b-f602-44bb-8dab-328cdd8376c9",
+      "deployment_id": "c23e3e62-a56c-4211-808c-374f7490effa",
+      "name": "hardy-heron",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-18T03:00:00.000Z",
+      "start_at": "2026-09-18T03:00:03.000Z",
+      "end_at": "2026-09-18T03:06:03.000Z",
+      "duration_seconds": 360,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "84b7a420-ef60-4a22-81a1-e052d612e0ae",
+      "deployment_id": "c23e3e62-a56c-4211-808c-374f7490effa",
+      "name": "gentle-heron",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-19T03:00:00.000Z",
+      "start_at": "2026-09-19T03:00:03.000Z",
+      "end_at": "2026-09-19T03:05:03.000Z",
+      "duration_seconds": 300,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "22700d10-e1f0-47ec-90bf-c67c22c65375",
+      "deployment_id": "c23e3e62-a56c-4211-808c-374f7490effa",
+      "name": "olive-badger",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-20T03:00:00.000Z",
+      "start_at": "2026-09-20T03:00:03.000Z",
+      "end_at": "2026-09-20T03:07:03.000Z",
+      "duration_seconds": 420,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "efca2cf6-21bb-42a0-bedf-d18b9b1a49aa",
+      "deployment_id": "c23e3e62-a56c-4211-808c-374f7490effa",
+      "name": "dapper-badger",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-21T03:00:00.000Z",
+      "start_at": "2026-09-21T03:00:03.000Z",
+      "end_at": "2026-09-21T03:04:03.000Z",
+      "duration_seconds": 240,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "0534662f-36e0-46c6-a230-eb527cff7664",
+      "deployment_id": "c23e3e62-a56c-4211-808c-374f7490effa",
+      "name": "eager-urchin",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-22T03:00:00.000Z",
+      "start_at": "2026-09-22T03:00:03.000Z",
+      "end_at": "2026-09-22T03:07:03.000Z",
+      "duration_seconds": 420,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "ddf9c4e2-34cd-4375-8354-10ed9b1dc805",
+      "deployment_id": "c23e3e62-a56c-4211-808c-374f7490effa",
+      "name": "calm-falcon",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-23T03:00:00.000Z",
+      "start_at": "2026-09-23T03:00:03.000Z",
+      "end_at": "2026-09-23T03:22:06.000Z",
+      "duration_seconds": 1323,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "c9715285-2a4a-4b71-ad64-91c4f2565fb9",
+      "deployment_id": "9ed419bc-eac6-4f59-969d-aadf00f64706",
+      "name": "keen-koala",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-07-08T05:00:00.000Z",
+      "start_at": "2026-07-08T05:00:03.000Z",
+      "end_at": "2026-07-08T05:05:03.000Z",
+      "duration_seconds": 300,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "sftp_csv",
+        "feed": "suppliers"
+      }
+    },
+    {
+      "id": "154bb5b5-6df0-449a-b51e-b889b4e4acf7",
+      "deployment_id": "9ed419bc-eac6-4f59-969d-aadf00f64706",
+      "name": "calm-vole",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-07-15T05:00:00.000Z",
+      "start_at": "2026-07-15T05:00:03.000Z",
+      "end_at": "2026-07-15T05:03:03.000Z",
+      "duration_seconds": 180,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "sftp_csv",
+        "feed": "suppliers"
+      }
+    },
+    {
+      "id": "f2176242-0bf0-4331-a790-a5839b0aa686",
+      "deployment_id": "9ed419bc-eac6-4f59-969d-aadf00f64706",
+      "name": "lively-stoat",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-07-22T05:00:00.000Z",
+      "start_at": "2026-07-22T05:00:03.000Z",
+      "end_at": "2026-07-22T05:04:03.000Z",
+      "duration_seconds": 240,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "sftp_csv",
+        "feed": "suppliers"
+      }
+    },
+    {
+      "id": "6d014bb1-57e0-4557-ae54-9a2b3df3ca18",
+      "deployment_id": "9ed419bc-eac6-4f59-969d-aadf00f64706",
+      "name": "jolly-heron",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-07-29T05:00:00.000Z",
+      "start_at": "2026-07-29T05:00:03.000Z",
+      "end_at": "2026-07-29T05:05:03.000Z",
+      "duration_seconds": 300,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "sftp_csv",
+        "feed": "suppliers"
+      }
+    },
+    {
+      "id": "e5c78969-f933-4d03-8207-8b4c63f397d0",
+      "deployment_id": "9ed419bc-eac6-4f59-969d-aadf00f64706",
+      "name": "gentle-marten",
+      "state": "CRASHED",
+      "state_name": "Crashed",
+      "state_message": "Process exited with signal SIGKILL: process exceeded its memory limit",
+      "expected_start_at": "2026-08-05T05:00:00.000Z",
+      "start_at": "2026-08-05T05:00:03.000Z",
+      "end_at": "2026-08-05T05:04:03.000Z",
+      "duration_seconds": 240,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "sftp_csv",
+        "feed": "suppliers"
+      }
+    },
+    {
+      "id": "23ba69d0-1d6c-4bbd-92ae-2b4cb6c10650",
+      "deployment_id": "9ed419bc-eac6-4f59-969d-aadf00f64706",
+      "name": "plucky-koala",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-08-12T05:00:00.000Z",
+      "start_at": "2026-08-12T05:00:03.000Z",
+      "end_at": "2026-08-12T05:03:03.000Z",
+      "duration_seconds": 180,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "sftp_csv",
+        "feed": "suppliers"
+      }
+    },
+    {
+      "id": "b7a8fde2-4817-49a3-86aa-baacc186fb69",
+      "deployment_id": "9ed419bc-eac6-4f59-969d-aadf00f64706",
+      "name": "amber-ibis",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-08-19T05:00:00.000Z",
+      "start_at": "2026-08-19T05:00:03.000Z",
+      "end_at": "2026-08-19T05:06:54.000Z",
+      "duration_seconds": 411,
+      "created_by": "prefect-scheduler",
+      "run_count": 3,
+      "retries": 2,
+      "retry_delay_seconds": 60,
+      "parameters": {
+        "source_kind": "sftp_csv",
+        "feed": "suppliers"
+      }
+    },
+    {
+      "id": "a4e8cc5f-7833-4657-b478-e66b06927c5e",
+      "deployment_id": "9ed419bc-eac6-4f59-969d-aadf00f64706",
+      "name": "quiet-vole",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-08-26T05:00:00.000Z",
+      "start_at": "2026-08-26T05:00:03.000Z",
+      "end_at": "2026-08-26T05:06:03.000Z",
+      "duration_seconds": 360,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "sftp_csv",
+        "feed": "suppliers"
+      }
+    },
+    {
+      "id": "12e3dc4c-2806-4211-975b-ed1ba1b7be0c",
+      "deployment_id": "9ed419bc-eac6-4f59-969d-aadf00f64706",
+      "name": "dapper-tapir",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-02T05:00:00.000Z",
+      "start_at": "2026-09-02T05:00:03.000Z",
+      "end_at": "2026-09-02T05:04:03.000Z",
+      "duration_seconds": 240,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "sftp_csv",
+        "feed": "suppliers"
+      }
+    },
+    {
+      "id": "fd0f8098-f6a6-4357-930c-efd0f0d8af45",
+      "deployment_id": "9ed419bc-eac6-4f59-969d-aadf00f64706",
+      "name": "hardy-raven",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-09T05:00:00.000Z",
+      "start_at": "2026-09-09T05:00:03.000Z",
+      "end_at": "2026-09-09T05:06:03.000Z",
+      "duration_seconds": 360,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "sftp_csv",
+        "feed": "suppliers"
+      }
+    },
+    {
+      "id": "c3f7412e-4cda-4ece-8893-82b4fc29054f",
+      "deployment_id": "9ed419bc-eac6-4f59-969d-aadf00f64706",
+      "name": "quiet-urchin",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-16T05:00:00.000Z",
+      "start_at": "2026-09-16T05:00:03.000Z",
+      "end_at": "2026-09-16T05:05:03.000Z",
+      "duration_seconds": 300,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "sftp_csv",
+        "feed": "suppliers"
+      }
+    },
+    {
+      "id": "7b0414e1-b6ab-432d-ac30-5dc2d8cb73a9",
+      "deployment_id": "9ed419bc-eac6-4f59-969d-aadf00f64706",
+      "name": "quiet-marten",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-23T05:00:00.000Z",
+      "start_at": "2026-09-23T05:00:03.000Z",
+      "end_at": "2026-09-23T05:04:03.000Z",
+      "duration_seconds": 240,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "sftp_csv",
+        "feed": "suppliers"
+      }
+    },
+    {
+      "id": "5996d5a0-b60c-4ee6-b7eb-fa177a016321",
+      "deployment_id": "f75414e3-002a-4f1f-8369-c6342683bdc3",
+      "name": "eager-badger",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-12T04:00:00.000Z",
+      "start_at": "2026-09-12T04:00:03.000Z",
+      "end_at": "2026-09-12T04:05:03.000Z",
+      "duration_seconds": 300,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "table",
+        "feed": "customer_facts"
+      }
+    },
+    {
+      "id": "5b863587-e4c6-40eb-afd7-82e0681f9966",
+      "deployment_id": "f75414e3-002a-4f1f-8369-c6342683bdc3",
+      "name": "fuzzy-gecko",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-13T04:00:00.000Z",
+      "start_at": "2026-09-13T04:00:03.000Z",
+      "end_at": "2026-09-13T04:03:03.000Z",
+      "duration_seconds": 180,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "table",
+        "feed": "customer_facts"
+      }
+    },
+    {
+      "id": "2880ecf4-3e01-4b42-bb3f-0eb98e8060f7",
+      "deployment_id": "f75414e3-002a-4f1f-8369-c6342683bdc3",
+      "name": "brisk-raven",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-14T04:00:00.000Z",
+      "start_at": "2026-09-14T04:00:03.000Z",
+      "end_at": "2026-09-14T04:04:03.000Z",
+      "duration_seconds": 240,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "table",
+        "feed": "customer_facts"
+      }
+    },
+    {
+      "id": "975aa9df-d57e-48d3-9eb1-8f7b072a3bde",
+      "deployment_id": "f75414e3-002a-4f1f-8369-c6342683bdc3",
+      "name": "mellow-otter",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-15T04:00:00.000Z",
+      "start_at": "2026-09-15T04:00:03.000Z",
+      "end_at": "2026-09-15T04:07:03.000Z",
+      "duration_seconds": 420,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "table",
+        "feed": "customer_facts"
+      }
+    },
+    {
+      "id": "74f7571f-7370-43d8-80e0-6caae17269bb",
+      "deployment_id": "f75414e3-002a-4f1f-8369-c6342683bdc3",
+      "name": "amber-vole",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-16T04:00:00.000Z",
+      "start_at": "2026-09-16T04:00:03.000Z",
+      "end_at": "2026-09-16T04:03:03.000Z",
+      "duration_seconds": 180,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "table",
+        "feed": "customer_facts"
+      }
+    },
+    {
+      "id": "1d1f37f2-6d1e-4d22-afe7-579df5568fa1",
+      "deployment_id": "f75414e3-002a-4f1f-8369-c6342683bdc3",
+      "name": "fuzzy-heron",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-17T04:00:00.000Z",
+      "start_at": "2026-09-17T04:00:03.000Z",
+      "end_at": "2026-09-17T04:06:03.000Z",
+      "duration_seconds": 360,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "table",
+        "feed": "customer_facts"
+      }
+    },
+    {
+      "id": "2caa8b65-0c26-4a48-a06a-71a25ff72ed7",
+      "deployment_id": "f75414e3-002a-4f1f-8369-c6342683bdc3",
+      "name": "amber-ibis",
+      "state": "CRASHED",
+      "state_name": "Crashed",
+      "state_message": "Process exited with signal SIGKILL: process exceeded its memory limit",
+      "expected_start_at": "2026-09-18T04:00:00.000Z",
+      "start_at": "2026-09-18T04:00:03.000Z",
+      "end_at": "2026-09-18T04:06:03.000Z",
+      "duration_seconds": 360,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "table",
+        "feed": "customer_facts"
+      }
+    },
+    {
+      "id": "ca724e83-f1ca-47a5-9322-5df55c54010d",
+      "deployment_id": "f75414e3-002a-4f1f-8369-c6342683bdc3",
+      "name": "nimble-ocelot",
+      "state": "FAILED",
+      "state_name": "Failed",
+      "state_message": "Flow run encountered an exception; retries exhausted after 3 attempts",
+      "expected_start_at": "2026-09-19T04:00:00.000Z",
+      "start_at": "2026-09-19T04:00:03.000Z",
+      "end_at": "2026-09-19T04:10:03.000Z",
+      "duration_seconds": 600,
+      "created_by": "prefect-scheduler",
+      "run_count": 3,
+      "retries": 2,
+      "retry_delay_seconds": 60,
+      "parameters": {
+        "source_kind": "table",
+        "feed": "customer_facts"
+      }
+    },
+    {
+      "id": "e2e588f3-5bc5-494a-bd27-f0ac832b96fd",
+      "deployment_id": "f75414e3-002a-4f1f-8369-c6342683bdc3",
+      "name": "calm-lemur",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-20T04:00:00.000Z",
+      "start_at": "2026-09-20T04:00:03.000Z",
+      "end_at": "2026-09-20T04:03:03.000Z",
+      "duration_seconds": 180,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "table",
+        "feed": "customer_facts"
+      }
+    },
+    {
+      "id": "25cc6f2e-53af-400c-84b9-d0dc701ecaf7",
+      "deployment_id": "f75414e3-002a-4f1f-8369-c6342683bdc3",
+      "name": "lively-raven",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-21T04:00:00.000Z",
+      "start_at": "2026-09-21T04:00:03.000Z",
+      "end_at": "2026-09-21T04:05:03.000Z",
+      "duration_seconds": 300,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "table",
+        "feed": "customer_facts"
+      }
+    },
+    {
+      "id": "135cd131-0f0b-4149-9a23-5069dfd19b3a",
+      "deployment_id": "f75414e3-002a-4f1f-8369-c6342683bdc3",
+      "name": "fuzzy-quail",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-22T04:00:00.000Z",
+      "start_at": "2026-09-22T04:00:03.000Z",
+      "end_at": "2026-09-22T04:07:03.000Z",
+      "duration_seconds": 420,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "table",
+        "feed": "customer_facts"
+      }
+    },
+    {
+      "id": "64f98352-c9b6-486b-ba19-835ade83c8d5",
+      "deployment_id": "f75414e3-002a-4f1f-8369-c6342683bdc3",
+      "name": "dapper-heron",
+      "state": "FAILED",
+      "state_name": "Failed",
+      "state_message": "Flow run encountered an exception: EmptyUserPartitionError: refusing to publish an empty partition",
+      "expected_start_at": "2026-09-23T04:00:00.000Z",
+      "start_at": "2026-09-23T04:00:03.000Z",
+      "end_at": "2026-09-23T04:01:48.000Z",
+      "duration_seconds": 105,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "table",
+        "feed": "customer_facts"
+      }
+    },
+    {
+      "id": "4d50d708-cf8c-4bb8-8680-9ef6912c3992",
+      "deployment_id": "0799dc72-cc58-440f-a076-b71dfb91e8b6",
+      "name": "calm-jackal",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-12T02:00:00.000Z",
+      "start_at": "2026-09-12T02:00:03.000Z",
+      "end_at": "2026-09-12T02:05:03.000Z",
+      "duration_seconds": 300,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "2a59efd8-8aa4-4aac-af5a-783f4c9d812f",
+      "deployment_id": "0799dc72-cc58-440f-a076-b71dfb91e8b6",
+      "name": "rustic-jackal",
+      "state": "FAILED",
+      "state_name": "Failed",
+      "state_message": "Flow run encountered an exception: InvalidOperationError: unexpected upstream schema version 7",
+      "expected_start_at": "2026-09-13T02:00:00.000Z",
+      "start_at": "2026-09-13T02:00:03.000Z",
+      "end_at": "2026-09-13T02:01:03.000Z",
+      "duration_seconds": 60,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "90a9c2c5-259d-4020-9876-453c3f120330",
+      "deployment_id": "0799dc72-cc58-440f-a076-b71dfb91e8b6",
+      "name": "amber-badger",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-14T02:00:00.000Z",
+      "start_at": "2026-09-14T02:00:03.000Z",
+      "end_at": "2026-09-14T02:06:03.000Z",
+      "duration_seconds": 360,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "9683ddc7-1874-49bc-bc65-3ce77b6eda98",
+      "deployment_id": "0799dc72-cc58-440f-a076-b71dfb91e8b6",
+      "name": "rustic-badger",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-15T02:00:00.000Z",
+      "start_at": "2026-09-15T02:00:03.000Z",
+      "end_at": "2026-09-15T02:05:03.000Z",
+      "duration_seconds": 300,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "16a9e89e-1549-4e09-8ab6-43053002be1d",
+      "deployment_id": "0799dc72-cc58-440f-a076-b71dfb91e8b6",
+      "name": "nimble-wombat",
+      "state": "FAILED",
+      "state_name": "Failed",
+      "state_message": "Flow run encountered an exception: InvalidOperationError: unexpected upstream schema version 7",
+      "expected_start_at": "2026-09-16T02:00:00.000Z",
+      "start_at": "2026-09-16T02:00:03.000Z",
+      "end_at": "2026-09-16T02:01:03.000Z",
+      "duration_seconds": 60,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "339809c4-533f-4aa6-a385-e5e217c5e0a9",
+      "deployment_id": "0799dc72-cc58-440f-a076-b71dfb91e8b6",
+      "name": "eager-wombat",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-17T02:00:00.000Z",
+      "start_at": "2026-09-17T02:00:03.000Z",
+      "end_at": "2026-09-17T02:02:03.000Z",
+      "duration_seconds": 120,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "0df1e803-2d35-4c6a-a8bd-343c01be7ac1",
+      "deployment_id": "0799dc72-cc58-440f-a076-b71dfb91e8b6",
+      "name": "olive-marten",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-18T02:00:00.000Z",
+      "start_at": "2026-09-18T02:00:03.000Z",
+      "end_at": "2026-09-18T02:02:03.000Z",
+      "duration_seconds": 120,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "de7d2723-0c0a-4336-b586-74ec3d1d0358",
+      "deployment_id": "0799dc72-cc58-440f-a076-b71dfb91e8b6",
+      "name": "calm-ibis",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-19T02:00:00.000Z",
+      "start_at": "2026-09-19T02:00:03.000Z",
+      "end_at": "2026-09-19T02:06:03.000Z",
+      "duration_seconds": 360,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "9a540fb3-229a-46c8-85e2-9f7f10c39841",
+      "deployment_id": "0799dc72-cc58-440f-a076-b71dfb91e8b6",
+      "name": "calm-puffin",
+      "state": "CRASHED",
+      "state_name": "Crashed",
+      "state_message": "Process exited with signal SIGKILL: process exceeded its memory limit",
+      "expected_start_at": "2026-09-20T02:00:00.000Z",
+      "start_at": "2026-09-20T02:00:03.000Z",
+      "end_at": "2026-09-20T02:06:03.000Z",
+      "duration_seconds": 360,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "b6c6f266-e3ab-427d-b755-b71e3fb19441",
+      "deployment_id": "0799dc72-cc58-440f-a076-b71dfb91e8b6",
+      "name": "eager-ocelot",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-21T02:00:00.000Z",
+      "start_at": "2026-09-21T02:00:03.000Z",
+      "end_at": "2026-09-21T02:08:03.000Z",
+      "duration_seconds": 480,
+      "created_by": "prefect-scheduler",
+      "run_count": 3,
+      "retries": 2,
+      "retry_delay_seconds": 60,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "cac3bdb0-1d61-4f25-bef6-b335e5fa816c",
+      "deployment_id": "0799dc72-cc58-440f-a076-b71dfb91e8b6",
+      "name": "keen-gecko",
+      "state": "FAILED",
+      "state_name": "Failed",
+      "state_message": "Flow run encountered an exception: EmptyUserPartitionError: refusing to publish an empty partition",
+      "expected_start_at": "2026-09-22T02:00:00.000Z",
+      "start_at": "2026-09-22T02:00:03.000Z",
+      "end_at": "2026-09-22T02:01:03.000Z",
+      "duration_seconds": 60,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "0fbb111f-a02b-441d-a635-ab974e826f07",
+      "deployment_id": "0799dc72-cc58-440f-a076-b71dfb91e8b6",
+      "name": "eager-falcon",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-23T02:00:00.000Z",
+      "start_at": "2026-09-23T02:00:03.000Z",
+      "end_at": "2026-09-23T02:02:03.000Z",
+      "duration_seconds": 120,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    },
+    {
+      "id": "6b2482c7-df61-4515-8514-e47a6e90c3dc",
+      "deployment_id": "718ae4e0-2736-4d13-8280-8bba4fb3f41e",
+      "name": "olive-vole",
+      "state": "CRASHED",
+      "state_name": "Crashed",
+      "state_message": "Process exited with signal SIGKILL: process exceeded its memory limit",
+      "expected_start_at": null,
+      "start_at": "2026-08-17T10:00:00.000Z",
+      "end_at": "2026-08-17T10:30:00.000Z",
+      "duration_seconds": 1800,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-01",
+        "to_month": "2026-01",
+        "processes": null
+      }
+    },
+    {
+      "id": "372797eb-ee18-4c2f-a31b-2ff95fc2e475",
+      "deployment_id": "718ae4e0-2736-4d13-8280-8bba4fb3f41e",
+      "name": "brisk-lemur",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-08-21T10:00:00.000Z",
+      "end_at": "2026-08-21T10:31:00.000Z",
+      "duration_seconds": 1860,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-02",
+        "to_month": "2026-02",
+        "processes": null
+      }
+    },
+    {
+      "id": "ee4dba13-11b1-4655-b94c-5ebc4d1f98ba",
+      "deployment_id": "718ae4e0-2736-4d13-8280-8bba4fb3f41e",
+      "name": "dapper-urchin",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-08-26T10:00:00.000Z",
+      "end_at": "2026-08-26T10:29:00.000Z",
+      "duration_seconds": 1740,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-03",
+        "to_month": "2026-03",
+        "processes": null
+      }
+    },
+    {
+      "id": "81269234-9c5a-4ad9-9901-69628a745a22",
+      "deployment_id": "718ae4e0-2736-4d13-8280-8bba4fb3f41e",
+      "name": "tidy-urchin",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-08-29T10:00:00.000Z",
+      "end_at": "2026-08-29T10:29:00.000Z",
+      "duration_seconds": 1740,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-04",
+        "to_month": "2026-04",
+        "processes": null
+      }
+    },
+    {
+      "id": "30725420-1adc-4320-81ba-4e3184d7c7eb",
+      "deployment_id": "718ae4e0-2736-4d13-8280-8bba4fb3f41e",
+      "name": "mellow-jackal",
+      "state": "FAILED",
+      "state_name": "Failed",
+      "state_message": "Flow run encountered an exception: DanglingFamilyError: parent record missing for batch 2",
+      "expected_start_at": null,
+      "start_at": "2026-09-02T10:00:00.000Z",
+      "end_at": "2026-09-02T10:12:30.000Z",
+      "duration_seconds": 750,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-05",
+        "to_month": "2026-05",
+        "processes": null
+      }
+    },
+    {
+      "id": "6e61b6d6-b919-46f6-af16-3a06a8034386",
+      "deployment_id": "718ae4e0-2736-4d13-8280-8bba4fb3f41e",
+      "name": "eager-marten",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-07T10:00:00.000Z",
+      "end_at": "2026-09-07T10:25:00.000Z",
+      "duration_seconds": 1500,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-06",
+        "to_month": "2026-06",
+        "processes": null
+      }
+    },
+    {
+      "id": "ff9bf491-cfe4-40fb-8ba6-fa30544184b7",
+      "deployment_id": "718ae4e0-2736-4d13-8280-8bba4fb3f41e",
+      "name": "tidy-ocelot",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-10T10:00:00.000Z",
+      "end_at": "2026-09-10T10:30:00.000Z",
+      "duration_seconds": 1800,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-07",
+        "to_month": "2026-07",
+        "processes": null
+      }
+    },
+    {
+      "id": "725fd227-1e77-4cdc-90fb-61a6a8a2a328",
+      "deployment_id": "718ae4e0-2736-4d13-8280-8bba4fb3f41e",
+      "name": "olive-newt",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-14T10:00:00.000Z",
+      "end_at": "2026-09-14T10:35:00.000Z",
+      "duration_seconds": 2100,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-08",
+        "to_month": "2026-08",
+        "processes": null
+      }
+    },
+    {
+      "id": "10dbf339-61d0-409d-8ccb-d64e5daa5354",
+      "deployment_id": "718ae4e0-2736-4d13-8280-8bba4fb3f41e",
+      "name": "dapper-quail",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-19T10:00:00.000Z",
+      "end_at": "2026-09-19T10:35:00.000Z",
+      "duration_seconds": 2100,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-01",
+        "to_month": "2026-01",
+        "processes": null
+      }
+    },
+    {
+      "id": "1b61991d-c035-48d3-b493-2da4f94987ff",
+      "deployment_id": "718ae4e0-2736-4d13-8280-8bba4fb3f41e",
+      "name": "nimble-ocelot",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-20T10:00:00.000Z",
+      "end_at": "2026-09-20T10:31:00.000Z",
+      "duration_seconds": 1860,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-02",
+        "to_month": "2026-02",
+        "processes": null
+      }
+    },
+    {
+      "id": "d0d457f4-5632-481c-9bb2-e900354ddd5d",
+      "deployment_id": "718ae4e0-2736-4d13-8280-8bba4fb3f41e",
+      "name": "mellow-badger",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-21T10:00:00.000Z",
+      "end_at": "2026-09-21T11:00:00.000Z",
+      "duration_seconds": 3600,
+      "created_by": "operator@periplo.example",
+      "run_count": 3,
+      "retries": 2,
+      "retry_delay_seconds": 60,
+      "parameters": {
+        "from_month": "2026-03",
+        "to_month": "2026-03",
+        "processes": null
+      }
+    },
+    {
+      "id": "d4b09e0e-513c-4ab6-934f-9cbcca986302",
+      "deployment_id": "718ae4e0-2736-4d13-8280-8bba4fb3f41e",
+      "name": "keen-stoat",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-22T10:00:00.000Z",
+      "end_at": "2026-09-22T10:27:00.000Z",
+      "duration_seconds": 1620,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-04",
+        "to_month": "2026-04",
+        "processes": null
+      }
+    },
+    {
+      "id": "901bcbba-08c6-466b-b653-ba5681e50ed2",
+      "deployment_id": "caf27910-88b0-4056-819d-f58999d772ef",
+      "name": "dapper-vole",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-08-17T10:00:00.000Z",
+      "end_at": "2026-08-17T10:25:00.000Z",
+      "duration_seconds": 1500,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-01",
+        "to_month": "2026-01",
+        "processes": null
+      }
+    },
+    {
+      "id": "c1058f1c-92ff-460b-8c48-1a0e0f758dd6",
+      "deployment_id": "caf27910-88b0-4056-819d-f58999d772ef",
+      "name": "plucky-newt",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-08-21T10:00:00.000Z",
+      "end_at": "2026-08-21T10:31:00.000Z",
+      "duration_seconds": 1860,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-02",
+        "to_month": "2026-02",
+        "processes": null
+      }
+    },
+    {
+      "id": "0007087c-00d0-4a8d-aa7b-99cd16370ef1",
+      "deployment_id": "caf27910-88b0-4056-819d-f58999d772ef",
+      "name": "brisk-stoat",
+      "state": "CRASHED",
+      "state_name": "Crashed",
+      "state_message": "Process exited with signal SIGKILL: process exceeded its memory limit",
+      "expected_start_at": null,
+      "start_at": "2026-08-26T10:00:00.000Z",
+      "end_at": "2026-08-26T10:32:00.000Z",
+      "duration_seconds": 1920,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-03",
+        "to_month": "2026-03",
+        "processes": null
+      }
+    },
+    {
+      "id": "6937541b-eeb2-41fa-8c3b-65629f04b1b0",
+      "deployment_id": "caf27910-88b0-4056-819d-f58999d772ef",
+      "name": "mellow-falcon",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-08-29T10:00:00.000Z",
+      "end_at": "2026-08-29T10:33:00.000Z",
+      "duration_seconds": 1980,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-04",
+        "to_month": "2026-04",
+        "processes": null
+      }
+    },
+    {
+      "id": "eeb5c6b6-a2ed-44b4-aa18-2ca4d6a58d4c",
+      "deployment_id": "caf27910-88b0-4056-819d-f58999d772ef",
+      "name": "fuzzy-newt",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-02T10:00:00.000Z",
+      "end_at": "2026-09-02T10:35:00.000Z",
+      "duration_seconds": 2100,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-05",
+        "to_month": "2026-05",
+        "processes": null
+      }
+    },
+    {
+      "id": "9da25c91-37b9-4ab3-8408-e59fe3706bd0",
+      "deployment_id": "caf27910-88b0-4056-819d-f58999d772ef",
+      "name": "keen-vole",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-07T10:00:00.000Z",
+      "end_at": "2026-09-07T10:30:00.000Z",
+      "duration_seconds": 1800,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-06",
+        "to_month": "2026-06",
+        "processes": null
+      }
+    },
+    {
+      "id": "860fe7be-4808-45f6-b627-1f3ddfd048a3",
+      "deployment_id": "caf27910-88b0-4056-819d-f58999d772ef",
+      "name": "keen-falcon",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-10T10:00:00.000Z",
+      "end_at": "2026-09-10T10:34:00.000Z",
+      "duration_seconds": 2040,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-07",
+        "to_month": "2026-07",
+        "processes": null
+      }
+    },
+    {
+      "id": "695f0de5-6c23-4798-94eb-1741cc36bdcc",
+      "deployment_id": "caf27910-88b0-4056-819d-f58999d772ef",
+      "name": "hardy-puffin",
+      "state": "FAILED",
+      "state_name": "Failed",
+      "state_message": "Flow run encountered an exception: InvalidOperationError: unexpected upstream schema version 7",
+      "expected_start_at": null,
+      "start_at": "2026-09-14T10:00:00.000Z",
+      "end_at": "2026-09-14T10:12:30.000Z",
+      "duration_seconds": 750,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-08",
+        "to_month": "2026-08",
+        "processes": null
+      }
+    },
+    {
+      "id": "c8fd063c-234d-4ed4-a3eb-1e83bc45b564",
+      "deployment_id": "caf27910-88b0-4056-819d-f58999d772ef",
+      "name": "mellow-puffin",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-19T10:00:00.000Z",
+      "end_at": "2026-09-19T10:29:00.000Z",
+      "duration_seconds": 1740,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-01",
+        "to_month": "2026-01",
+        "processes": null
+      }
+    },
+    {
+      "id": "248b50d9-8380-4446-9ba7-c88c017cbc29",
+      "deployment_id": "caf27910-88b0-4056-819d-f58999d772ef",
+      "name": "calm-badger",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-20T10:00:00.000Z",
+      "end_at": "2026-09-20T10:31:00.000Z",
+      "duration_seconds": 1860,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-02",
+        "to_month": "2026-02",
+        "processes": null
+      }
+    },
+    {
+      "id": "013c5d2b-5ae8-450e-9fd9-87e916b3ef70",
+      "deployment_id": "caf27910-88b0-4056-819d-f58999d772ef",
+      "name": "fuzzy-vole",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-21T10:00:00.000Z",
+      "end_at": "2026-09-21T10:29:00.000Z",
+      "duration_seconds": 1740,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "from_month": "2026-03",
+        "to_month": "2026-03",
+        "processes": null
+      }
+    },
+    {
+      "id": "1b796ea2-70ac-4b17-81fd-72c91ee089dd",
+      "deployment_id": "caf27910-88b0-4056-819d-f58999d772ef",
+      "name": "quiet-quail",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-22T10:00:00.000Z",
+      "end_at": "2026-09-22T11:00:00.000Z",
+      "duration_seconds": 3600,
+      "created_by": "operator@periplo.example",
+      "run_count": 3,
+      "retries": 2,
+      "retry_delay_seconds": 60,
+      "parameters": {
+        "from_month": "2026-04",
+        "to_month": "2026-04",
+        "processes": null
+      }
+    },
+    {
+      "id": "c1660b93-2b31-47f1-81a2-dad2b1fda5dd",
+      "deployment_id": "5af909c4-2644-4cf6-9e0d-dd07ad7277ae",
+      "name": "nimble-lemur",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-23T01:15:00.000Z",
+      "start_at": "2026-09-23T01:15:03.000Z",
+      "end_at": "2026-09-23T01:16:03.000Z",
+      "duration_seconds": 60,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "processes": null
+      }
+    },
+    {
+      "id": "8790e62a-858a-464a-abbe-c22eff6ce5e1",
+      "deployment_id": "5af909c4-2644-4cf6-9e0d-dd07ad7277ae",
+      "name": "hardy-ibis",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-23T02:15:00.000Z",
+      "start_at": "2026-09-23T02:15:03.000Z",
+      "end_at": "2026-09-23T02:18:03.000Z",
+      "duration_seconds": 180,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "processes": null
+      }
+    },
+    {
+      "id": "9a3e1e91-f724-4742-adcc-35f309d38640",
+      "deployment_id": "5af909c4-2644-4cf6-9e0d-dd07ad7277ae",
+      "name": "plucky-puffin",
+      "state": "CRASHED",
+      "state_name": "Crashed",
+      "state_message": "Process exited with signal SIGKILL: process exceeded its memory limit",
+      "expected_start_at": "2026-09-23T03:15:00.000Z",
+      "start_at": "2026-09-23T03:15:03.000Z",
+      "end_at": "2026-09-23T03:17:03.000Z",
+      "duration_seconds": 120,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "processes": null
+      }
+    },
+    {
+      "id": "ada2d937-07cf-423b-8473-740596cc99ca",
+      "deployment_id": "5af909c4-2644-4cf6-9e0d-dd07ad7277ae",
+      "name": "hardy-marten",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-23T04:15:00.000Z",
+      "start_at": "2026-09-23T04:15:03.000Z",
+      "end_at": "2026-09-23T04:19:03.000Z",
+      "duration_seconds": 240,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "processes": null
+      }
+    },
+    {
+      "id": "8d3c6b19-96fc-49bc-9fa0-c2b05daab235",
+      "deployment_id": "5af909c4-2644-4cf6-9e0d-dd07ad7277ae",
+      "name": "mellow-heron",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-23T05:15:00.000Z",
+      "start_at": "2026-09-23T05:15:03.000Z",
+      "end_at": "2026-09-23T05:16:03.000Z",
+      "duration_seconds": 60,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "processes": null
+      }
+    },
+    {
+      "id": "5173b49f-bf67-4ed9-a820-207eb7650bc6",
+      "deployment_id": "5af909c4-2644-4cf6-9e0d-dd07ad7277ae",
+      "name": "ivory-newt",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-23T06:15:00.000Z",
+      "start_at": "2026-09-23T06:15:03.000Z",
+      "end_at": "2026-09-23T06:16:03.000Z",
+      "duration_seconds": 60,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "processes": null
+      }
+    },
+    {
+      "id": "19227975-41e2-4254-a52d-c10e028faf92",
+      "deployment_id": "5af909c4-2644-4cf6-9e0d-dd07ad7277ae",
+      "name": "calm-ibis",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-23T07:15:00.000Z",
+      "start_at": "2026-09-23T07:15:03.000Z",
+      "end_at": "2026-09-23T07:19:03.000Z",
+      "duration_seconds": 240,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "processes": null
+      }
+    },
+    {
+      "id": "0ef90220-827b-4aec-85c8-03a279517d6c",
+      "deployment_id": "5af909c4-2644-4cf6-9e0d-dd07ad7277ae",
+      "name": "eager-gecko",
+      "state": "FAILED",
+      "state_name": "Failed",
+      "state_message": "Flow run encountered an exception: InvalidOperationError: unexpected upstream schema version 7",
+      "expected_start_at": "2026-09-23T08:15:00.000Z",
+      "start_at": "2026-09-23T08:15:03.000Z",
+      "end_at": "2026-09-23T08:15:33.000Z",
+      "duration_seconds": 30,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "processes": null
+      }
+    },
+    {
+      "id": "534f55a4-4231-4371-b2d6-81a8e59dbeed",
+      "deployment_id": "5af909c4-2644-4cf6-9e0d-dd07ad7277ae",
+      "name": "mellow-wombat",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-23T09:15:00.000Z",
+      "start_at": "2026-09-23T09:15:03.000Z",
+      "end_at": "2026-09-23T09:17:03.000Z",
+      "duration_seconds": 120,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "processes": null
+      }
+    },
+    {
+      "id": "836da7f7-32e4-48db-a36e-2b9fe9a4a0e3",
+      "deployment_id": "5af909c4-2644-4cf6-9e0d-dd07ad7277ae",
+      "name": "jolly-lemur",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-23T10:15:00.000Z",
+      "start_at": "2026-09-23T10:15:03.000Z",
+      "end_at": "2026-09-23T10:17:03.000Z",
+      "duration_seconds": 120,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "processes": null
+      }
+    },
+    {
+      "id": "0375e21e-1953-4c60-ac2a-de1400059672",
+      "deployment_id": "5af909c4-2644-4cf6-9e0d-dd07ad7277ae",
+      "name": "quiet-koala",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-23T11:15:00.000Z",
+      "start_at": "2026-09-23T11:15:03.000Z",
+      "end_at": "2026-09-23T11:20:03.000Z",
+      "duration_seconds": 300,
+      "created_by": "prefect-scheduler",
+      "run_count": 2,
+      "retries": 1,
+      "retry_delay_seconds": 60,
+      "parameters": {
+        "source_kind": "http_api",
+        "processes": null
+      }
+    },
+    {
+      "id": "89cbe807-e16e-4977-8a29-09628ab5f360",
+      "deployment_id": "5af909c4-2644-4cf6-9e0d-dd07ad7277ae",
+      "name": "quiet-vole",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": "2026-09-23T12:15:00.000Z",
+      "start_at": "2026-09-23T12:15:03.000Z",
+      "end_at": "2026-09-23T12:16:03.000Z",
+      "duration_seconds": 60,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "processes": null
+      }
+    },
+    {
+      "id": "22e35e9f-1e1f-4e35-8059-1d1141cbbb2f",
+      "deployment_id": "49427c1e-a6b0-4fbe-b5e3-268dadc29831",
+      "name": "fuzzy-tapir",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-12T12:00:00.000Z",
+      "end_at": "2026-09-12T12:11:00.000Z",
+      "duration_seconds": 660,
+      "created_by": "operator@periplo.example",
+      "run_count": 3,
+      "retries": 2,
+      "retry_delay_seconds": 60,
+      "parameters": {
+        "source_kind": "http_api",
+        "feed": "returns"
+      }
+    },
+    {
+      "id": "26ff8d1f-0e65-44fd-aa37-d008f19f38f0",
+      "deployment_id": "49427c1e-a6b0-4fbe-b5e3-268dadc29831",
+      "name": "eager-stoat",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-13T12:00:00.000Z",
+      "end_at": "2026-09-13T12:07:00.000Z",
+      "duration_seconds": 420,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "feed": "returns"
+      }
+    },
+    {
+      "id": "23f57b33-9473-44bd-8a54-b4a31f6a83d5",
+      "deployment_id": "49427c1e-a6b0-4fbe-b5e3-268dadc29831",
+      "name": "keen-jackal",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-14T12:00:00.000Z",
+      "end_at": "2026-09-14T12:04:00.000Z",
+      "duration_seconds": 240,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "feed": "returns"
+      }
+    },
+    {
+      "id": "ad492f97-bf2c-422d-95bd-7c118c99a4a1",
+      "deployment_id": "49427c1e-a6b0-4fbe-b5e3-268dadc29831",
+      "name": "silver-ibis",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-15T12:00:00.000Z",
+      "end_at": "2026-09-15T12:06:00.000Z",
+      "duration_seconds": 360,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "feed": "returns"
+      }
+    },
+    {
+      "id": "65bd19e1-0313-43ad-8f4d-78a29dc0802d",
+      "deployment_id": "49427c1e-a6b0-4fbe-b5e3-268dadc29831",
+      "name": "keen-tapir",
+      "state": "CRASHED",
+      "state_name": "Crashed",
+      "state_message": "Process exited with signal SIGKILL: process exceeded its memory limit",
+      "expected_start_at": null,
+      "start_at": "2026-09-16T12:00:00.000Z",
+      "end_at": "2026-09-16T12:05:00.000Z",
+      "duration_seconds": 300,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "feed": "returns"
+      }
+    },
+    {
+      "id": "0f66e979-8d6e-49a4-b81f-2e2ee7745431",
+      "deployment_id": "49427c1e-a6b0-4fbe-b5e3-268dadc29831",
+      "name": "olive-koala",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-17T12:00:00.000Z",
+      "end_at": "2026-09-17T12:07:00.000Z",
+      "duration_seconds": 420,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "feed": "returns"
+      }
+    },
+    {
+      "id": "af2322de-61af-4e75-8e5e-023bd0637a76",
+      "deployment_id": "49427c1e-a6b0-4fbe-b5e3-268dadc29831",
+      "name": "amber-vole",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-18T12:00:00.000Z",
+      "end_at": "2026-09-18T12:07:00.000Z",
+      "duration_seconds": 420,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "feed": "returns"
+      }
+    },
+    {
+      "id": "b07ef002-e9e0-4e9a-be8f-c400a2a85ae4",
+      "deployment_id": "49427c1e-a6b0-4fbe-b5e3-268dadc29831",
+      "name": "dapper-marten",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-19T12:00:00.000Z",
+      "end_at": "2026-09-19T12:07:00.000Z",
+      "duration_seconds": 420,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "feed": "returns"
+      }
+    },
+    {
+      "id": "821c9c09-0b66-4b79-a95c-b3f74138ecea",
+      "deployment_id": "49427c1e-a6b0-4fbe-b5e3-268dadc29831",
+      "name": "plucky-heron",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-20T12:00:00.000Z",
+      "end_at": "2026-09-20T12:06:00.000Z",
+      "duration_seconds": 360,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "feed": "returns"
+      }
+    },
+    {
+      "id": "6ad8ba3a-64ed-4562-8361-da821b0f00a3",
+      "deployment_id": "49427c1e-a6b0-4fbe-b5e3-268dadc29831",
+      "name": "olive-quail",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-21T12:00:00.000Z",
+      "end_at": "2026-09-21T12:05:00.000Z",
+      "duration_seconds": 300,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "feed": "returns"
+      }
+    },
+    {
+      "id": "161bef6d-f687-42ce-8415-42ea6b0f77ce",
+      "deployment_id": "49427c1e-a6b0-4fbe-b5e3-268dadc29831",
+      "name": "olive-puffin",
+      "state": "FAILED",
+      "state_name": "Failed",
+      "state_message": "Flow run encountered an exception: DanglingFamilyError: parent record missing for batch 2",
+      "expected_start_at": null,
+      "start_at": "2026-09-22T12:00:00.000Z",
+      "end_at": "2026-09-22T12:02:00.000Z",
+      "duration_seconds": 120,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "feed": "returns"
+      }
+    },
+    {
+      "id": "5c7b8107-1ba1-4d84-ba54-a1e24e623d4e",
+      "deployment_id": "49427c1e-a6b0-4fbe-b5e3-268dadc29831",
+      "name": "lively-urchin",
+      "state": "COMPLETED",
+      "state_name": "Completed",
+      "state_message": "All states completed.",
+      "expected_start_at": null,
+      "start_at": "2026-09-23T12:00:00.000Z",
+      "end_at": "2026-09-23T12:04:00.000Z",
+      "duration_seconds": 240,
+      "created_by": "operator@periplo.example",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "http_api",
+        "feed": "returns"
+      }
+    },
+    {
+      "id": "73ddd4d0-822f-4ff1-9292-b9a16b758867",
+      "deployment_id": "c23e3e62-a56c-4211-808c-374f7490effa",
+      "name": "brisk-ibis",
+      "state": "RUNNING",
+      "state_name": "Running",
+      "state_message": null,
+      "expected_start_at": "2026-09-23T12:52:00.000Z",
+      "start_at": "2026-09-23T12:52:00.000Z",
+      "end_at": null,
+      "duration_seconds": 480,
+      "created_by": "prefect-scheduler",
+      "run_count": 1,
+      "retries": 0,
+      "retry_delay_seconds": 0,
+      "parameters": {
+        "source_kind": "postgres",
+        "feed": "orders"
+      }
+    }
+  ],
+  "tasks": {
+    "ddf9c4e2-34cd-4375-8354-10ed9b1dc805": {
+      "attempts": [
+        {
+          "number": 1,
+          "state": "COMPLETED",
+          "started_at": "2026-09-23T03:00:03.000Z",
+          "ended_at": "2026-09-23T03:22:03.000Z",
+          "message": "All states completed.",
+          "processes": [
+            {
+              "name": "StagingOrdersProcess",
+              "task_run_id": "81c714c8-a5e8-4a70-b445-664457c29562",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T03:00:03.000Z",
+              "end_at": "2026-09-23T03:01:15.000Z",
+              "duration_seconds": 72,
+              "expected_steps": 3,
+              "steps": [
+                {
+                  "name": "StagingOrdersSnapshotStep",
+                  "task_run_id": "c0ad230a-642d-45c9-bedb-3f57d61e3c58",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:00:03.000Z",
+                  "end_at": "2026-09-23T03:00:27.000Z",
+                  "duration_seconds": 24,
+                  "reads": [],
+                  "writes": [
+                    "shop_orders.staging_orders_0"
+                  ],
+                  "rows": 7064,
+                  "delta_version": 109
+                },
+                {
+                  "name": "StagingOrdersMergeStep",
+                  "task_run_id": "715182d3-7295-42d1-aa66-be2b696c5f0b",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:00:27.000Z",
+                  "end_at": "2026-09-23T03:00:51.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.staging_orders_0"
+                  ],
+                  "writes": [
+                    "shop_orders.staging_orders_1"
+                  ],
+                  "rows": 7101,
+                  "delta_version": 110
+                },
+                {
+                  "name": "StagingOrdersValidateStep",
+                  "task_run_id": "d1f8903c-936e-4c76-94ca-9efd7d179f65",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:00:51.000Z",
+                  "end_at": "2026-09-23T03:01:15.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.staging_orders_1"
+                  ],
+                  "writes": [
+                    "shop_orders.staging_orders_2"
+                  ],
+                  "rows": 7138,
+                  "delta_version": 111
+                }
+              ]
+            },
+            {
+              "name": "PreparedOrdersProcess",
+              "task_run_id": "f9799242-838c-428a-9794-5614e6a29f70",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T03:01:15.000Z",
+              "end_at": "2026-09-23T03:02:27.000Z",
+              "duration_seconds": 72,
+              "expected_steps": 3,
+              "steps": [
+                {
+                  "name": "PreparedOrdersSnapshotStep",
+                  "task_run_id": "379b1898-eaf7-418d-98e8-6709a02c8030",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:01:15.000Z",
+                  "end_at": "2026-09-23T03:01:39.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.staging_orders_2"
+                  ],
+                  "writes": [
+                    "shop_orders.prepared_orders_0"
+                  ],
+                  "rows": 7699,
+                  "delta_version": 112
+                },
+                {
+                  "name": "PreparedOrdersMergeStep",
+                  "task_run_id": "fe1b678e-d7c5-4522-b6ce-70e28733bcdc",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:01:39.000Z",
+                  "end_at": "2026-09-23T03:02:03.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.prepared_orders_0"
+                  ],
+                  "writes": [
+                    "shop_orders.prepared_orders_1"
+                  ],
+                  "rows": 7736,
+                  "delta_version": 113
+                },
+                {
+                  "name": "PreparedOrdersValidateStep",
+                  "task_run_id": "59ba2340-c5a6-4b7a-a085-b17a7fd6c094",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:02:03.000Z",
+                  "end_at": "2026-09-23T03:02:27.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.prepared_orders_1"
+                  ],
+                  "writes": [
+                    "shop_orders.prepared_orders_2"
+                  ],
+                  "rows": 7773,
+                  "delta_version": 114
+                }
+              ]
+            },
+            {
+              "name": "CustomerFactsProcess",
+              "task_run_id": "0b8784d5-761c-41c3-a94f-7b982ebf7eb6",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T03:02:27.000Z",
+              "end_at": "2026-09-23T03:03:39.000Z",
+              "duration_seconds": 72,
+              "expected_steps": 3,
+              "steps": [
+                {
+                  "name": "CustomerFactsSnapshotStep",
+                  "task_run_id": "b68780ad-698a-4d60-9d5f-58b6bb487578",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:02:27.000Z",
+                  "end_at": "2026-09-23T03:02:51.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.prepared_orders_2"
+                  ],
+                  "writes": [
+                    "shop_orders.customer_facts_0"
+                  ],
+                  "rows": 5206,
+                  "delta_version": 115
+                },
+                {
+                  "name": "CustomerFactsMergeStep",
+                  "task_run_id": "cfa691d7-f54c-4fbf-8c9d-3440f17d95d3",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:02:51.000Z",
+                  "end_at": "2026-09-23T03:03:15.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.customer_facts_0"
+                  ],
+                  "writes": [
+                    "shop_orders.customer_facts_1"
+                  ],
+                  "rows": 5243,
+                  "delta_version": 116
+                },
+                {
+                  "name": "CustomerFactsValidateStep",
+                  "task_run_id": "27359de2-0240-4d31-8e63-cf3cc186da8f",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:03:15.000Z",
+                  "end_at": "2026-09-23T03:03:39.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.customer_facts_1"
+                  ],
+                  "writes": [
+                    "shop_orders.customer_facts_2"
+                  ],
+                  "rows": 5280,
+                  "delta_version": 117
+                }
+              ]
+            },
+            {
+              "name": "StagingSuppliersProcess",
+              "task_run_id": "19cd752a-b969-48c3-93d1-4a4bebd9e2a4",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T03:03:39.000Z",
+              "end_at": "2026-09-23T03:04:51.000Z",
+              "duration_seconds": 72,
+              "expected_steps": 3,
+              "steps": [
+                {
+                  "name": "StagingSuppliersSnapshotStep",
+                  "task_run_id": "976d21ca-b5f7-4062-bc51-34ba7383dfb0",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:03:39.000Z",
+                  "end_at": "2026-09-23T03:04:03.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.customer_facts_2"
+                  ],
+                  "writes": [
+                    "shop_orders.staging_suppliers_0"
+                  ],
+                  "rows": 5219,
+                  "delta_version": 118
+                },
+                {
+                  "name": "StagingSuppliersMergeStep",
+                  "task_run_id": "a21fb00f-91c8-46d4-aa58-b395c66c1122",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:04:03.000Z",
+                  "end_at": "2026-09-23T03:04:27.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.staging_suppliers_0"
+                  ],
+                  "writes": [
+                    "shop_orders.staging_suppliers_1"
+                  ],
+                  "rows": 5256,
+                  "delta_version": 119
+                },
+                {
+                  "name": "StagingSuppliersValidateStep",
+                  "task_run_id": "a008ca0e-0326-4172-9a49-6d5b7fde64c8",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:04:27.000Z",
+                  "end_at": "2026-09-23T03:04:51.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.staging_suppliers_1"
+                  ],
+                  "writes": [
+                    "shop_orders.staging_suppliers_2"
+                  ],
+                  "rows": 5293,
+                  "delta_version": 120
+                }
+              ]
+            },
+            {
+              "name": "CoreSalesProcess",
+              "task_run_id": "2b46c0f8-1b50-462e-8850-c263b869aff0",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T03:04:51.000Z",
+              "end_at": "2026-09-23T03:06:03.000Z",
+              "duration_seconds": 72,
+              "expected_steps": 3,
+              "steps": [
+                {
+                  "name": "CoreSalesSnapshotStep",
+                  "task_run_id": "d7370f40-5dfc-4306-af60-424b646fddc2",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:04:51.000Z",
+                  "end_at": "2026-09-23T03:05:15.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.staging_suppliers_2"
+                  ],
+                  "writes": [
+                    "shop_orders.core_sales_0"
+                  ],
+                  "rows": 2354,
+                  "delta_version": 121
+                },
+                {
+                  "name": "CoreSalesMergeStep",
+                  "task_run_id": "876353e7-0bf7-4f2b-8b7b-06fba916fbcb",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:05:15.000Z",
+                  "end_at": "2026-09-23T03:05:39.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.core_sales_0"
+                  ],
+                  "writes": [
+                    "shop_orders.core_sales_1"
+                  ],
+                  "rows": 2391,
+                  "delta_version": 122
+                },
+                {
+                  "name": "CoreSalesValidateStep",
+                  "task_run_id": "9d6b240b-887d-4271-a817-3bc8c8f9707b",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:05:39.000Z",
+                  "end_at": "2026-09-23T03:06:03.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.core_sales_1"
+                  ],
+                  "writes": [
+                    "shop_orders.core_sales_2"
+                  ],
+                  "rows": 2428,
+                  "delta_version": 123
+                }
+              ]
+            },
+            {
+              "name": "DimensionRefreshProcess",
+              "task_run_id": "af51c20d-11a8-4ddb-9332-2fa986f342d5",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T03:06:03.000Z",
+              "end_at": "2026-09-23T03:07:15.000Z",
+              "duration_seconds": 72,
+              "expected_steps": 3,
+              "steps": [
+                {
+                  "name": "DimensionRefreshSnapshotStep",
+                  "task_run_id": "00b7f1eb-8d15-4059-aad4-84bad91ba608",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:06:03.000Z",
+                  "end_at": "2026-09-23T03:06:27.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.core_sales_2"
+                  ],
+                  "writes": [
+                    "shop_orders.dimension_refresh_0"
+                  ],
+                  "rows": 1474,
+                  "delta_version": 124
+                },
+                {
+                  "name": "DimensionRefreshMergeStep",
+                  "task_run_id": "55e3af61-4772-453a-bb01-288c058b0029",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:06:27.000Z",
+                  "end_at": "2026-09-23T03:06:51.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.dimension_refresh_0"
+                  ],
+                  "writes": [
+                    "shop_orders.dimension_refresh_1"
+                  ],
+                  "rows": 1511,
+                  "delta_version": 125
+                },
+                {
+                  "name": "DimensionRefreshValidateStep",
+                  "task_run_id": "95e70b72-3cc6-4837-a8a5-fc3866607ff2",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:06:51.000Z",
+                  "end_at": "2026-09-23T03:07:15.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.dimension_refresh_1"
+                  ],
+                  "writes": [
+                    "shop_orders.dimension_refresh_2"
+                  ],
+                  "rows": 1548,
+                  "delta_version": 126
+                }
+              ]
+            },
+            {
+              "name": "FactLoadProcess",
+              "task_run_id": "8a493802-17a6-46af-b78a-00037617a482",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T03:07:15.000Z",
+              "end_at": "2026-09-23T03:08:27.000Z",
+              "duration_seconds": 72,
+              "expected_steps": 3,
+              "steps": [
+                {
+                  "name": "FactLoadSnapshotStep",
+                  "task_run_id": "050f2d3e-19a5-4788-abe6-a416ad801c5d",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:07:15.000Z",
+                  "end_at": "2026-09-23T03:07:39.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.dimension_refresh_2"
+                  ],
+                  "writes": [
+                    "shop_orders.fact_load_0"
+                  ],
+                  "rows": 5206,
+                  "delta_version": 127
+                },
+                {
+                  "name": "FactLoadMergeStep",
+                  "task_run_id": "86472693-3a5f-4c60-b868-981148efbefb",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:07:39.000Z",
+                  "end_at": "2026-09-23T03:08:03.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.fact_load_0"
+                  ],
+                  "writes": [
+                    "shop_orders.fact_load_1"
+                  ],
+                  "rows": 5243,
+                  "delta_version": 128
+                },
+                {
+                  "name": "FactLoadValidateStep",
+                  "task_run_id": "3564746d-6312-4875-b025-c1871e8d99b4",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:08:03.000Z",
+                  "end_at": "2026-09-23T03:08:27.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.fact_load_1"
+                  ],
+                  "writes": [
+                    "shop_orders.fact_load_2"
+                  ],
+                  "rows": 5280,
+                  "delta_version": 129
+                }
+              ]
+            },
+            {
+              "name": "ReconciliationProcess",
+              "task_run_id": "c8a5f386-22c7-4d38-9c1d-522431ac163c",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T03:08:27.000Z",
+              "end_at": "2026-09-23T03:09:39.000Z",
+              "duration_seconds": 72,
+              "expected_steps": 3,
+              "steps": [
+                {
+                  "name": "ReconciliationSnapshotStep",
+                  "task_run_id": "c1128932-9994-44a1-958c-9f49aaa6b22a",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:08:27.000Z",
+                  "end_at": "2026-09-23T03:08:51.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.fact_load_2"
+                  ],
+                  "writes": [
+                    "shop_orders.reconciliation_0"
+                  ],
+                  "rows": 2496,
+                  "delta_version": 130
+                },
+                {
+                  "name": "ReconciliationMergeStep",
+                  "task_run_id": "d9d2f006-669c-4bc8-aa9b-cb8a3e7284b2",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:08:51.000Z",
+                  "end_at": "2026-09-23T03:09:15.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.reconciliation_0"
+                  ],
+                  "writes": [
+                    "shop_orders.reconciliation_1"
+                  ],
+                  "rows": 2533,
+                  "delta_version": 131
+                },
+                {
+                  "name": "ReconciliationValidateStep",
+                  "task_run_id": "cea30714-7683-4db5-a7cb-6c1741ee06f9",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:09:15.000Z",
+                  "end_at": "2026-09-23T03:09:39.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.reconciliation_1"
+                  ],
+                  "writes": [
+                    "shop_orders.reconciliation_2"
+                  ],
+                  "rows": 2570,
+                  "delta_version": 132
+                }
+              ]
+            },
+            {
+              "name": "PartitionCompactionProcess",
+              "task_run_id": "4dc02633-d712-47bd-97ad-2a6bc157007b",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T03:09:39.000Z",
+              "end_at": "2026-09-23T03:10:51.000Z",
+              "duration_seconds": 72,
+              "expected_steps": 3,
+              "steps": [
+                {
+                  "name": "PartitionCompactionSnapshotStep",
+                  "task_run_id": "185789ee-9f3f-41ca-b78f-13ea24c1bbc5",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:09:39.000Z",
+                  "end_at": "2026-09-23T03:10:03.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.reconciliation_2"
+                  ],
+                  "writes": [
+                    "shop_orders.partition_compaction_0"
+                  ],
+                  "rows": 8823,
+                  "delta_version": 133
+                },
+                {
+                  "name": "PartitionCompactionMergeStep",
+                  "task_run_id": "c4949bdf-9a62-40ae-9090-48cbb705ceff",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:10:03.000Z",
+                  "end_at": "2026-09-23T03:10:27.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.partition_compaction_0"
+                  ],
+                  "writes": [
+                    "shop_orders.partition_compaction_1"
+                  ],
+                  "rows": 8860,
+                  "delta_version": 134
+                },
+                {
+                  "name": "PartitionCompactionValidateStep",
+                  "task_run_id": "3ad4eff0-ace3-4610-a46e-8832a387a781",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:10:27.000Z",
+                  "end_at": "2026-09-23T03:10:51.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.partition_compaction_1"
+                  ],
+                  "writes": [
+                    "shop_orders.partition_compaction_2"
+                  ],
+                  "rows": 8897,
+                  "delta_version": 135
+                }
+              ]
+            },
+            {
+              "name": "SnapshotPublishProcess",
+              "task_run_id": "f90f7cd3-599f-4baa-8f7e-c20b3cbf6f65",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T03:10:51.000Z",
+              "end_at": "2026-09-23T03:12:03.000Z",
+              "duration_seconds": 72,
+              "expected_steps": 3,
+              "steps": [
+                {
+                  "name": "SnapshotPublishSnapshotStep",
+                  "task_run_id": "60031eed-8706-4259-bef2-fd86fe4d86c9",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:10:51.000Z",
+                  "end_at": "2026-09-23T03:11:15.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.partition_compaction_2"
+                  ],
+                  "writes": [
+                    "shop_orders.snapshot_publish_0"
+                  ],
+                  "rows": 8136,
+                  "delta_version": 136
+                },
+                {
+                  "name": "SnapshotPublishMergeStep",
+                  "task_run_id": "3271f4d1-48ab-442b-96bb-4ff88f02c20f",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:11:15.000Z",
+                  "end_at": "2026-09-23T03:11:39.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.snapshot_publish_0"
+                  ],
+                  "writes": [
+                    "shop_orders.snapshot_publish_1"
+                  ],
+                  "rows": 8173,
+                  "delta_version": 137
+                },
+                {
+                  "name": "SnapshotPublishValidateStep",
+                  "task_run_id": "d2bc33f1-3de7-4941-a073-239b1f35afc3",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:11:39.000Z",
+                  "end_at": "2026-09-23T03:12:03.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.snapshot_publish_1"
+                  ],
+                  "writes": [
+                    "shop_orders.snapshot_publish_2"
+                  ],
+                  "rows": 8210,
+                  "delta_version": 138
+                }
+              ]
+            },
+            {
+              "name": "LineageAuditProcess",
+              "task_run_id": "163e1bb2-2189-4125-aaaa-11a78a464f09",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T03:12:03.000Z",
+              "end_at": "2026-09-23T03:13:15.000Z",
+              "duration_seconds": 72,
+              "expected_steps": 3,
+              "steps": [
+                {
+                  "name": "LineageAuditSnapshotStep",
+                  "task_run_id": "3f83543e-2ada-4c98-a17c-d30a554ddede",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:12:03.000Z",
+                  "end_at": "2026-09-23T03:12:27.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.snapshot_publish_2"
+                  ],
+                  "writes": [
+                    "shop_orders.lineage_audit_0"
+                  ],
+                  "rows": 7672,
+                  "delta_version": 139
+                },
+                {
+                  "name": "LineageAuditMergeStep",
+                  "task_run_id": "0c38f476-515b-4561-8b5c-182d2833bdde",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:12:27.000Z",
+                  "end_at": "2026-09-23T03:12:51.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.lineage_audit_0"
+                  ],
+                  "writes": [
+                    "shop_orders.lineage_audit_1"
+                  ],
+                  "rows": 7709,
+                  "delta_version": 140
+                },
+                {
+                  "name": "LineageAuditValidateStep",
+                  "task_run_id": "411b0f33-3d77-4b3f-ab47-84199774a769",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:12:51.000Z",
+                  "end_at": "2026-09-23T03:13:15.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.lineage_audit_1"
+                  ],
+                  "writes": [
+                    "shop_orders.lineage_audit_2"
+                  ],
+                  "rows": 7746,
+                  "delta_version": 141
+                }
+              ]
+            },
+            {
+              "name": "QualityGateProcess",
+              "task_run_id": "c715a501-080e-4bb5-a1fe-c5cbf6fe9095",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T03:13:15.000Z",
+              "end_at": "2026-09-23T03:16:03.000Z",
+              "duration_seconds": 168,
+              "expected_steps": 7,
+              "steps": [
+                {
+                  "name": "QualityGateSnapshotStep",
+                  "task_run_id": "7b69e057-262f-4928-96a7-fad8c5edd7f7",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:13:15.000Z",
+                  "end_at": "2026-09-23T03:13:39.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.lineage_audit_2"
+                  ],
+                  "writes": [
+                    "shop_orders.quality_gate_0"
+                  ],
+                  "rows": 1187,
+                  "delta_version": 142
+                },
+                {
+                  "name": "QualityGateMergeStep",
+                  "task_run_id": "db664972-6d69-4098-a79e-a29161853a00",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:13:39.000Z",
+                  "end_at": "2026-09-23T03:14:03.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.quality_gate_0"
+                  ],
+                  "writes": [
+                    "shop_orders.quality_gate_1"
+                  ],
+                  "rows": 1224,
+                  "delta_version": 143
+                },
+                {
+                  "name": "QualityGateValidateStep",
+                  "task_run_id": "4dc2c6d0-1ec2-4825-aea3-8a3bce452b63",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:14:03.000Z",
+                  "end_at": "2026-09-23T03:14:27.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.quality_gate_1"
+                  ],
+                  "writes": [
+                    "shop_orders.quality_gate_2"
+                  ],
+                  "rows": 1261,
+                  "delta_version": 144
+                },
+                {
+                  "name": "QualityGatePublishStep",
+                  "task_run_id": "b7673d16-0f88-4a93-b27e-d1b9b686d613",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:14:27.000Z",
+                  "end_at": "2026-09-23T03:14:51.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.quality_gate_2"
+                  ],
+                  "writes": [
+                    "shop_orders.quality_gate_3"
+                  ],
+                  "rows": 1298,
+                  "delta_version": 145
+                },
+                {
+                  "name": "QualityGateProfileStep",
+                  "task_run_id": "09b0d454-e69c-4e22-904c-bbdd5ef986c9",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:14:51.000Z",
+                  "end_at": "2026-09-23T03:15:15.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.quality_gate_3"
+                  ],
+                  "writes": [
+                    "shop_orders.quality_gate_4"
+                  ],
+                  "rows": 1335,
+                  "delta_version": 146
+                },
+                {
+                  "name": "QualityGateCompareStep",
+                  "task_run_id": "82995500-2e39-4733-a03a-a40b145a155f",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:15:15.000Z",
+                  "end_at": "2026-09-23T03:15:39.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.quality_gate_4"
+                  ],
+                  "writes": [
+                    "shop_orders.quality_gate_5"
+                  ],
+                  "rows": 1372,
+                  "delta_version": 147
+                },
+                {
+                  "name": "QualityGateSignStep",
+                  "task_run_id": "1f25f10b-6dad-424b-9702-18e29a280025",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:15:39.000Z",
+                  "end_at": "2026-09-23T03:16:03.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_orders.quality_gate_5"
+                  ],
+                  "writes": [
+                    "shop_orders.quality_gate_6"
+                  ],
+                  "rows": 1409,
+                  "delta_version": 148
+                }
+              ]
+            },
+            {
+              "name": "SchemaDriftProcess",
+              "task_run_id": "6938447f-655c-4a28-ac4b-c2f3faa7cd88",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T03:16:03.000Z",
+              "end_at": "2026-09-23T03:16:48.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "SchemaDriftStep",
+                  "task_run_id": "f427f419-e2d5-4e18-99eb-17300398886d",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:16:03.000Z",
+                  "end_at": "2026-09-23T03:16:48.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.quality_gate_6"
+                  ],
+                  "writes": [
+                    "shop_orders.schema_drift_0"
+                  ],
+                  "rows": 1043,
+                  "delta_version": 149
+                }
+              ]
+            },
+            {
+              "name": "RetentionSweepProcess",
+              "task_run_id": "49495a3e-2b81-45cc-b16b-6c338262c4e1",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T03:16:48.000Z",
+              "end_at": "2026-09-23T03:17:33.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "RetentionSweepStep",
+                  "task_run_id": "d6a42fe8-a20b-429c-8348-d6530fddf5a4",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:16:48.000Z",
+                  "end_at": "2026-09-23T03:17:33.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.schema_drift_0"
+                  ],
+                  "writes": [
+                    "shop_orders.retention_sweep_0"
+                  ],
+                  "rows": 3358,
+                  "delta_version": 150
+                }
+              ]
+            },
+            {
+              "name": "ArchiveExportProcess",
+              "task_run_id": "f203bc51-02fb-47ff-a70d-b3afcf1ad357",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T03:17:33.000Z",
+              "end_at": "2026-09-23T03:18:18.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "ArchiveExportStep",
+                  "task_run_id": "5533c3e5-9802-40e5-b5ed-4ca6a19d6180",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:17:33.000Z",
+                  "end_at": "2026-09-23T03:18:18.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.retention_sweep_0"
+                  ],
+                  "writes": [
+                    "shop_orders.archive_export_0"
+                  ],
+                  "rows": 5398,
+                  "delta_version": 151
+                }
+              ]
+            },
+            {
+              "name": "IndexRebuildProcess",
+              "task_run_id": "03d7d2f8-ba8b-4673-b576-6afb5ef7b0ad",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T03:18:18.000Z",
+              "end_at": "2026-09-23T03:19:03.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "IndexRebuildStep",
+                  "task_run_id": "75927f41-45bf-4893-8c6c-d0f534d73f94",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:18:18.000Z",
+                  "end_at": "2026-09-23T03:19:03.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.archive_export_0"
+                  ],
+                  "writes": [
+                    "shop_orders.index_rebuild_0"
+                  ],
+                  "rows": 1445,
+                  "delta_version": 152
+                }
+              ]
+            },
+            {
+              "name": "MetricsRollupProcess",
+              "task_run_id": "552e9317-489f-478a-a8d7-6ea66de96386",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T03:19:03.000Z",
+              "end_at": "2026-09-23T03:19:48.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "MetricsRollupStep",
+                  "task_run_id": "9f9adc74-4bcf-42ae-8a67-bdd5f18cee73",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:19:03.000Z",
+                  "end_at": "2026-09-23T03:19:48.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.index_rebuild_0"
+                  ],
+                  "writes": [
+                    "shop_orders.metrics_rollup_0"
+                  ],
+                  "rows": 4453,
+                  "delta_version": 153
+                }
+              ]
+            },
+            {
+              "name": "AlertEvaluationProcess",
+              "task_run_id": "5754611b-829e-4dcb-9676-747246a1a107",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T03:19:48.000Z",
+              "end_at": "2026-09-23T03:20:33.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "AlertEvaluationStep",
+                  "task_run_id": "c5a1cbee-854f-4e63-9bf9-7159a7361b56",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:19:48.000Z",
+                  "end_at": "2026-09-23T03:20:33.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.metrics_rollup_0"
+                  ],
+                  "writes": [
+                    "shop_orders.alert_evaluation_0"
+                  ],
+                  "rows": 6143,
+                  "delta_version": 154
+                }
+              ]
+            },
+            {
+              "name": "CatalogSyncProcess",
+              "task_run_id": "12ee4494-c2ee-4c00-81fa-c1eaf1ce360f",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T03:20:33.000Z",
+              "end_at": "2026-09-23T03:21:18.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "CatalogSyncStep",
+                  "task_run_id": "acbb61ca-326f-46ae-beb7-a981fc0ffeaa",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:20:33.000Z",
+                  "end_at": "2026-09-23T03:21:18.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.alert_evaluation_0"
+                  ],
+                  "writes": [
+                    "shop_orders.catalog_sync_0"
+                  ],
+                  "rows": 2472,
+                  "delta_version": 155
+                }
+              ]
+            },
+            {
+              "name": "AuditLedgerProcess",
+              "task_run_id": "612e30b2-ea6f-429e-a275-e8173e108bf2",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T03:21:18.000Z",
+              "end_at": "2026-09-23T03:22:03.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "AuditLedgerStep",
+                  "task_run_id": "e5935795-9bf4-428d-bee2-9159abd2814a",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T03:21:18.000Z",
+                  "end_at": "2026-09-23T03:22:03.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.catalog_sync_0"
+                  ],
+                  "writes": [
+                    "shop_orders.audit_ledger_0"
+                  ],
+                  "rows": 1745,
+                  "delta_version": 156
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "expected_steps_known": true
+    },
+    "b7a8fde2-4817-49a3-86aa-baacc186fb69": {
+      "attempts": [
+        {
+          "number": 1,
+          "state": "FAILED",
+          "started_at": "2026-08-19T05:00:03.000Z",
+          "ended_at": "2026-08-19T05:01:39.000Z",
+          "message": "Flow run encountered an exception: InvalidOperationError: schema mismatch on suppliers.sku",
+          "processes": [
+            {
+              "name": "StagingSuppliersProcess",
+              "task_run_id": "62de2029-51bb-4c52-9a31-7a431cd1b5d5",
+              "state": "COMPLETED",
+              "start_at": "2026-08-19T05:00:03.000Z",
+              "end_at": "2026-08-19T05:00:51.000Z",
+              "duration_seconds": 48,
+              "expected_steps": 2,
+              "steps": [
+                {
+                  "name": "StagingSuppliersSnapshotStep",
+                  "task_run_id": "8a0e3fc4-3eaa-4785-bdb6-82fcf1bf32d1",
+                  "state": "COMPLETED",
+                  "start_at": "2026-08-19T05:00:03.000Z",
+                  "end_at": "2026-08-19T05:00:27.000Z",
+                  "duration_seconds": 24,
+                  "reads": [],
+                  "writes": [
+                    "shop_suppliers.staging_suppliers_0"
+                  ],
+                  "rows": 8593,
+                  "delta_version": 122
+                },
+                {
+                  "name": "StagingSuppliersMergeStep",
+                  "task_run_id": "0bff281e-bae7-4498-bc22-010422ca68e9",
+                  "state": "COMPLETED",
+                  "start_at": "2026-08-19T05:00:27.000Z",
+                  "end_at": "2026-08-19T05:00:51.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_suppliers.staging_suppliers_0"
+                  ],
+                  "writes": [
+                    "shop_suppliers.staging_suppliers_1"
+                  ],
+                  "rows": 8630,
+                  "delta_version": 123
+                }
+              ]
+            },
+            {
+              "name": "DimensionRefreshProcess",
+              "task_run_id": "479ef0cb-989b-4b38-b963-d521a8dbe446",
+              "state": "FAILED",
+              "start_at": "2026-08-19T05:00:51.000Z",
+              "end_at": "2026-08-19T05:01:39.000Z",
+              "duration_seconds": 48,
+              "expected_steps": 2,
+              "steps": [
+                {
+                  "name": "DimensionRefreshSnapshotStep",
+                  "task_run_id": "ea0cc49e-4bd6-4acd-ad1e-03a63f4563cc",
+                  "state": "COMPLETED",
+                  "start_at": "2026-08-19T05:00:51.000Z",
+                  "end_at": "2026-08-19T05:01:15.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_suppliers.staging_suppliers_1"
+                  ],
+                  "writes": [
+                    "shop_suppliers.dimension_refresh_0"
+                  ],
+                  "rows": 4172,
+                  "delta_version": 124
+                },
+                {
+                  "name": "DimensionRefreshMergeStep",
+                  "task_run_id": "b8e70ab6-53da-449f-aac2-c57de2356871",
+                  "state": "FAILED",
+                  "start_at": "2026-08-19T05:01:15.000Z",
+                  "end_at": "2026-08-19T05:01:39.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_suppliers.dimension_refresh_0"
+                  ],
+                  "writes": [],
+                  "rows": null,
+                  "delta_version": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "number": 2,
+          "state": "FAILED",
+          "started_at": "2026-08-19T05:02:39.000Z",
+          "ended_at": "2026-08-19T05:04:15.000Z",
+          "message": "Flow run encountered an exception: DanglingFamilyError: parent record missing for batch 4",
+          "processes": [
+            {
+              "name": "StagingSuppliersProcess",
+              "task_run_id": "970f68f2-a2b3-4564-9358-983df6397636",
+              "state": "COMPLETED",
+              "start_at": "2026-08-19T05:02:39.000Z",
+              "end_at": "2026-08-19T05:03:27.000Z",
+              "duration_seconds": 48,
+              "expected_steps": 2,
+              "steps": [
+                {
+                  "name": "StagingSuppliersSnapshotStep",
+                  "task_run_id": "fc5b244d-7448-46ac-a37b-2e82d387e568",
+                  "state": "COMPLETED",
+                  "start_at": "2026-08-19T05:02:39.000Z",
+                  "end_at": "2026-08-19T05:03:03.000Z",
+                  "duration_seconds": 24,
+                  "reads": [],
+                  "writes": [
+                    "shop_suppliers.staging_suppliers_0"
+                  ],
+                  "rows": 5755,
+                  "delta_version": 108
+                },
+                {
+                  "name": "StagingSuppliersMergeStep",
+                  "task_run_id": "9ccf6d7d-ce6b-432b-b22e-0a2d2072cd55",
+                  "state": "COMPLETED",
+                  "start_at": "2026-08-19T05:03:03.000Z",
+                  "end_at": "2026-08-19T05:03:27.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_suppliers.staging_suppliers_0"
+                  ],
+                  "writes": [
+                    "shop_suppliers.staging_suppliers_1"
+                  ],
+                  "rows": 5792,
+                  "delta_version": 109
+                }
+              ]
+            },
+            {
+              "name": "DimensionRefreshProcess",
+              "task_run_id": "c666b003-3241-4e96-b7cd-49ae0dbc365b",
+              "state": "FAILED",
+              "start_at": "2026-08-19T05:03:27.000Z",
+              "end_at": "2026-08-19T05:04:15.000Z",
+              "duration_seconds": 48,
+              "expected_steps": 2,
+              "steps": [
+                {
+                  "name": "DimensionRefreshSnapshotStep",
+                  "task_run_id": "a184e341-e48c-4e27-90a1-3d44f1726cb0",
+                  "state": "COMPLETED",
+                  "start_at": "2026-08-19T05:03:27.000Z",
+                  "end_at": "2026-08-19T05:03:51.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_suppliers.staging_suppliers_1"
+                  ],
+                  "writes": [
+                    "shop_suppliers.dimension_refresh_0"
+                  ],
+                  "rows": 8086,
+                  "delta_version": 110
+                },
+                {
+                  "name": "DimensionRefreshMergeStep",
+                  "task_run_id": "a047f6a0-8eb6-4132-8143-fdda1929ab90",
+                  "state": "FAILED",
+                  "start_at": "2026-08-19T05:03:51.000Z",
+                  "end_at": "2026-08-19T05:04:15.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_suppliers.dimension_refresh_0"
+                  ],
+                  "writes": [],
+                  "rows": null,
+                  "delta_version": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "number": 3,
+          "state": "COMPLETED",
+          "started_at": "2026-08-19T05:05:15.000Z",
+          "ended_at": "2026-08-19T05:06:51.000Z",
+          "message": "All states completed.",
+          "processes": [
+            {
+              "name": "StagingSuppliersProcess",
+              "task_run_id": "60c92f7c-491c-4df1-802e-24d8a994c4ef",
+              "state": "COMPLETED",
+              "start_at": "2026-08-19T05:05:15.000Z",
+              "end_at": "2026-08-19T05:06:03.000Z",
+              "duration_seconds": 48,
+              "expected_steps": 2,
+              "steps": [
+                {
+                  "name": "StagingSuppliersSnapshotStep",
+                  "task_run_id": "705ff9a4-ab09-46e9-9388-e307a666d51e",
+                  "state": "COMPLETED",
+                  "start_at": "2026-08-19T05:05:15.000Z",
+                  "end_at": "2026-08-19T05:05:39.000Z",
+                  "duration_seconds": 24,
+                  "reads": [],
+                  "writes": [
+                    "shop_suppliers.staging_suppliers_0"
+                  ],
+                  "rows": 1710,
+                  "delta_version": 109
+                },
+                {
+                  "name": "StagingSuppliersMergeStep",
+                  "task_run_id": "c9d44553-fe99-4278-9aba-9366c552cde1",
+                  "state": "COMPLETED",
+                  "start_at": "2026-08-19T05:05:39.000Z",
+                  "end_at": "2026-08-19T05:06:03.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_suppliers.staging_suppliers_0"
+                  ],
+                  "writes": [
+                    "shop_suppliers.staging_suppliers_1"
+                  ],
+                  "rows": 1747,
+                  "delta_version": 110
+                }
+              ]
+            },
+            {
+              "name": "DimensionRefreshProcess",
+              "task_run_id": "8776dcd2-96c6-4b58-b04f-72419de365e2",
+              "state": "COMPLETED",
+              "start_at": "2026-08-19T05:06:03.000Z",
+              "end_at": "2026-08-19T05:06:51.000Z",
+              "duration_seconds": 48,
+              "expected_steps": 2,
+              "steps": [
+                {
+                  "name": "DimensionRefreshSnapshotStep",
+                  "task_run_id": "7177f772-707e-495d-90f4-1906d8889a5d",
+                  "state": "COMPLETED",
+                  "start_at": "2026-08-19T05:06:03.000Z",
+                  "end_at": "2026-08-19T05:06:27.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_suppliers.staging_suppliers_1"
+                  ],
+                  "writes": [
+                    "shop_suppliers.dimension_refresh_0"
+                  ],
+                  "rows": 4028,
+                  "delta_version": 111
+                },
+                {
+                  "name": "DimensionRefreshMergeStep",
+                  "task_run_id": "265682b2-ba37-4bac-8adc-d4c770bb1187",
+                  "state": "COMPLETED",
+                  "start_at": "2026-08-19T05:06:27.000Z",
+                  "end_at": "2026-08-19T05:06:51.000Z",
+                  "duration_seconds": 24,
+                  "reads": [
+                    "shop_suppliers.dimension_refresh_0"
+                  ],
+                  "writes": [
+                    "shop_suppliers.dimension_refresh_1"
+                  ],
+                  "rows": 4065,
+                  "delta_version": 112
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "expected_steps_known": true
+    },
+    "64f98352-c9b6-486b-ba19-835ade83c8d5": {
+      "attempts": [
+        {
+          "number": 1,
+          "state": "FAILED",
+          "started_at": "2026-09-23T04:00:03.000Z",
+          "ended_at": "2026-09-23T04:01:45.000Z",
+          "message": "Flow run encountered an exception: EmptyUserPartitionError: refusing to publish an empty partition",
+          "processes": [
+            {
+              "name": "StagingSuppliersProcess",
+              "task_run_id": "828e5dd7-d6d5-498d-93c9-487bfefcc505",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T04:00:03.000Z",
+              "end_at": "2026-09-23T04:00:33.000Z",
+              "duration_seconds": 30,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "StagingSuppliersSnapshotStep",
+                  "task_run_id": "5b5c76f6-5b8a-42e9-9091-f313a5d5135a",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T04:00:03.000Z",
+                  "end_at": "2026-09-23T04:00:33.000Z",
+                  "duration_seconds": 30,
+                  "reads": [],
+                  "writes": [
+                    "shop_customer_facts.staging_suppliers_0"
+                  ],
+                  "rows": 5705,
+                  "delta_version": 90
+                }
+              ]
+            },
+            {
+              "name": null,
+              "task_run_id": null,
+              "state": "FAILED",
+              "start_at": "2026-09-23T04:00:33.000Z",
+              "end_at": "2026-09-23T04:00:51.000Z",
+              "duration_seconds": 18,
+              "expected_steps": null,
+              "steps": [
+                {
+                  "name": "CustomerFactsMergeStep",
+                  "task_run_id": "261de943-d9c8-4de1-8a2d-40b0ae0a3123",
+                  "state": "FAILED",
+                  "start_at": "2026-09-23T04:00:33.000Z",
+                  "end_at": "2026-09-23T04:00:51.000Z",
+                  "duration_seconds": 18,
+                  "reads": [
+                    "shop_customer_facts.staging_suppliers_0"
+                  ],
+                  "writes": [],
+                  "rows": null,
+                  "delta_version": null
+                }
+              ]
+            },
+            {
+              "name": "CustomerFactsProcess",
+              "task_run_id": "38eeba53-3c29-496e-8c5c-ecb29d5b8cde",
+              "state": "FAILED",
+              "start_at": "2026-09-23T04:00:51.000Z",
+              "end_at": "2026-09-23T04:01:45.000Z",
+              "duration_seconds": 54,
+              "expected_steps": 8,
+              "steps": [
+                {
+                  "name": "CustomerFactsSnapshotStep",
+                  "task_run_id": "9da8adbe-5533-4e4c-8f63-6009e375cd4a",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T04:00:51.000Z",
+                  "end_at": "2026-09-23T04:01:09.000Z",
+                  "duration_seconds": 18,
+                  "reads": [
+                    "shop_customer_facts.staging_suppliers_0"
+                  ],
+                  "writes": [
+                    "shop_customer_facts.customer_facts_0"
+                  ],
+                  "rows": 5170,
+                  "delta_version": 92
+                },
+                {
+                  "name": "CustomerFactsMergeStep",
+                  "task_run_id": "9049a770-09f9-4cba-93dd-0e1d3e6f7c6f",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T04:01:09.000Z",
+                  "end_at": "2026-09-23T04:01:27.000Z",
+                  "duration_seconds": 18,
+                  "reads": [
+                    "shop_customer_facts.customer_facts_0"
+                  ],
+                  "writes": [
+                    "shop_customer_facts.customer_facts_1"
+                  ],
+                  "rows": 5207,
+                  "delta_version": 93
+                },
+                {
+                  "name": "CustomerFactsValidateStep",
+                  "task_run_id": "f49a6a79-b8bd-410f-a6fe-9c0acd39994e",
+                  "state": "FAILED",
+                  "start_at": "2026-09-23T04:01:27.000Z",
+                  "end_at": "2026-09-23T04:01:45.000Z",
+                  "duration_seconds": 18,
+                  "reads": [
+                    "shop_customer_facts.customer_facts_1"
+                  ],
+                  "writes": [],
+                  "rows": null,
+                  "delta_version": null
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "expected_steps_known": true
+    },
+    "9a540fb3-229a-46c8-85e2-9f7f10c39841": {
+      "attempts": [
+        {
+          "number": 1,
+          "state": "CRASHED",
+          "started_at": "2026-09-20T02:00:03.000Z",
+          "ended_at": "2026-09-20T02:06:03.000Z",
+          "message": "Process exited with signal SIGKILL: process exceeded its memory limit",
+          "processes": [
+            {
+              "name": "StagingOrdersProcess",
+              "task_run_id": "c251cf8a-51d2-40e6-abc7-7b9840a3bb04",
+              "state": "INTERRUPTED",
+              "start_at": "2026-09-20T02:00:03.000Z",
+              "end_at": null,
+              "duration_seconds": null,
+              "expected_steps": 2,
+              "steps": [
+                {
+                  "name": "StagingOrdersSnapshotStep",
+                  "task_run_id": "5c1d8798-ef65-4106-b20c-fc6bab4b110a",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-20T02:00:03.000Z",
+                  "end_at": "2026-09-20T02:00:27.000Z",
+                  "duration_seconds": 24,
+                  "reads": [],
+                  "writes": [
+                    "shop_orders_dev.staging_orders_0"
+                  ],
+                  "rows": 1548,
+                  "delta_version": 125
+                },
+                {
+                  "name": "StagingOrdersMergeStep",
+                  "task_run_id": "af42e9fb-2864-4886-9117-75807a680a1a",
+                  "state": "INTERRUPTED",
+                  "start_at": "2026-09-20T02:00:27.000Z",
+                  "end_at": null,
+                  "duration_seconds": null,
+                  "reads": [
+                    "shop_orders_dev.staging_orders_0"
+                  ],
+                  "writes": [],
+                  "rows": null,
+                  "delta_version": null
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "expected_steps_known": true
+    },
+    "5282d863-5fd8-4257-a8d9-821eafb1c0a3": {
+      "attempts": [
+        {
+          "number": 1,
+          "state": "FAILED",
+          "started_at": "2026-09-13T03:00:03.000Z",
+          "ended_at": "2026-09-13T03:08:18.000Z",
+          "message": "Flow run encountered an exception: EmptyUserPartitionError: refusing to publish an empty partition",
+          "processes": [
+            {
+              "name": "StagingOrdersProcess",
+              "task_run_id": "ff7cad3e-688c-4d9d-b81d-71bab72ed22f",
+              "state": "COMPLETED",
+              "start_at": "2026-09-13T03:00:03.000Z",
+              "end_at": "2026-09-13T03:00:48.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "StagingOrdersStep",
+                  "task_run_id": "677010b8-85b3-4581-bd73-240c28c64a26",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-13T03:00:03.000Z",
+                  "end_at": "2026-09-13T03:00:48.000Z",
+                  "duration_seconds": 45,
+                  "reads": [],
+                  "writes": [
+                    "shop_orders.staging_orders_0"
+                  ],
+                  "rows": 8119,
+                  "delta_version": 90
+                }
+              ]
+            },
+            {
+              "name": "PreparedOrdersProcess",
+              "task_run_id": "dbef8e1a-90f5-4ddf-8bd7-69537eb9e596",
+              "state": "COMPLETED",
+              "start_at": "2026-09-13T03:00:48.000Z",
+              "end_at": "2026-09-13T03:01:33.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "PreparedOrdersStep",
+                  "task_run_id": "e6bba2c2-0a15-41e5-b6f4-201d66ca66c8",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-13T03:00:48.000Z",
+                  "end_at": "2026-09-13T03:01:33.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.staging_orders_0"
+                  ],
+                  "writes": [
+                    "shop_orders.prepared_orders_0"
+                  ],
+                  "rows": 3353,
+                  "delta_version": 91
+                }
+              ]
+            },
+            {
+              "name": "CustomerFactsProcess",
+              "task_run_id": "e1eefaa0-fa1a-4d36-946e-88e98e2d1a9e",
+              "state": "COMPLETED",
+              "start_at": "2026-09-13T03:01:33.000Z",
+              "end_at": "2026-09-13T03:02:18.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "CustomerFactsStep",
+                  "task_run_id": "e51a5109-0412-4fd3-aa3c-4074fd9d1c6f",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-13T03:01:33.000Z",
+                  "end_at": "2026-09-13T03:02:18.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.prepared_orders_0"
+                  ],
+                  "writes": [
+                    "shop_orders.customer_facts_0"
+                  ],
+                  "rows": 8113,
+                  "delta_version": 92
+                }
+              ]
+            },
+            {
+              "name": "StagingSuppliersProcess",
+              "task_run_id": "92162e98-6725-49fd-bd47-defb0af57d8e",
+              "state": "COMPLETED",
+              "start_at": "2026-09-13T03:02:18.000Z",
+              "end_at": "2026-09-13T03:03:03.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "StagingSuppliersStep",
+                  "task_run_id": "e98010a8-7600-4734-92fb-d0898ca4a90b",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-13T03:02:18.000Z",
+                  "end_at": "2026-09-13T03:03:03.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.customer_facts_0"
+                  ],
+                  "writes": [
+                    "shop_orders.staging_suppliers_0"
+                  ],
+                  "rows": 8922,
+                  "delta_version": 93
+                }
+              ]
+            },
+            {
+              "name": "CoreSalesProcess",
+              "task_run_id": "cf89303f-4bdc-4233-a025-8c6982471e04",
+              "state": "COMPLETED",
+              "start_at": "2026-09-13T03:03:03.000Z",
+              "end_at": "2026-09-13T03:03:48.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "CoreSalesStep",
+                  "task_run_id": "24b828b5-5618-490e-bda6-0d05614c4953",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-13T03:03:03.000Z",
+                  "end_at": "2026-09-13T03:03:48.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.staging_suppliers_0"
+                  ],
+                  "writes": [
+                    "shop_orders.core_sales_0"
+                  ],
+                  "rows": 6329,
+                  "delta_version": 94
+                }
+              ]
+            },
+            {
+              "name": "DimensionRefreshProcess",
+              "task_run_id": "96b37bd9-23eb-43f9-b997-60c6c9fbe705",
+              "state": "COMPLETED",
+              "start_at": "2026-09-13T03:03:48.000Z",
+              "end_at": "2026-09-13T03:04:33.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "DimensionRefreshStep",
+                  "task_run_id": "7f7c0a82-4120-4dfa-872e-5811e172bf11",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-13T03:03:48.000Z",
+                  "end_at": "2026-09-13T03:04:33.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.core_sales_0"
+                  ],
+                  "writes": [
+                    "shop_orders.dimension_refresh_0"
+                  ],
+                  "rows": 2749,
+                  "delta_version": 95
+                }
+              ]
+            },
+            {
+              "name": "FactLoadProcess",
+              "task_run_id": "3a5a234c-6fc8-48d1-9ce5-3dfec451fe7e",
+              "state": "COMPLETED",
+              "start_at": "2026-09-13T03:04:33.000Z",
+              "end_at": "2026-09-13T03:05:18.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "FactLoadStep",
+                  "task_run_id": "1ed1a400-1b61-4971-8ba7-3a4fe96160f3",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-13T03:04:33.000Z",
+                  "end_at": "2026-09-13T03:05:18.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.dimension_refresh_0"
+                  ],
+                  "writes": [
+                    "shop_orders.fact_load_0"
+                  ],
+                  "rows": 6296,
+                  "delta_version": 96
+                }
+              ]
+            },
+            {
+              "name": "ReconciliationProcess",
+              "task_run_id": "7953c74d-d887-41a8-874d-bd15b2043cea",
+              "state": "COMPLETED",
+              "start_at": "2026-09-13T03:05:18.000Z",
+              "end_at": "2026-09-13T03:06:03.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "ReconciliationStep",
+                  "task_run_id": "7948c4fd-ef7c-49b5-a0b9-99cad9538c3a",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-13T03:05:18.000Z",
+                  "end_at": "2026-09-13T03:06:03.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.fact_load_0"
+                  ],
+                  "writes": [
+                    "shop_orders.reconciliation_0"
+                  ],
+                  "rows": 8188,
+                  "delta_version": 97
+                }
+              ]
+            },
+            {
+              "name": "PartitionCompactionProcess",
+              "task_run_id": "09f5e192-49d9-4417-90ee-0fbdf52b5ffe",
+              "state": "COMPLETED",
+              "start_at": "2026-09-13T03:06:03.000Z",
+              "end_at": "2026-09-13T03:06:48.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "PartitionCompactionStep",
+                  "task_run_id": "0ef40cf4-1aef-4f0c-811f-7a03abf10d40",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-13T03:06:03.000Z",
+                  "end_at": "2026-09-13T03:06:48.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.reconciliation_0"
+                  ],
+                  "writes": [
+                    "shop_orders.partition_compaction_0"
+                  ],
+                  "rows": 8765,
+                  "delta_version": 98
+                }
+              ]
+            },
+            {
+              "name": "SnapshotPublishProcess",
+              "task_run_id": "e6c318da-24bc-49e9-99ab-b319f1dbdfac",
+              "state": "COMPLETED",
+              "start_at": "2026-09-13T03:06:48.000Z",
+              "end_at": "2026-09-13T03:07:33.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "SnapshotPublishStep",
+                  "task_run_id": "299a9441-88c6-430d-8cbf-ee492d5f2907",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-13T03:06:48.000Z",
+                  "end_at": "2026-09-13T03:07:33.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.partition_compaction_0"
+                  ],
+                  "writes": [
+                    "shop_orders.snapshot_publish_0"
+                  ],
+                  "rows": 2404,
+                  "delta_version": 99
+                }
+              ]
+            },
+            {
+              "name": "LineageAuditProcess",
+              "task_run_id": null,
+              "state": "FAILED",
+              "start_at": "2026-09-13T03:07:33.000Z",
+              "end_at": "2026-09-13T03:08:18.000Z",
+              "duration_seconds": 45,
+              "expected_steps": null,
+              "steps": [
+                {
+                  "name": "LineageAuditMergeStep",
+                  "task_run_id": "dd4b7e6a-32cc-48f3-801b-3d9d062db9d0",
+                  "state": "FAILED",
+                  "start_at": "2026-09-13T03:07:33.000Z",
+                  "end_at": "2026-09-13T03:08:18.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.snapshot_publish_0"
+                  ],
+                  "writes": [],
+                  "rows": null,
+                  "delta_version": null
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "expected_steps_known": true
+    },
+    "73ddd4d0-822f-4ff1-9292-b9a16b758867": {
+      "attempts": [
+        {
+          "number": 1,
+          "state": "RUNNING",
+          "started_at": "2026-09-23T12:52:00.000Z",
+          "ended_at": null,
+          "message": null,
+          "processes": [
+            {
+              "name": "StagingOrdersProcess",
+              "task_run_id": "b5cbf818-e36b-48a1-a97c-9ccc5ef09965",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T12:52:00.000Z",
+              "end_at": "2026-09-23T12:52:45.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "StagingOrdersStep",
+                  "task_run_id": "1b5a72ef-528b-4c36-bf3a-00c5dace557a",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T12:52:00.000Z",
+                  "end_at": "2026-09-23T12:52:45.000Z",
+                  "duration_seconds": 45,
+                  "reads": [],
+                  "writes": [
+                    "shop_orders.staging_orders_0"
+                  ],
+                  "rows": 1897,
+                  "delta_version": 124
+                }
+              ]
+            },
+            {
+              "name": "PreparedOrdersProcess",
+              "task_run_id": "6c545008-fdd8-4e48-bd4b-2eac8ef799b8",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T12:52:45.000Z",
+              "end_at": "2026-09-23T12:53:30.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "PreparedOrdersStep",
+                  "task_run_id": "eeb9afab-63ae-477c-b279-e714693019b9",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T12:52:45.000Z",
+                  "end_at": "2026-09-23T12:53:30.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.staging_orders_0"
+                  ],
+                  "writes": [
+                    "shop_orders.prepared_orders_0"
+                  ],
+                  "rows": 3836,
+                  "delta_version": 125
+                }
+              ]
+            },
+            {
+              "name": "CustomerFactsProcess",
+              "task_run_id": "18c448eb-cd40-4f3e-bca1-a41a3ca3bf12",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T12:53:30.000Z",
+              "end_at": "2026-09-23T12:54:15.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "CustomerFactsStep",
+                  "task_run_id": "b3a9ae5c-fafb-4ef6-be04-9efdadb542f4",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T12:53:30.000Z",
+                  "end_at": "2026-09-23T12:54:15.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.prepared_orders_0"
+                  ],
+                  "writes": [
+                    "shop_orders.customer_facts_0"
+                  ],
+                  "rows": 5494,
+                  "delta_version": 126
+                }
+              ]
+            },
+            {
+              "name": "StagingSuppliersProcess",
+              "task_run_id": "64186612-eac9-491f-a52c-1f04bf93b108",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T12:54:15.000Z",
+              "end_at": "2026-09-23T12:55:00.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "StagingSuppliersStep",
+                  "task_run_id": "98578119-fced-4cb3-8b0b-f1aaeec215a5",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T12:54:15.000Z",
+                  "end_at": "2026-09-23T12:55:00.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.customer_facts_0"
+                  ],
+                  "writes": [
+                    "shop_orders.staging_suppliers_0"
+                  ],
+                  "rows": 7285,
+                  "delta_version": 127
+                }
+              ]
+            },
+            {
+              "name": "CoreSalesProcess",
+              "task_run_id": "a3038320-3144-41a6-90e5-23e7f9b9ae3c",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T12:55:00.000Z",
+              "end_at": "2026-09-23T12:55:45.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "CoreSalesStep",
+                  "task_run_id": "bc1b349f-5b54-4cd2-8fea-d4c20b4ec702",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T12:55:00.000Z",
+                  "end_at": "2026-09-23T12:55:45.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.staging_suppliers_0"
+                  ],
+                  "writes": [
+                    "shop_orders.core_sales_0"
+                  ],
+                  "rows": 8663,
+                  "delta_version": 128
+                }
+              ]
+            },
+            {
+              "name": "DimensionRefreshProcess",
+              "task_run_id": "03953de3-a561-4b84-b2d7-738a5dc28a20",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T12:55:45.000Z",
+              "end_at": "2026-09-23T12:56:30.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "DimensionRefreshStep",
+                  "task_run_id": "434ffedb-6a49-4777-84fa-a8417fbf9ef7",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T12:55:45.000Z",
+                  "end_at": "2026-09-23T12:56:30.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.core_sales_0"
+                  ],
+                  "writes": [
+                    "shop_orders.dimension_refresh_0"
+                  ],
+                  "rows": 7472,
+                  "delta_version": 129
+                }
+              ]
+            },
+            {
+              "name": "FactLoadProcess",
+              "task_run_id": "b903b4b1-e7fc-4127-a6db-c6756a1df06e",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T12:56:30.000Z",
+              "end_at": "2026-09-23T12:57:15.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "FactLoadStep",
+                  "task_run_id": "ba62f4f1-dc9d-4c02-bfa0-9777b4e052b6",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T12:56:30.000Z",
+                  "end_at": "2026-09-23T12:57:15.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.dimension_refresh_0"
+                  ],
+                  "writes": [
+                    "shop_orders.fact_load_0"
+                  ],
+                  "rows": 2059,
+                  "delta_version": 130
+                }
+              ]
+            },
+            {
+              "name": "ReconciliationProcess",
+              "task_run_id": "cf02d0cb-2bd8-4fee-ab91-54156868c64d",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T12:57:15.000Z",
+              "end_at": "2026-09-23T12:58:00.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "ReconciliationStep",
+                  "task_run_id": "65075a40-26b8-4853-a098-4cd55b54e8c7",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T12:57:15.000Z",
+                  "end_at": "2026-09-23T12:58:00.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.fact_load_0"
+                  ],
+                  "writes": [
+                    "shop_orders.reconciliation_0"
+                  ],
+                  "rows": 4547,
+                  "delta_version": 131
+                }
+              ]
+            },
+            {
+              "name": "PartitionCompactionProcess",
+              "task_run_id": "233b5bd0-26bc-400e-a0f6-90c50fad6bdc",
+              "state": "COMPLETED",
+              "start_at": "2026-09-23T12:58:00.000Z",
+              "end_at": "2026-09-23T12:58:45.000Z",
+              "duration_seconds": 45,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "PartitionCompactionStep",
+                  "task_run_id": "9b8ef5cd-4732-4086-b1cf-8aff465c1a40",
+                  "state": "COMPLETED",
+                  "start_at": "2026-09-23T12:58:00.000Z",
+                  "end_at": "2026-09-23T12:58:45.000Z",
+                  "duration_seconds": 45,
+                  "reads": [
+                    "shop_orders.reconciliation_0"
+                  ],
+                  "writes": [
+                    "shop_orders.partition_compaction_0"
+                  ],
+                  "rows": 1702,
+                  "delta_version": 132
+                }
+              ]
+            },
+            {
+              "name": "SnapshotPublishProcess",
+              "task_run_id": "3c9f213f-3c9a-4c0a-b926-b91a17ee90eb",
+              "state": "RUNNING",
+              "start_at": "2026-09-23T12:58:45.000Z",
+              "end_at": null,
+              "duration_seconds": null,
+              "expected_steps": 1,
+              "steps": [
+                {
+                  "name": "SnapshotPublishStep",
+                  "task_run_id": "ab70b5bc-3cdf-4001-ac8c-8e7a00aec625",
+                  "state": "RUNNING",
+                  "start_at": "2026-09-23T12:58:45.000Z",
+                  "end_at": null,
+                  "duration_seconds": null,
+                  "reads": [
+                    "shop_orders.partition_compaction_0"
+                  ],
+                  "writes": [],
+                  "rows": null,
+                  "delta_version": null
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "expected_steps_known": true
+    }
+  },
+  "logs": {
+    "b7a8fde2-4817-49a3-86aa-baacc186fb69": {
+      "flow": [
+        {
+          "timestamp": "2026-08-19T05:00:03.000Z",
+          "level": 20,
+          "message": "Beginning flow run 'amber-ibis' for flow 'suppliers_catalog_weekly'"
+        },
+        {
+          "timestamp": "2026-08-19T05:00:03.000Z",
+          "level": 20,
+          "message": "process start process=StagingSuppliersProcess nodes=2"
+        },
+        {
+          "timestamp": "2026-08-19T05:00:04.200Z",
+          "level": 20,
+          "message": "IntoHistory declared without 'partition_scope'; defaulting to the full table"
+        },
+        {
+          "timestamp": "2026-08-19T05:00:05.400Z",
+          "level": 20,
+          "message": "Retrieving ECS task definition arn:aws:ecs:us-east-1:000000000000:task-definition/periplo-shop-etl:42"
+        },
+        {
+          "timestamp": "2026-08-19T05:00:06.600Z",
+          "level": 20,
+          "message": "Using ECS task role credentials from the container metadata endpoint"
+        },
+        {
+          "timestamp": "2026-08-19T05:00:51.000Z",
+          "level": 20,
+          "message": "process start process=DimensionRefreshProcess nodes=2"
+        },
+        {
+          "timestamp": "2026-08-19T05:01:39.000Z",
+          "level": 40,
+          "message": "Finished in state AwaitingRetry('Flow run encountered an exception: InvalidOperationError: schema mismatch on suppliers.sku')"
+        },
+        {
+          "timestamp": "2026-08-19T05:01:39.500Z",
+          "level": 30,
+          "message": "notifier raised while sending the retry alert; continuing"
+        },
+        {
+          "timestamp": "2026-08-19T05:02:39.000Z",
+          "level": 20,
+          "message": "process start process=StagingSuppliersProcess nodes=2"
+        },
+        {
+          "timestamp": "2026-08-19T05:03:27.000Z",
+          "level": 20,
+          "message": "process start process=DimensionRefreshProcess nodes=2"
+        },
+        {
+          "timestamp": "2026-08-19T05:04:15.000Z",
+          "level": 40,
+          "message": "Finished in state AwaitingRetry('Flow run encountered an exception: DanglingFamilyError: parent record missing for batch 4')"
+        },
+        {
+          "timestamp": "2026-08-19T05:04:15.500Z",
+          "level": 30,
+          "message": "notifier raised while sending the retry alert; continuing"
+        },
+        {
+          "timestamp": "2026-08-19T05:05:15.000Z",
+          "level": 20,
+          "message": "process start process=StagingSuppliersProcess nodes=2"
+        },
+        {
+          "timestamp": "2026-08-19T05:06:03.000Z",
+          "level": 20,
+          "message": "process start process=DimensionRefreshProcess nodes=2"
+        },
+        {
+          "timestamp": "2026-08-19T05:06:54.000Z",
+          "level": 20,
+          "message": "Finished in state Completed('All states completed.')"
+        }
+      ],
+      "tasks": {
+        "62de2029-51bb-4c52-9a31-7a431cd1b5d5": [
+          {
+            "timestamp": "2026-08-19T05:00:03.000Z",
+            "level": 20,
+            "message": "process start process=StagingSuppliersProcess nodes=2"
+          }
+        ],
+        "8a0e3fc4-3eaa-4785-bdb6-82fcf1bf32d1": [
+          {
+            "timestamp": "2026-08-19T05:00:03.000Z",
+            "level": 20,
+            "message": "step start step=StagingSuppliersSnapshotStep sources=[]"
+          },
+          {
+            "timestamp": "2026-08-19T05:00:06.000Z",
+            "level": 20,
+            "message": "read source kind=sftp_csv ref=None"
+          },
+          {
+            "timestamp": "2026-08-19T05:00:09.000Z",
+            "level": 20,
+            "message": "{'rows': 8593, 'event': 'read complete', 'scope': 'STEP'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:00:12.000Z",
+            "level": 20,
+            "message": "write target ref=TableRef('shop_suppliers.staging_suppliers_0')"
+          },
+          {
+            "timestamp": "2026-08-19T05:00:15.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_suppliers/staging_suppliers_0', 'rows': 8593, 'cols': 24}"
+          },
+          {
+            "timestamp": "2026-08-19T05:00:18.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_suppliers/staging_suppliers_0', 'version': 122, 'rows': None, 'bytes': None, 'files': None, 'event': 'delta write complete'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:00:21.000Z",
+            "level": 20,
+            "message": "{'scope': 'STEP', 'name': 'StagingSuppliersSnapshotStep', 'duration_ms': 24000, 'trace_id': 'bbb26290-014b-4adc-82e8-605c18eae650', 'correlation_id': 'aa02fe06-bd9b-4bd0-a6a0-69adb20afbba'}"
+          }
+        ],
+        "0bff281e-bae7-4498-bc22-010422ca68e9": [
+          {
+            "timestamp": "2026-08-19T05:00:27.000Z",
+            "level": 20,
+            "message": "step start step=StagingSuppliersMergeStep sources=['shop_suppliers.staging_suppliers_0']"
+          },
+          {
+            "timestamp": "2026-08-19T05:00:30.000Z",
+            "level": 20,
+            "message": "read source kind=sftp_csv ref=TableRef('shop_suppliers.staging_suppliers_0')"
+          },
+          {
+            "timestamp": "2026-08-19T05:00:33.000Z",
+            "level": 20,
+            "message": "{'rows': 8630, 'event': 'read complete', 'scope': 'STEP'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:00:36.000Z",
+            "level": 20,
+            "message": "write target ref=TableRef('shop_suppliers.staging_suppliers_1')"
+          },
+          {
+            "timestamp": "2026-08-19T05:00:39.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_suppliers/staging_suppliers_1', 'rows': 8630, 'cols': 25}"
+          },
+          {
+            "timestamp": "2026-08-19T05:00:42.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_suppliers/staging_suppliers_1', 'version': 123, 'rows': None, 'bytes': None, 'files': None, 'event': 'delta write complete'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:00:45.000Z",
+            "level": 20,
+            "message": "{'scope': 'STEP', 'name': 'StagingSuppliersMergeStep', 'duration_ms': 24000, 'trace_id': '746196f7-0de4-48a3-9edb-f1e944f885dd', 'correlation_id': '2ae61156-b03c-4651-955b-ddbe1103d11c'}"
+          }
+        ],
+        "479ef0cb-989b-4b38-b963-d521a8dbe446": [
+          {
+            "timestamp": "2026-08-19T05:00:51.000Z",
+            "level": 20,
+            "message": "process start process=DimensionRefreshProcess nodes=2"
+          }
+        ],
+        "ea0cc49e-4bd6-4acd-ad1e-03a63f4563cc": [
+          {
+            "timestamp": "2026-08-19T05:00:51.000Z",
+            "level": 20,
+            "message": "step start step=DimensionRefreshSnapshotStep sources=['shop_suppliers.staging_suppliers_1']"
+          },
+          {
+            "timestamp": "2026-08-19T05:00:54.000Z",
+            "level": 20,
+            "message": "read source kind=sftp_csv ref=TableRef('shop_suppliers.staging_suppliers_1')"
+          },
+          {
+            "timestamp": "2026-08-19T05:00:57.000Z",
+            "level": 20,
+            "message": "{'rows': 4172, 'event': 'read complete', 'scope': 'STEP'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:01:00.000Z",
+            "level": 20,
+            "message": "write target ref=TableRef('shop_suppliers.dimension_refresh_0')"
+          },
+          {
+            "timestamp": "2026-08-19T05:01:03.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_suppliers/dimension_refresh_0', 'rows': 4172, 'cols': 15}"
+          },
+          {
+            "timestamp": "2026-08-19T05:01:06.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_suppliers/dimension_refresh_0', 'version': 124, 'rows': None, 'bytes': None, 'files': None, 'event': 'delta write complete'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:01:09.000Z",
+            "level": 20,
+            "message": "{'scope': 'STEP', 'name': 'DimensionRefreshSnapshotStep', 'duration_ms': 24000, 'trace_id': 'a99f0982-d8ee-477e-b923-37f2277f716c', 'correlation_id': '1f9ca377-87f8-40c5-ad5e-7cab9e52d811'}"
+          }
+        ],
+        "b8e70ab6-53da-449f-aac2-c57de2356871": [
+          {
+            "timestamp": "2026-08-19T05:01:15.000Z",
+            "level": 20,
+            "message": "step start step=DimensionRefreshMergeStep sources=['shop_suppliers.dimension_refresh_0']"
+          },
+          {
+            "timestamp": "2026-08-19T05:01:18.000Z",
+            "level": 20,
+            "message": "read source kind=sftp_csv ref=TableRef('shop_suppliers.dimension_refresh_0')"
+          },
+          {
+            "timestamp": "2026-08-19T05:01:21.000Z",
+            "level": 20,
+            "message": "{'rows': 39, 'event': 'read complete', 'scope': 'STEP'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:01:24.000Z",
+            "level": 40,
+            "message": "{'scope': 'STEP', 'name': 'DimensionRefreshMergeStep', 'event': 'InvalidOperationError: schema mismatch on suppliers.sku'}"
+          }
+        ],
+        "970f68f2-a2b3-4564-9358-983df6397636": [
+          {
+            "timestamp": "2026-08-19T05:02:39.000Z",
+            "level": 20,
+            "message": "process start process=StagingSuppliersProcess nodes=2"
+          }
+        ],
+        "fc5b244d-7448-46ac-a37b-2e82d387e568": [
+          {
+            "timestamp": "2026-08-19T05:02:39.000Z",
+            "level": 20,
+            "message": "step start step=StagingSuppliersSnapshotStep sources=[]"
+          },
+          {
+            "timestamp": "2026-08-19T05:02:42.000Z",
+            "level": 20,
+            "message": "read source kind=sftp_csv ref=None"
+          },
+          {
+            "timestamp": "2026-08-19T05:02:45.000Z",
+            "level": 20,
+            "message": "{'rows': 5755, 'event': 'read complete', 'scope': 'STEP'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:02:48.000Z",
+            "level": 20,
+            "message": "write target ref=TableRef('shop_suppliers.staging_suppliers_0')"
+          },
+          {
+            "timestamp": "2026-08-19T05:02:51.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_suppliers/staging_suppliers_0', 'rows': 5755, 'cols': 13}"
+          },
+          {
+            "timestamp": "2026-08-19T05:02:54.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_suppliers/staging_suppliers_0', 'version': 108, 'rows': None, 'bytes': None, 'files': None, 'event': 'delta write complete'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:02:57.000Z",
+            "level": 20,
+            "message": "{'scope': 'STEP', 'name': 'StagingSuppliersSnapshotStep', 'duration_ms': 24000, 'trace_id': '19feadf2-1a2d-49e9-b09a-db78571c9581', 'correlation_id': '59b12a5d-13f6-4993-a2e1-b2fe520376db'}"
+          }
+        ],
+        "9ccf6d7d-ce6b-432b-b22e-0a2d2072cd55": [
+          {
+            "timestamp": "2026-08-19T05:03:03.000Z",
+            "level": 20,
+            "message": "step start step=StagingSuppliersMergeStep sources=['shop_suppliers.staging_suppliers_0']"
+          },
+          {
+            "timestamp": "2026-08-19T05:03:06.000Z",
+            "level": 20,
+            "message": "read source kind=sftp_csv ref=TableRef('shop_suppliers.staging_suppliers_0')"
+          },
+          {
+            "timestamp": "2026-08-19T05:03:09.000Z",
+            "level": 20,
+            "message": "{'rows': 5792, 'event': 'read complete', 'scope': 'STEP'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:03:12.000Z",
+            "level": 20,
+            "message": "write target ref=TableRef('shop_suppliers.staging_suppliers_1')"
+          },
+          {
+            "timestamp": "2026-08-19T05:03:15.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_suppliers/staging_suppliers_1', 'rows': 5792, 'cols': 30}"
+          },
+          {
+            "timestamp": "2026-08-19T05:03:18.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_suppliers/staging_suppliers_1', 'version': 109, 'rows': None, 'bytes': None, 'files': None, 'event': 'delta write complete'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:03:21.000Z",
+            "level": 20,
+            "message": "{'scope': 'STEP', 'name': 'StagingSuppliersMergeStep', 'duration_ms': 24000, 'trace_id': 'e0b5a080-b8a7-4302-b5fb-953e73dac81a', 'correlation_id': 'fe6e771f-901c-47b4-8306-5b61b12bad04'}"
+          }
+        ],
+        "c666b003-3241-4e96-b7cd-49ae0dbc365b": [
+          {
+            "timestamp": "2026-08-19T05:03:27.000Z",
+            "level": 20,
+            "message": "process start process=DimensionRefreshProcess nodes=2"
+          }
+        ],
+        "a184e341-e48c-4e27-90a1-3d44f1726cb0": [
+          {
+            "timestamp": "2026-08-19T05:03:27.000Z",
+            "level": 20,
+            "message": "step start step=DimensionRefreshSnapshotStep sources=['shop_suppliers.staging_suppliers_1']"
+          },
+          {
+            "timestamp": "2026-08-19T05:03:30.000Z",
+            "level": 20,
+            "message": "read source kind=sftp_csv ref=TableRef('shop_suppliers.staging_suppliers_1')"
+          },
+          {
+            "timestamp": "2026-08-19T05:03:33.000Z",
+            "level": 20,
+            "message": "{'rows': 8086, 'event': 'read complete', 'scope': 'STEP'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:03:36.000Z",
+            "level": 20,
+            "message": "write target ref=TableRef('shop_suppliers.dimension_refresh_0')"
+          },
+          {
+            "timestamp": "2026-08-19T05:03:39.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_suppliers/dimension_refresh_0', 'rows': 8086, 'cols': 15}"
+          },
+          {
+            "timestamp": "2026-08-19T05:03:42.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_suppliers/dimension_refresh_0', 'version': 110, 'rows': None, 'bytes': None, 'files': None, 'event': 'delta write complete'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:03:45.000Z",
+            "level": 20,
+            "message": "{'scope': 'STEP', 'name': 'DimensionRefreshSnapshotStep', 'duration_ms': 24000, 'trace_id': 'a2e1de59-4119-4288-b9f3-58ae85102402', 'correlation_id': '12011c0d-b4bc-4544-b905-8edcaf4cce2e'}"
+          }
+        ],
+        "a047f6a0-8eb6-4132-8143-fdda1929ab90": [
+          {
+            "timestamp": "2026-08-19T05:03:51.000Z",
+            "level": 20,
+            "message": "step start step=DimensionRefreshMergeStep sources=['shop_suppliers.dimension_refresh_0']"
+          },
+          {
+            "timestamp": "2026-08-19T05:03:54.000Z",
+            "level": 20,
+            "message": "read source kind=sftp_csv ref=TableRef('shop_suppliers.dimension_refresh_0')"
+          },
+          {
+            "timestamp": "2026-08-19T05:03:57.000Z",
+            "level": 20,
+            "message": "{'rows': 14, 'event': 'read complete', 'scope': 'STEP'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:04:00.000Z",
+            "level": 40,
+            "message": "{'scope': 'STEP', 'name': 'DimensionRefreshMergeStep', 'event': 'DanglingFamilyError: parent record missing for batch 4'}"
+          }
+        ],
+        "60c92f7c-491c-4df1-802e-24d8a994c4ef": [
+          {
+            "timestamp": "2026-08-19T05:05:15.000Z",
+            "level": 20,
+            "message": "process start process=StagingSuppliersProcess nodes=2"
+          }
+        ],
+        "705ff9a4-ab09-46e9-9388-e307a666d51e": [
+          {
+            "timestamp": "2026-08-19T05:05:15.000Z",
+            "level": 20,
+            "message": "step start step=StagingSuppliersSnapshotStep sources=[]"
+          },
+          {
+            "timestamp": "2026-08-19T05:05:18.000Z",
+            "level": 20,
+            "message": "read source kind=sftp_csv ref=None"
+          },
+          {
+            "timestamp": "2026-08-19T05:05:21.000Z",
+            "level": 20,
+            "message": "{'rows': 1710, 'event': 'read complete', 'scope': 'STEP'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:05:24.000Z",
+            "level": 20,
+            "message": "write target ref=TableRef('shop_suppliers.staging_suppliers_0')"
+          },
+          {
+            "timestamp": "2026-08-19T05:05:27.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_suppliers/staging_suppliers_0', 'rows': 1710, 'cols': 14}"
+          },
+          {
+            "timestamp": "2026-08-19T05:05:30.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_suppliers/staging_suppliers_0', 'version': 109, 'rows': None, 'bytes': None, 'files': None, 'event': 'delta write complete'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:05:33.000Z",
+            "level": 20,
+            "message": "{'scope': 'STEP', 'name': 'StagingSuppliersSnapshotStep', 'duration_ms': 24000, 'trace_id': '1af6864b-44aa-43db-9156-36510c0bfa8c', 'correlation_id': '3f76596a-ca53-410a-a338-f66508e4f13e'}"
+          }
+        ],
+        "c9d44553-fe99-4278-9aba-9366c552cde1": [
+          {
+            "timestamp": "2026-08-19T05:05:39.000Z",
+            "level": 20,
+            "message": "step start step=StagingSuppliersMergeStep sources=['shop_suppliers.staging_suppliers_0']"
+          },
+          {
+            "timestamp": "2026-08-19T05:05:42.000Z",
+            "level": 20,
+            "message": "read source kind=sftp_csv ref=TableRef('shop_suppliers.staging_suppliers_0')"
+          },
+          {
+            "timestamp": "2026-08-19T05:05:45.000Z",
+            "level": 20,
+            "message": "{'rows': 1747, 'event': 'read complete', 'scope': 'STEP'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:05:48.000Z",
+            "level": 20,
+            "message": "write target ref=TableRef('shop_suppliers.staging_suppliers_1')"
+          },
+          {
+            "timestamp": "2026-08-19T05:05:51.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_suppliers/staging_suppliers_1', 'rows': 1747, 'cols': 16}"
+          },
+          {
+            "timestamp": "2026-08-19T05:05:54.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_suppliers/staging_suppliers_1', 'version': 110, 'rows': None, 'bytes': None, 'files': None, 'event': 'delta write complete'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:05:57.000Z",
+            "level": 20,
+            "message": "{'scope': 'STEP', 'name': 'StagingSuppliersMergeStep', 'duration_ms': 24000, 'trace_id': '63e3a724-ee7b-4d4c-b350-0ec1b9daf7ee', 'correlation_id': 'ecd04155-5c6a-4bed-a93d-08c3f4641f73'}"
+          }
+        ],
+        "8776dcd2-96c6-4b58-b04f-72419de365e2": [
+          {
+            "timestamp": "2026-08-19T05:06:03.000Z",
+            "level": 20,
+            "message": "process start process=DimensionRefreshProcess nodes=2"
+          }
+        ],
+        "7177f772-707e-495d-90f4-1906d8889a5d": [
+          {
+            "timestamp": "2026-08-19T05:06:03.000Z",
+            "level": 20,
+            "message": "step start step=DimensionRefreshSnapshotStep sources=['shop_suppliers.staging_suppliers_1']"
+          },
+          {
+            "timestamp": "2026-08-19T05:06:06.000Z",
+            "level": 20,
+            "message": "read source kind=sftp_csv ref=TableRef('shop_suppliers.staging_suppliers_1')"
+          },
+          {
+            "timestamp": "2026-08-19T05:06:09.000Z",
+            "level": 20,
+            "message": "{'rows': 4028, 'event': 'read complete', 'scope': 'STEP'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:06:12.000Z",
+            "level": 20,
+            "message": "write target ref=TableRef('shop_suppliers.dimension_refresh_0')"
+          },
+          {
+            "timestamp": "2026-08-19T05:06:15.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_suppliers/dimension_refresh_0', 'rows': 4028, 'cols': 15}"
+          },
+          {
+            "timestamp": "2026-08-19T05:06:18.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_suppliers/dimension_refresh_0', 'version': 111, 'rows': None, 'bytes': None, 'files': None, 'event': 'delta write complete'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:06:21.000Z",
+            "level": 20,
+            "message": "{'scope': 'STEP', 'name': 'DimensionRefreshSnapshotStep', 'duration_ms': 24000, 'trace_id': '032fb0ef-5c30-4eb9-8f38-f01caacd582a', 'correlation_id': '40922809-23d2-49c1-a1e8-ae3c81dba439'}"
+          }
+        ],
+        "265682b2-ba37-4bac-8adc-d4c770bb1187": [
+          {
+            "timestamp": "2026-08-19T05:06:27.000Z",
+            "level": 20,
+            "message": "step start step=DimensionRefreshMergeStep sources=['shop_suppliers.dimension_refresh_0']"
+          },
+          {
+            "timestamp": "2026-08-19T05:06:30.000Z",
+            "level": 20,
+            "message": "read source kind=sftp_csv ref=TableRef('shop_suppliers.dimension_refresh_0')"
+          },
+          {
+            "timestamp": "2026-08-19T05:06:33.000Z",
+            "level": 20,
+            "message": "{'rows': 4065, 'event': 'read complete', 'scope': 'STEP'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:06:36.000Z",
+            "level": 20,
+            "message": "write target ref=TableRef('shop_suppliers.dimension_refresh_1')"
+          },
+          {
+            "timestamp": "2026-08-19T05:06:39.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_suppliers/dimension_refresh_1', 'rows': 4065, 'cols': 13}"
+          },
+          {
+            "timestamp": "2026-08-19T05:06:42.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_suppliers/dimension_refresh_1', 'version': 112, 'rows': None, 'bytes': None, 'files': None, 'event': 'delta write complete'}"
+          },
+          {
+            "timestamp": "2026-08-19T05:06:45.000Z",
+            "level": 20,
+            "message": "{'scope': 'STEP', 'name': 'DimensionRefreshMergeStep', 'duration_ms': 24000, 'trace_id': '83dd8961-e23e-4cfa-b0cc-5694c693e058', 'correlation_id': 'ba9c8eca-ec0b-4f3e-8539-c2b4e3cf0a82'}"
+          }
+        ]
+      }
+    },
+    "64f98352-c9b6-486b-ba19-835ade83c8d5": {
+      "flow": [
+        {
+          "timestamp": "2026-09-23T04:00:03.000Z",
+          "level": 20,
+          "message": "Beginning flow run 'dapper-heron' for flow 'customer_facts_daily'"
+        },
+        {
+          "timestamp": "2026-09-23T04:00:03.000Z",
+          "level": 20,
+          "message": "process start process=StagingSuppliersProcess nodes=1"
+        },
+        {
+          "timestamp": "2026-09-23T04:00:04.200Z",
+          "level": 20,
+          "message": "IntoHistory declared without 'partition_scope'; defaulting to the full table"
+        },
+        {
+          "timestamp": "2026-09-23T04:00:05.400Z",
+          "level": 20,
+          "message": "Retrieving ECS task definition arn:aws:ecs:us-east-1:000000000000:task-definition/periplo-shop-etl:42"
+        },
+        {
+          "timestamp": "2026-09-23T04:00:06.600Z",
+          "level": 20,
+          "message": "Using ECS task role credentials from the container metadata endpoint"
+        },
+        {
+          "timestamp": "2026-09-23T04:00:51.000Z",
+          "level": 20,
+          "message": "process start process=CustomerFactsProcess nodes=8"
+        },
+        {
+          "timestamp": "2026-09-23T04:01:48.000Z",
+          "level": 40,
+          "message": "Finished in state Failed('Flow run encountered an exception: EmptyUserPartitionError: refusing to publish an empty partition')"
+        }
+      ],
+      "tasks": {
+        "828e5dd7-d6d5-498d-93c9-487bfefcc505": [
+          {
+            "timestamp": "2026-09-23T04:00:03.000Z",
+            "level": 20,
+            "message": "process start process=StagingSuppliersProcess nodes=1"
+          }
+        ],
+        "5b5c76f6-5b8a-42e9-9091-f313a5d5135a": [
+          {
+            "timestamp": "2026-09-23T04:00:03.000Z",
+            "level": 20,
+            "message": "step start step=StagingSuppliersSnapshotStep sources=[]"
+          },
+          {
+            "timestamp": "2026-09-23T04:00:06.000Z",
+            "level": 20,
+            "message": "read source kind=table ref=None"
+          },
+          {
+            "timestamp": "2026-09-23T04:00:09.000Z",
+            "level": 20,
+            "message": "{'rows': 5705, 'event': 'read complete', 'scope': 'STEP'}"
+          },
+          {
+            "timestamp": "2026-09-23T04:00:12.000Z",
+            "level": 20,
+            "message": "write target ref=TableRef('shop_customer_facts.staging_suppliers_0')"
+          },
+          {
+            "timestamp": "2026-09-23T04:00:15.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_customer_facts/staging_suppliers_0', 'rows': 5705, 'cols': 20}"
+          },
+          {
+            "timestamp": "2026-09-23T04:00:18.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_customer_facts/staging_suppliers_0', 'version': 90, 'rows': None, 'bytes': None, 'files': None, 'event': 'delta write complete'}"
+          },
+          {
+            "timestamp": "2026-09-23T04:00:21.000Z",
+            "level": 20,
+            "message": "{'scope': 'STEP', 'name': 'StagingSuppliersSnapshotStep', 'duration_ms': 30000, 'trace_id': '73b35e51-3fb2-4ab8-9efa-7553089acbc1', 'correlation_id': '18adcbe5-0291-4f84-a5fd-8cbe3fdd593a'}"
+          }
+        ],
+        "261de943-d9c8-4de1-8a2d-40b0ae0a3123": [
+          {
+            "timestamp": "2026-09-23T04:00:33.000Z",
+            "level": 20,
+            "message": "step start step=CustomerFactsMergeStep sources=['shop_customer_facts.staging_suppliers_0']"
+          },
+          {
+            "timestamp": "2026-09-23T04:00:36.000Z",
+            "level": 20,
+            "message": "read source kind=table ref=TableRef('shop_customer_facts.staging_suppliers_0')"
+          },
+          {
+            "timestamp": "2026-09-23T04:00:39.000Z",
+            "level": 20,
+            "message": "{'rows': 36, 'event': 'read complete', 'scope': 'STEP'}"
+          },
+          {
+            "timestamp": "2026-09-23T04:00:42.000Z",
+            "level": 30,
+            "message": "{'scope': 'STEP', 'name': 'CustomerFactsMergeStep', 'event': 'partition is empty after filters', 'rows': 0}"
+          },
+          {
+            "timestamp": "2026-09-23T04:00:45.000Z",
+            "level": 40,
+            "message": "{'scope': 'STEP', 'name': 'CustomerFactsMergeStep', 'event': 'EmptyUserPartitionError: refusing to publish an empty partition'}"
+          }
+        ],
+        "38eeba53-3c29-496e-8c5c-ecb29d5b8cde": [
+          {
+            "timestamp": "2026-09-23T04:00:51.000Z",
+            "level": 20,
+            "message": "process start process=CustomerFactsProcess nodes=8"
+          }
+        ],
+        "9da8adbe-5533-4e4c-8f63-6009e375cd4a": [
+          {
+            "timestamp": "2026-09-23T04:00:51.000Z",
+            "level": 20,
+            "message": "step start step=CustomerFactsSnapshotStep sources=['shop_customer_facts.staging_suppliers_0']"
+          },
+          {
+            "timestamp": "2026-09-23T04:00:54.000Z",
+            "level": 20,
+            "message": "read source kind=table ref=TableRef('shop_customer_facts.staging_suppliers_0')"
+          },
+          {
+            "timestamp": "2026-09-23T04:00:57.000Z",
+            "level": 20,
+            "message": "{'rows': 5170, 'event': 'read complete', 'scope': 'STEP'}"
+          },
+          {
+            "timestamp": "2026-09-23T04:01:00.000Z",
+            "level": 20,
+            "message": "write target ref=TableRef('shop_customer_facts.customer_facts_0')"
+          },
+          {
+            "timestamp": "2026-09-23T04:01:03.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_customer_facts/customer_facts_0', 'rows': 5170, 'cols': 12}"
+          },
+          {
+            "timestamp": "2026-09-23T04:01:06.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_customer_facts/customer_facts_0', 'version': 92, 'rows': None, 'bytes': None, 'files': None, 'event': 'delta write complete'}"
+          },
+          {
+            "timestamp": "2026-09-23T04:01:09.000Z",
+            "level": 20,
+            "message": "{'scope': 'STEP', 'name': 'CustomerFactsSnapshotStep', 'duration_ms': 18000, 'trace_id': 'cb451c3b-b9a5-4ffe-bc41-8367b99583f9', 'correlation_id': '95fb65b8-9ffe-42f3-83b0-90b29a8ec6f0'}"
+          }
+        ],
+        "9049a770-09f9-4cba-93dd-0e1d3e6f7c6f": [
+          {
+            "timestamp": "2026-09-23T04:01:09.000Z",
+            "level": 20,
+            "message": "step start step=CustomerFactsMergeStep sources=['shop_customer_facts.customer_facts_0']"
+          },
+          {
+            "timestamp": "2026-09-23T04:01:12.000Z",
+            "level": 20,
+            "message": "read source kind=table ref=TableRef('shop_customer_facts.customer_facts_0')"
+          },
+          {
+            "timestamp": "2026-09-23T04:01:15.000Z",
+            "level": 20,
+            "message": "{'rows': 5207, 'event': 'read complete', 'scope': 'STEP'}"
+          },
+          {
+            "timestamp": "2026-09-23T04:01:18.000Z",
+            "level": 20,
+            "message": "write target ref=TableRef('shop_customer_facts.customer_facts_1')"
+          },
+          {
+            "timestamp": "2026-09-23T04:01:21.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_customer_facts/customer_facts_1', 'rows': 5207, 'cols': 26}"
+          },
+          {
+            "timestamp": "2026-09-23T04:01:24.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_customer_facts/customer_facts_1', 'version': 93, 'rows': None, 'bytes': None, 'files': None, 'event': 'delta write complete'}"
+          },
+          {
+            "timestamp": "2026-09-23T04:01:27.000Z",
+            "level": 20,
+            "message": "{'scope': 'STEP', 'name': 'CustomerFactsMergeStep', 'duration_ms': 18000, 'trace_id': '1de0d586-1ad7-455f-af36-38ccd7a0b832', 'correlation_id': '8c97cc11-acab-420a-aaca-d392d20b7efd'}"
+          }
+        ],
+        "f49a6a79-b8bd-410f-a6fe-9c0acd39994e": [
+          {
+            "timestamp": "2026-09-23T04:01:27.000Z",
+            "level": 20,
+            "message": "step start step=CustomerFactsValidateStep sources=['shop_customer_facts.customer_facts_1']"
+          },
+          {
+            "timestamp": "2026-09-23T04:01:30.000Z",
+            "level": 20,
+            "message": "read source kind=table ref=TableRef('shop_customer_facts.customer_facts_1')"
+          },
+          {
+            "timestamp": "2026-09-23T04:01:33.000Z",
+            "level": 20,
+            "message": "{'rows': 28, 'event': 'read complete', 'scope': 'STEP'}"
+          },
+          {
+            "timestamp": "2026-09-23T04:01:36.000Z",
+            "level": 30,
+            "message": "{'scope': 'STEP', 'name': 'CustomerFactsValidateStep', 'event': 'partition is empty after filters', 'rows': 0}"
+          },
+          {
+            "timestamp": "2026-09-23T04:01:39.000Z",
+            "level": 40,
+            "message": "{'scope': 'STEP', 'name': 'CustomerFactsValidateStep', 'event': 'EmptyUserPartitionError: refusing to publish an empty partition'}"
+          }
+        ]
+      }
+    },
+    "9a540fb3-229a-46c8-85e2-9f7f10c39841": {
+      "flow": [
+        {
+          "timestamp": "2026-09-20T02:00:03.000Z",
+          "level": 20,
+          "message": "Beginning flow run 'calm-puffin' for flow 'staging_orders_dev'"
+        },
+        {
+          "timestamp": "2026-09-20T02:00:03.000Z",
+          "level": 20,
+          "message": "process start process=StagingOrdersProcess nodes=2"
+        },
+        {
+          "timestamp": "2026-09-20T02:00:04.200Z",
+          "level": 20,
+          "message": "IntoHistory declared without 'partition_scope'; defaulting to the full table"
+        },
+        {
+          "timestamp": "2026-09-20T02:00:05.400Z",
+          "level": 20,
+          "message": "Retrieving ECS task definition arn:aws:ecs:us-east-1:000000000000:task-definition/periplo-shop-etl:42"
+        },
+        {
+          "timestamp": "2026-09-20T02:00:06.600Z",
+          "level": 20,
+          "message": "Using ECS task role credentials from the container metadata endpoint"
+        },
+        {
+          "timestamp": "2026-09-20T02:06:03.000Z",
+          "level": 50,
+          "message": "Finished in state Crashed('Process exited with signal SIGKILL: process exceeded its memory limit')"
+        }
+      ],
+      "tasks": {
+        "c251cf8a-51d2-40e6-abc7-7b9840a3bb04": [
+          {
+            "timestamp": "2026-09-20T02:00:03.000Z",
+            "level": 20,
+            "message": "process start process=StagingOrdersProcess nodes=2"
+          }
+        ],
+        "5c1d8798-ef65-4106-b20c-fc6bab4b110a": [
+          {
+            "timestamp": "2026-09-20T02:00:03.000Z",
+            "level": 20,
+            "message": "step start step=StagingOrdersSnapshotStep sources=[]"
+          },
+          {
+            "timestamp": "2026-09-20T02:00:06.000Z",
+            "level": 20,
+            "message": "read source kind=postgres ref=None"
+          },
+          {
+            "timestamp": "2026-09-20T02:00:09.000Z",
+            "level": 20,
+            "message": "{'rows': 1548, 'event': 'read complete', 'scope': 'STEP'}"
+          },
+          {
+            "timestamp": "2026-09-20T02:00:12.000Z",
+            "level": 20,
+            "message": "write target ref=TableRef('shop_orders_dev.staging_orders_0')"
+          },
+          {
+            "timestamp": "2026-09-20T02:00:15.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_orders_dev/staging_orders_0', 'rows': 1548, 'cols': 13}"
+          },
+          {
+            "timestamp": "2026-09-20T02:00:18.000Z",
+            "level": 20,
+            "message": "{'mode': 'replace_partitions', 'uri': 's3://periplo-lake/shop_orders_dev/staging_orders_0', 'version': 125, 'rows': None, 'bytes': None, 'files': None, 'event': 'delta write complete'}"
+          },
+          {
+            "timestamp": "2026-09-20T02:00:21.000Z",
+            "level": 20,
+            "message": "{'scope': 'STEP', 'name': 'StagingOrdersSnapshotStep', 'duration_ms': 24000, 'trace_id': '136962d0-a4bf-4858-97a7-904b2bc6c630', 'correlation_id': '3f266878-b03b-4fe7-9e8d-193fb91f2aa7'}"
+          }
+        ],
+        "af42e9fb-2864-4886-9117-75807a680a1a": [
+          {
+            "timestamp": "2026-09-20T02:00:27.000Z",
+            "level": 20,
+            "message": "step start step=StagingOrdersMergeStep sources=['shop_orders_dev.staging_orders_0']"
+          },
+          {
+            "timestamp": "2026-09-20T02:00:30.000Z",
+            "level": 20,
+            "message": "read source kind=postgres ref=TableRef('shop_orders_dev.staging_orders_0')"
+          }
+        ]
+      }
+    }
+  }
+}

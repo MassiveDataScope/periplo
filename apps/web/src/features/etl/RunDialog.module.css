@@ -1,0 +1,74 @@
+/* On the core Dialog: wide enough for a parameters object to read without wrapping. */
+dialog.dialog {
+  inline-size: min(36rem, 92vw);
+}
+
+.form {
+  display: grid;
+  gap: var(--nt-space-3);
+  padding: var(--nt-space-4);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-lg);
+  font-weight: var(--nt-font-weight-strong);
+}
+
+.label {
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-2xs);
+  font-weight: var(--nt-font-weight-medium);
+  letter-spacing: var(--nt-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+.editor {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: 12rem;
+  padding: var(--nt-space-2) var(--nt-space-3);
+  border: var(--nt-border-width) solid var(--nt-color-border-strong);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-bg);
+  color: var(--nt-color-text);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+  line-height: var(--nt-font-line-height);
+  resize: vertical;
+  tab-size: 2;
+}
+
+.editor:focus-visible {
+  border-color: var(--nt-color-focus);
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: var(--nt-focus-offset);
+}
+
+.editor[aria-invalid="true"] {
+  border-color: var(--nt-color-danger);
+}
+
+.problem {
+  margin: 0;
+  color: var(--nt-color-danger);
+  font-size: var(--nt-font-size-sm);
+}
+
+.notice {
+  margin: 0;
+  padding: var(--nt-space-2) var(--nt-space-3);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-surface);
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-sm);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--nt-space-2);
+}

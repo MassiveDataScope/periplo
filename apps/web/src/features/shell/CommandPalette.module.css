@@ -1,0 +1,62 @@
+/* On the core Dialog: same box as before, sat near the top instead of the dialog's native centring. */
+dialog.palette {
+  inline-size: min(40rem, 92vw);
+  margin-block-start: 12vh;
+  border: var(--nt-border-width) solid var(--nt-color-border-strong);
+  box-shadow: var(--nt-shadow-raised);
+}
+
+.srOnly {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.input {
+  box-sizing: border-box;
+  inline-size: 100%;
+  padding: var(--nt-space-3);
+  border: 0;
+  border-block-end: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-md) var(--nt-radius-md) 0 0;
+  background: transparent;
+  color: var(--nt-color-text);
+  font: inherit;
+  font-size: var(--nt-font-size-lg);
+}
+
+.input:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: calc(-1 * var(--nt-focus-width));
+}
+
+.options {
+  max-block-size: 50vh;
+  margin: 0;
+  padding: var(--nt-space-1);
+  overflow: auto;
+  list-style: none;
+}
+
+.option,
+.empty {
+  padding: var(--nt-space-2) var(--nt-space-3);
+  border-radius: var(--nt-radius-sm);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+}
+
+.option {
+  cursor: pointer;
+}
+
+.option[aria-selected="true"] {
+  background: var(--nt-color-selection);
+}
+
+.empty {
+  color: var(--nt-color-text-muted);
+}

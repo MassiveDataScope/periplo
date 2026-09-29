@@ -1,0 +1,188 @@
+.filters {
+  display: grid;
+  gap: var(--nt-space-2);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nt-space-3);
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-1-5);
+  inline-size: 18rem;
+  max-inline-size: 100%;
+  min-block-size: var(--nt-size-control);
+  padding: 0 var(--nt-space-2);
+  border: var(--nt-border-width) solid var(--nt-color-border-strong);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-bg);
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+}
+
+.search:focus-within {
+  border-color: var(--nt-color-focus);
+  outline: var(--nt-border-width) solid var(--nt-color-focus);
+}
+
+.search input {
+  flex: 1;
+  min-inline-size: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--nt-color-text);
+  font: inherit;
+}
+
+.popoverWrap {
+  position: relative;
+}
+
+.filterButton {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-1-5);
+  padding: 0 var(--nt-space-2-5);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-bg);
+  color: var(--nt-color-text);
+  font-family: var(--nt-font-family);
+  font-size: var(--nt-font-size-sm);
+  line-height: var(--nt-space-6);
+  cursor: pointer;
+}
+
+.filterButton:hover {
+  border-color: var(--nt-color-border-strong);
+}
+
+.filterButton::after {
+  content: "▾";
+  color: var(--nt-color-text-muted);
+}
+
+.filterButton[aria-expanded="true"] {
+  border-color: var(--nt-color-accent);
+}
+
+.badge {
+  padding: 0 var(--nt-space-1-5);
+  border-radius: var(--nt-radius-full);
+  background: var(--nt-color-accent-surface);
+  color: var(--nt-color-accent);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-2xs);
+  line-height: var(--nt-space-5);
+}
+
+.popover {
+  position: absolute;
+  z-index: 20;
+  inset-block-start: calc(100% + var(--nt-space-1));
+  inset-inline-start: 0;
+  display: grid;
+  gap: var(--nt-space-1-5);
+  box-sizing: border-box;
+  min-inline-size: 18rem;
+  max-block-size: 22rem;
+  overflow-y: auto;
+  padding: var(--nt-space-2-5);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-surface-raised);
+  box-shadow: var(--nt-shadow-overlay);
+}
+
+.popoverSearch {
+  box-sizing: border-box;
+  inline-size: 100%;
+  padding: var(--nt-space-1) var(--nt-space-2);
+  border: var(--nt-border-width) solid var(--nt-color-border-strong);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-bg);
+  color: var(--nt-color-text);
+  font: inherit;
+  font-size: var(--nt-font-size-sm);
+}
+
+.hint {
+  margin: 0;
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-2xs);
+}
+
+.optionGroup {
+  display: grid;
+  gap: var(--nt-space-1);
+}
+
+.groupLabel {
+  margin-block-start: var(--nt-space-1);
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-2xs);
+  font-weight: var(--nt-font-weight-medium);
+  letter-spacing: var(--nt-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-2);
+  font-size: var(--nt-font-size-sm);
+  cursor: pointer;
+}
+
+.optionCount {
+  margin-inline-start: auto;
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-xs);
+}
+
+.activeChip {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-1);
+  padding: 0 var(--nt-space-2);
+  border: var(--nt-border-width) solid var(--nt-color-accent);
+  border-radius: var(--nt-radius-full);
+  background: var(--nt-color-accent-surface);
+  color: var(--nt-color-accent);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-2xs);
+  line-height: var(--nt-space-5);
+  cursor: pointer;
+}
+
+.count {
+  margin-inline-start: auto;
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-xs);
+  letter-spacing: var(--nt-font-tracking-wide);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.clear {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nt-color-accent);
+  font: inherit;
+  font-size: var(--nt-font-size-xs);
+  text-decoration: underline;
+  cursor: pointer;
+  white-space: nowrap;
+}
+

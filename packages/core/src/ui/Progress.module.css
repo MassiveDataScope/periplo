@@ -1,0 +1,31 @@
+.track {
+  position: relative;
+  block-size: var(--nt-size-progress);
+  overflow: hidden;
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-border);
+}
+
+.indeterminate {
+  block-size: 100%;
+  inline-size: 40%;
+  background: var(--nt-color-accent);
+  animation: slide var(--nt-motion-slow) ease-in-out infinite;
+}
+
+@keyframes slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .indeterminate {
+    inline-size: 100%;
+    animation: none;
+    opacity: 0.6;
+  }
+}

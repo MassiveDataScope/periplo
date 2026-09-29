@@ -1,0 +1,156 @@
+{
+  "stats": {
+    "rows": 12400000,
+    "bytes": 1932735283,
+    "files": 412,
+    "partition_columns": [
+      "year"
+    ],
+    "columns": [
+      {
+        "name": "order_id",
+        "nulls": 0,
+        "min": "9007199254740993",
+        "max": "9007199254760992"
+      },
+      {
+        "name": "customer_id",
+        "nulls": 0,
+        "min": "0",
+        "max": "96"
+      },
+      {
+        "name": "note"
+      }
+    ],
+    "partitions": [
+      {
+        "values": {
+          "year": "2021"
+        },
+        "rows": 900000,
+        "bytes": 135000000,
+        "files": 40
+      },
+      {
+        "values": {
+          "year": "2022"
+        },
+        "rows": 1800000,
+        "bytes": 270000000,
+        "files": 70
+      },
+      {
+        "values": {
+          "year": "2023"
+        },
+        "rows": 2600000,
+        "bytes": 390000000,
+        "files": 90
+      },
+      {
+        "values": {
+          "year": "2024"
+        },
+        "rows": 3400000,
+        "bytes": 510000000,
+        "files": 110
+      },
+      {
+        "values": {
+          "year": "2025"
+        },
+        "rows": 3100000,
+        "bytes": 465000000,
+        "files": 85
+      },
+      {
+        "values": {
+          "year": "2026"
+        },
+        "rows": 600000,
+        "bytes": 90000000,
+        "files": 17
+      }
+    ],
+    "partitions_total": 6
+  },
+  "history": [
+    {
+      "version": 412,
+      "timestamp": "2026-01-10T06:12:00Z",
+      "operation": "WRITE",
+      "parameters": {
+        "mode": "Append",
+        "partitionBy": "[\"year\"]"
+      },
+      "metrics": {
+        "num_added_rows": 48210,
+        "num_added_files": 3,
+        "num_removed_files": 0,
+        "execution_time_ms": 8420
+      },
+      "extra": {
+        "engineInfo": "example-writer/1.0",
+        "example.pipeline": "orders_daily",
+        "example.run_id": "run-7f3c2a9e"
+      }
+    },
+    {
+      "version": 411,
+      "timestamp": "2026-01-09T06:10:00Z",
+      "operation": "WRITE",
+      "parameters": {
+        "mode": "Append"
+      },
+      "metrics": {
+        "num_added_rows": 51877,
+        "num_added_files": 3,
+        "num_removed_files": 0,
+        "execution_time_ms": 9010
+      },
+      "extra": {
+        "engineInfo": "example-writer/1.0",
+        "example.pipeline": "orders_daily",
+        "example.run_id": "run-1b8d44c0"
+      }
+    },
+    {
+      "version": 410,
+      "timestamp": "2026-01-08T06:11:00Z",
+      "operation": "OPTIMIZE",
+      "parameters": {},
+      "metrics": {
+        "num_added_files": 12,
+        "num_removed_files": 96
+      },
+      "extra": {
+        "engineInfo": "example-writer/1.0"
+      }
+    },
+    {
+      "version": 409,
+      "timestamp": "2026-01-07T06:09:00Z",
+      "operation": "MERGE",
+      "parameters": {
+        "predicate": "target.order_id = source.order_id"
+      },
+      "metrics": {
+        "num_target_rows_inserted": 40112,
+        "num_target_rows_updated": 912
+      },
+      "extra": {
+        "engineInfo": "example-writer/1.0",
+        "example.pipeline": "orders_daily",
+        "example.run_id": "run-99ac01de"
+      }
+    }
+  ],
+  "links": [
+    {
+      "label": "Pipeline run",
+      "key": "example.run_id",
+      "url_template": "https://orchestrator.example/runs/{value}"
+    }
+  ]
+}

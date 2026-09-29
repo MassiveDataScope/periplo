@@ -1,0 +1,34 @@
+{
+  "flow_states": [
+    {"type": "RUNNING", "name": "Running", "timestamp": "2026-09-23T08:00:00Z", "message": null}
+  ],
+  "marks": [
+    {"timestamp": "2026-09-23T08:00:11Z", "process": "Process2Process", "nodes": 3}
+  ],
+  "task_runs": [
+    {
+      "id": "proc-1", "name": "Process1Process-a1b", "task_key": "_run_proc-1",
+      "tags": [], "state_type": "COMPLETED",
+      "start_time": "2026-09-23T08:00:01Z", "end_time": "2026-09-23T08:00:10Z",
+      "expected_start_time": "2026-09-23T08:00:01Z", "total_run_time": 9.0
+    },
+    {
+      "id": "step-1a", "name": "Process1FirstStep", "task_key": "_step_marker-1a",
+      "tags": ["loom-step"], "state_type": "COMPLETED",
+      "start_time": "2026-09-23T08:00:02Z", "end_time": "2026-09-23T08:00:05Z",
+      "expected_start_time": "2026-09-23T08:00:02Z", "total_run_time": 3.0
+    },
+    {
+      "id": "step-1b", "name": "Process1SecondStep", "task_key": "_step_marker-1b",
+      "tags": ["loom-step"], "state_type": "COMPLETED",
+      "start_time": "2026-09-23T08:00:06Z", "end_time": "2026-09-23T08:00:09Z",
+      "expected_start_time": "2026-09-23T08:00:06Z", "total_run_time": 3.0
+    },
+    {
+      "id": "step-2a", "name": "Process2FirstStep", "task_key": "_step_marker-2a",
+      "tags": ["loom-step"], "state_type": "RUNNING",
+      "start_time": "2026-09-23T08:00:12Z", "end_time": null,
+      "expected_start_time": "2026-09-23T08:00:12Z", "total_run_time": null
+    }
+  ]
+}

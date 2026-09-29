@@ -1,0 +1,29 @@
+{
+  "flow_states": [
+    {"type": "RUNNING", "name": "Running", "timestamp": "2026-09-23T08:00:00Z", "message": null},
+    {"type": "FAILED", "name": "Failed", "timestamp": "2026-09-23T08:05:00Z", "message": "EmptyUserPartitionError"}
+  ],
+  "marks": [
+    {"timestamp": "2026-09-23T08:00:01Z", "process": "DimensionsProcess", "nodes": 4}
+  ],
+  "task_runs": [
+    {
+      "id": "step-1", "name": "DimensionsExtractStep", "task_key": "_step_marker-1",
+      "tags": ["loom-step"], "state_type": "COMPLETED",
+      "start_time": "2026-09-23T08:00:02Z", "end_time": "2026-09-23T08:00:03Z",
+      "expected_start_time": "2026-09-23T08:00:02Z", "total_run_time": 1.0
+    },
+    {
+      "id": "step-2", "name": "DimensionsTransformStep", "task_key": "_step_marker-2",
+      "tags": ["loom-step"], "state_type": "COMPLETED",
+      "start_time": "2026-09-23T08:00:03Z", "end_time": "2026-09-23T08:00:04Z",
+      "expected_start_time": "2026-09-23T08:00:03Z", "total_run_time": 1.0
+    },
+    {
+      "id": "step-3", "name": "DimensionsLoadStep", "task_key": "_step_marker-3",
+      "tags": ["loom-step"], "state_type": "FAILED",
+      "start_time": "2026-09-23T08:00:04Z", "end_time": "2026-09-23T08:00:04Z",
+      "expected_start_time": "2026-09-23T08:00:04Z", "total_run_time": 0.4
+    }
+  ]
+}

@@ -1,0 +1,167 @@
+[build-system]
+requires = [
+    "hatchling>=1.27.0",
+    "hatch-vcs>=0.4.0",
+]
+build-backend = "hatchling.build"
+
+[project]
+name = "periplo"
+dynamic = ["version"]
+description = "Read-only SQL API for authorized Delta Lake tables, the backend of the Periplo console"
+readme = "README.md"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
+requires-python = ">=3.12,<3.15"
+authors = [
+    { name = "MassiveDataScope" },
+]
+keywords = [
+    "delta-lake",
+    "data-lake",
+    "catalog",
+    "sql",
+    "datafusion",
+    "fastapi",
+]
+# No license classifier: the SPDX expression above replaces it.
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Database :: Front-Ends",
+    "Typing :: Typed",
+]
+dependencies = [
+    "croniter",
+    "datafusion",
+    # 1.6.3 SIGBUSes in the native DataFusion provider on macOS arm64.
+    "deltalake==1.6.6",
+    "httpx2>=2.13.0",
+    "loom-kernel[config,rest]>=2.5.0",
+    "pyarrow",
+    "pyyaml>=6.0.3",
+    "sqlglot",
+    "uvicorn>=0.53.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/MassiveDataScope/periplo"
+Documentation = "https://massivedatascope.github.io/periplo/"
+Source = "https://github.com/MassiveDataScope/periplo"
+Issues = "https://github.com/MassiveDataScope/periplo/issues"
+Changelog = "https://github.com/MassiveDataScope/periplo/releases"
+
+[tool.hatch.version]
+source = "vcs"
+
+# The repository root is two levels up, and it is found by walking up from here.
+#
+# A prerelease cannot carry a local version label, and the default scheme
+# appends the commit as one, so every dev build would be rejected by the index.
+#
+# The describe pattern excludes the floating major tag. `v1` moves onto the
+# commit each release tags, and reading it as the version yields "2.devN": a
+# release that never existed, published from the tag that points at one that did.
+[tool.hatch.version.raw-options]
+search_parent_directories = true
+local_scheme = "no-local-version"
+git_describe_command = "git describe --dirty --tags --long --match v[0-9]*.[0-9]*.[0-9]*"
+
+# Only the Python package: the web console is served from a directory at run time
+# and ships in the container image, never in the wheel.
+[tool.hatch.build.targets.wheel]
+packages = ["src/periplo"]
+
+[tool.hatch.build.targets.sdist]
+only-include = ["src", "README.md", "LICENSE", "pyproject.toml"]
+
+# The version comes from git (hatch-vcs), but uv only rebuilds the editable install when a
+# cache key changes: without the commit and tags among them, `uv run` keeps reporting the
+# version of whichever commit it was first installed at.
+[tool.uv]
+cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
+
+[dependency-groups]
+dev = [
+    "mypy",
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+    "types-croniter",
+    "types-pyyaml>=6.0.12.20260906",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+# Test data is clearer on one line than wrapped.
+"tests/**" = ["E501"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["datafusion.*", "deltalake.*", "pyarrow.*"]
+ignore_missing_imports = true
+
+[tool.semantic_branch]
+prerelease = [
+    "hotfix/.*",
+    "feature/.*",
+    "feat/.*",
+    "multifeature/.*",
+    "breaking/.*",
+    "fix/.*",
+    "refactor/.*",
+    "perf/.*",
+]
+patch = [
+    "hotfix/.*",
+    "fix/.*",
+    "refactor/.*",
+    "perf/.*",
+]
+minor = [
+    "feature/.*",
+    "feat/.*",
+    "multifeature/.*",
+]
+major = [
+    "breaking/.*",
+]
+# Dependency bumps are released by the next feature or fix, not on their own.
+prerelease_ignore = [
+    "docs/.*",
+    "chore/.*",
+    "ci/.*",
+    "test/.*",
+    "build/.*",
+    "dependabot/.*",
+]
+release_ignore = [
+    "wip/.*",
+    "docs/.*",
+    "chore/.*",
+    "ci/.*",
+    "test/.*",
+    "build/.*",
+    "dependabot/.*",
+]
