@@ -18,7 +18,7 @@ jobs:
   build:
     permissions:
       contents: read
-    uses: MassiveDataScope/loom-actions/.github/workflows/pages.yml@f0d33cbd43cf0ff2b04277528d14021c7871c202 # v1.8.1
+    uses: MassiveDataScope/loom-actions/.github/workflows/pages.yml@1260b7861a6e5013daf36396fb4782c41e5a1c28 # v1.10.0
     with:
       deploy: true
       python-version: "3.14"

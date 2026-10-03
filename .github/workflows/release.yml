@@ -29,7 +29,8 @@ jobs:
     if: ${{ github.repository == 'MassiveDataScope/periplo' }}
     permissions:
       contents: write
-    uses: MassiveDataScope/loom-actions/.github/workflows/release-on-label.yml@f0d33cbd43cf0ff2b04277528d14021c7871c202 # v1.8.1
+      pull-requests: read # the planner reads the pull request of each merged commit
+    uses: MassiveDataScope/loom-actions/.github/workflows/release-on-label.yml@1260b7861a6e5013daf36396fb4782c41e5a1c28 # v1.10.0
     with:
       build-distribution: true
       package-name: periplo
@@ -47,7 +48,7 @@ jobs:
       packages: write
       id-token: write
       attestations: write
-    uses: MassiveDataScope/loom-actions/.github/workflows/image-release.yml@f0d33cbd43cf0ff2b04277528d14021c7871c202 # v1.8.1
+    uses: MassiveDataScope/loom-actions/.github/workflows/image-release.yml@1260b7861a6e5013daf36396fb4782c41e5a1c28 # v1.10.0
     with:
       version: ${{ needs.release.outputs.version }}
       expected-sha: ${{ github.event.pull_request.merge_commit_sha || inputs.merge_sha }}
