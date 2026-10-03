@@ -22,7 +22,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write # the quality report comment
-    uses: MassiveDataScope/loom-actions/.github/workflows/python-service-ci.yml@f0d33cbd43cf0ff2b04277528d14021c7871c202 # v1.8.1
+    uses: MassiveDataScope/loom-actions/.github/workflows/python-service-ci.yml@1260b7861a6e5013daf36396fb4782c41e5a1c28 # v1.10.0
     with:
       python-version: "3.14"
       python-versions: '["3.12", "3.14"]'
@@ -57,7 +57,7 @@ jobs:
   node:
     permissions:
       contents: read
-    uses: MassiveDataScope/loom-actions/.github/workflows/node-ci.yml@f0d33cbd43cf0ff2b04277528d14021c7871c202 # v1.8.1
+    uses: MassiveDataScope/loom-actions/.github/workflows/node-ci.yml@1260b7861a6e5013daf36396fb4782c41e5a1c28 # v1.10.0
     with:
       node-version: "22"
       workspaces: "@periplo/core periplo-web"
@@ -73,7 +73,7 @@ jobs:
       security-events: write # CodeQL alerts
       pull-requests: write # dependency review comment
       actions: read # CodeQL
-    uses: MassiveDataScope/loom-actions/.github/workflows/repo-security.yml@f0d33cbd43cf0ff2b04277528d14021c7871c202 # v1.8.1
+    uses: MassiveDataScope/loom-actions/.github/workflows/repo-security.yml@1260b7861a6e5013daf36396fb4782c41e5a1c28 # v1.10.0
     with:
       gitleaks-config: .gitleaks.toml
       codeql-languages: "python,javascript-typescript"
@@ -87,7 +87,7 @@ jobs:
   docs:
     permissions:
       contents: read
-    uses: MassiveDataScope/loom-actions/.github/workflows/pages.yml@f0d33cbd43cf0ff2b04277528d14021c7871c202 # v1.8.1
+    uses: MassiveDataScope/loom-actions/.github/workflows/pages.yml@1260b7861a6e5013daf36396fb4782c41e5a1c28 # v1.10.0
     with:
       deploy: false
       python-version: "3.14"
