@@ -1,6 +1,7 @@
 /*
- * Periplo design tokens — "Chart room, softened": black ink on white, one electric blue, names and figures in mono,
- * with thin grey borders and 6 px corners. Chosen by the users over an earlier petrol palette.
+ * Periplo design tokens — "Chart room, softened": ink on white over cool green-grey chrome, one sea-teal accent,
+ * names and figures in mono, with thin borders and 6 px corners. Neutrals and accent match massivedatascope.info;
+ * the orange brand dot is reserved for the logo. (An earlier release used one electric blue.)
  * The frame stays quiet so the data carries the contrast; colour means data type, never decoration.
  * Components use only these custom properties: literal colours and pixel values live here and nowhere else.
  * Theme resolution: explicit [data-theme] wins, otherwise the system preference.
@@ -11,32 +12,33 @@
   color-scheme: light dark;
 
   /* ── Surfaces (elevation: sunken < surface < bg < raised) ─────────────── */
-  --nt-color-bg: light-dark(#ffffff, #0c0d0e); /* content: grid, page            */
-  --nt-color-surface: light-dark(#f6f8fa, #131619); /* chrome: sidebar, headers, bars */
-  --nt-color-surface-raised: light-dark(#ffffff, #1a1e22); /* popovers, menus, palette       */
-  --nt-color-surface-sunken: light-dark(#eceff2, #07080a); /* NEW wells: bar tracks, code    */
-  --nt-color-surface-hover: light-dark(#eaeef2, #1f2429); /* NEW row/button hover           */
-  --nt-color-row-alt: light-dark(#fafbfc, #101214); /* grid zebra (opt-in)            */
-  --nt-color-selection: light-dark(#e1e6ff, #1d2452); /* selected row/cell/tree item    */
-  --nt-color-accent-surface: light-dark(#eceefe, #171c40); /* NEW soft accent fill           */
+  --nt-color-bg: light-dark(#ffffff, #0e1213); /* content: grid, page            */
+  --nt-color-surface: light-dark(#f2f4f3, #161c1d); /* chrome: sidebar, headers, bars */
+  --nt-color-surface-raised: light-dark(#ffffff, #1c2324); /* popovers, menus, palette       */
+  --nt-color-surface-sunken: light-dark(#e8ecea, #0a0d0e); /* NEW wells: bar tracks, code    */
+  --nt-color-surface-hover: light-dark(#e6ebe9, #212829); /* NEW row/button hover           */
+  --nt-color-row-alt: light-dark(#f8faf9, #111617); /* grid zebra (opt-in)            */
+  --nt-color-selection: light-dark(#d9ebe7, #173230); /* selected row/cell/tree item    */
+  --nt-color-accent-surface: light-dark(#e3eeec, #17292a); /* NEW soft accent fill           */
 
   /* ── Text ─────────────────────────────────────────────────────────────── */
-  --nt-color-text: light-dark(#0b0c0d, #f1f2f3);
-  --nt-color-text-muted: light-dark(#4a4f55, #a6acb3); /* secondary */
-  --nt-color-text-subtle: light-dark(#636b74, #8b929a); /* NEW tertiary: types, counters, prefixes */
-  --nt-color-null: light-dark(#636b74, #8b929a);
-  --nt-color-rule: light-dark(rgba(11, 12, 13, 0.05), rgba(241, 242, 243, 0.05)); /* NEW ruled-paper hairline, decorative, no contrast requirement */
+  --nt-color-text: light-dark(#141819, #e6ebea);
+  --nt-color-text-muted: light-dark(#4b5452, #a3aead); /* secondary */
+  --nt-color-text-subtle: light-dark(#5f6866, #8e9997); /* NEW tertiary: types, counters, prefixes */
+  --nt-color-null: light-dark(#5f6866, #8e9997);
+  --nt-color-rule: light-dark(rgba(20, 24, 25, 0.05), rgba(230, 235, 234, 0.05)); /* NEW ruled-paper hairline, decorative, no contrast requirement */
 
   /* ── Borders ──────────────────────────────────────────────────────────── */
-  --nt-color-border-subtle: light-dark(#e7eaee, #1e2226); /* NEW grid row lines (decorative) */
-  --nt-color-border: light-dark(#d1d9e0, #30363d); /* region separators (decorative)  */
-  --nt-color-border-strong: light-dark(#7d8590, #6e7681); /* control outlines, ≥3:1          */
+  --nt-color-border-subtle: light-dark(#e4e9e7, #1f2627); /* NEW grid row lines (decorative) */
+  --nt-color-border: light-dark(#d3dad8, #2a3334); /* region separators (decorative)  */
+  --nt-color-border-strong: light-dark(#7b8583, #6c7876); /* control outlines, ≥3:1          */
 
-  /* ── Accent (petrol) ──────────────────────────────────────────────────── */
-  --nt-color-accent: light-dark(#1f3bff, #8c9bff);
-  --nt-color-accent-hover: light-dark(#0f26cc, #aab5ff);
-  --nt-color-on-accent: light-dark(#ffffff, #0c0d0e);
-  --nt-color-focus: light-dark(#1f3bff, #a5b1ff);
+  /* ── Accent (sea teal, shared with massivedatascope.info) ──────────────── */
+  --nt-color-accent: light-dark(#2b6b65, #7dbdb3);
+  --nt-color-accent-hover: light-dark(#1f524d, #9fd3c9);
+  --nt-color-on-accent: light-dark(#ffffff, #0e1213);
+  --nt-color-focus: light-dark(#2b6b65, #9fd3c9);
+  --nt-color-brand: light-dark(#ff441e, #ff5a36); /* the lens of the logo and nothing else */
 
   /* ── Semantic ─────────────────────────────────────────────────────────── */
   --nt-color-success: light-dark(#1f6f37, #6ccf8e);

@@ -1,0 +1,21 @@
+.wordmark {
+  flex: none;
+  block-size: 1.25rem;
+  inline-size: auto;
+  color: var(--nt-color-text);
+  overflow: visible;
+}
+
+.letters {
+  fill: currentColor;
+}
+
+.stem {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 145;
+}
+
+.lens {
+  fill: var(--nt-color-brand);
+}

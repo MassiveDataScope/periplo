@@ -17,7 +17,6 @@
 
 /* Collapsed, names and shortcuts leave the layout but stay as each control's accessible name. */
 .rail[data-collapsed="true"] .label,
-.rail[data-collapsed="true"] .wordmark,
 .rail[data-collapsed="true"] .shortcut {
   display: none;
 }
@@ -34,17 +33,13 @@
 }
 
 .logo {
-  inline-size: var(--nt-size-control-xl);
+  inline-size: var(--nt-size-control-lg);
   block-size: var(--nt-size-control-lg);
 }
 
 
 .wordmark {
-  font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-lg);
-  font-weight: var(--nt-font-weight-strong);
-  letter-spacing: -0.01em;
-  line-height: var(--nt-font-line-height-tight);
+  block-size: 1.375rem;
 }
 
 .items {
