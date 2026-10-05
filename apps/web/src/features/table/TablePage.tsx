@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, ErrorNotice, Progress, TabPanel, Tabs } from "@periplo/core/ui";
+import { Button, ButtonLink, ErrorNotice, Progress, TabPanel, Tabs } from "@periplo/core/ui";
 import type { Dependencies } from "../../app/dependencies";
 import { usePreferences, type PreferencesStore } from "../../app/preferences";
-import { href, navigate, TABLE_TABS, type Route, type TableTab } from "../../app/routes";
+import { href, navigate, replaceRoute, TABLE_TABS, type Route, type TableTab } from "../../app/routes";
+import { placeName } from "../../app/place-name";
 import { qualifiedName } from "../../api/sql";
 import type { TranslationKey } from "../../i18n";
 import { tableKey, type Catalog } from "../catalog-tree/catalog-model";
@@ -25,7 +26,7 @@ export interface TablePageProps {
   readonly database: string;
   readonly table: string;
   readonly tab: TableTab;
-  /** Where the user came from, to go back with one click. */
+  /** Where "Back to …" leads: the entry this tab came from, or the table's database. */
   readonly back: Route | null;
 }
 
@@ -57,7 +58,7 @@ export function TablePage({ dependencies, preferences, catalog, database, table,
     <div className={styles.page}>
       <TableHeader
         crumbs={crumbs}
-        back={back ? { href: href(back), label: placeName(back, t) } : null}
+        back={back ? { route: back, label: placeName(back, t) } : null}
         title={table}
         freshness={facts.freshness}
         stats={stats}
@@ -67,7 +68,7 @@ export function TablePage({ dependencies, preferences, catalog, database, table,
         <Button aria-pressed={favourite} onClick={() => preferences.toggleFavourite(name)}>
           {favourite ? t("table.removeFavourite") : t("table.addFavourite")}
         </Button>
-        <Button onClick={() => navigate({ kind: "join", database, table })}>{t("table.joinWith")}</Button>
+        <ButtonLink href={href({ kind: "join", database, table })}>{t("table.joinWith")}</ButtonLink>
         <Button onClick={() => void navigator.clipboard?.writeText(qualifiedName(database, table)).catch(() => undefined)}>{t("table.copyName")}</Button>
       </TableHeader>
 
@@ -75,7 +76,8 @@ export function TablePage({ dependencies, preferences, catalog, database, table,
         label={t("table.sections")}
         tabs={TABLE_TABS.map((id) => ({ id, label: t(TAB_LABELS[id]) }))}
         selected={active}
-        onSelect={(id) => navigate({ kind: "table", database, table, tab: id as TableTab })}
+        // A tab changes what you look at within the table, not where you are: no extra Back press.
+        onSelect={(id) => replaceRoute({ kind: "table", database, table, tab: id as TableTab })}
       />
 
       <TabPanel tab={active} className={styles.panel}>
@@ -121,26 +123,3 @@ export function TablePage({ dependencies, preferences, catalog, database, table,
 }
 
 /** A short name for a route, for "Back to …". */
-function placeName(route: Route, t: (key: "nav.home" | "nav.sql" | "nav.join" | "nav.discovery" | "nav.etl" | "catalog.noLayerShort") => string): string {
-  switch (route.kind) {
-    case "table":
-      return route.table;
-    case "join":
-      return route.table ?? t("nav.join");
-    case "database":
-      return route.database;
-    case "layer":
-      return route.layer ?? t("catalog.noLayerShort");
-    case "sql":
-      return t("nav.sql");
-    case "discovery":
-      return t("nav.discovery");
-    case "etl-deployment":
-      return route.name;
-    case "etl":
-    case "etl-run":
-      return t("nav.etl");
-    case "home":
-      return t("nav.home");
-  }
-}

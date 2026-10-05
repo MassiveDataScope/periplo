@@ -474,12 +474,36 @@ describe("App", () => {
     await waitFor(() => expect(api.sql.at(-1)).toContain("o.region = o2.region"));
   });
 
+  it("changes a table's tab in place, so Back leaves the table instead of walking its tabs", async () => {
+    window.location.hash = "#/t/landing_shop/order";
+    renderApp();
+    await screen.findByText("9007199254740993");
+    const length = window.history.length;
+    fireEvent.click(screen.getByRole("tab", { name: "Details" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/t/landing_shop/order/details"));
+    expect(window.history.length).toBe(length);
+  });
+
+  it("steps back for real from 'Back to …' when that is where the table was opened from", async () => {
+    window.location.hash = "#/d/landing_shop";
+    renderApp();
+    await screen.findByRole("heading", { level: 2, name: "landing_shop" });
+    act(() => {
+      window.location.hash = "#/t/landing_shop/order";
+    });
+    const back = await screen.findByRole("link", { name: "Back to landing_shop" });
+    const historyBack = vi.spyOn(window.history, "back").mockImplementation(() => undefined);
+    fireEvent.click(back);
+    expect(historyBack).toHaveBeenCalledOnce();
+    historyBack.mockRestore();
+  });
+
   it("shows a shareable hash the moment 'Join with…' is clicked", async () => {
     window.location.hash = "#/t/landing_shop/order";
     renderApp();
     await screen.findByText("9007199254740993");
-    fireEvent.click(screen.getByRole("button", { name: "Join with…" }));
-    expect(window.location.hash).toBe("#/join/landing_shop/order");
+    // A real link: Cmd+click opens the join in a new tab, and the address can be copied before clicking.
+    expect(screen.getByRole("link", { name: "Join with…" }).getAttribute("href")).toBe("#/join/landing_shop/order");
   });
 
   it("charts how a column is spread, only when asked, sizing it up before grouping by it", async () => {

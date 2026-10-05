@@ -1,4 +1,5 @@
-import { useRef, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
+import { subscribeHistory, syncHistory } from "./history";
 
 export const TABLE_TABS = ["data", "distribution", "details"] as const;
 /** A layer value can never be a lone dash, so it can stand for "no layer". */
@@ -127,19 +128,20 @@ export function href(route: Route): string {
   }
 }
 
-function subscribe(listener: () => void): () => void {
-  window.addEventListener("hashchange", listener);
-  return () => window.removeEventListener("hashchange", listener);
-}
-
 /** Shareable links and a working back button without a routing dependency. */
 export function useHashRoute(): Route {
-  const hash = useSyncExternalStore(subscribe, () => window.location.hash);
+  const hash = useSyncExternalStore(subscribeHistory, () => window.location.hash);
   return parseRoute(hash);
 }
 
+/** Moves to another view as a new history entry. For a tab, a filter or a redirect, use `replaceRoute`. */
 export function navigate(route: Route): void {
-  window.location.hash = href(route);
+  const target = href(route);
+  // Assigning the same hash makes no entry and fires no hashchange: nothing to record.
+  if (window.location.hash === target) return;
+  window.location.hash = target;
+  // The hashchange event comes later; the trail is right from now on.
+  syncHistory();
 }
 
 /**
@@ -152,14 +154,4 @@ export function replaceRoute(route: Route): void {
   url.hash = href(route);
   window.history.replaceState(window.history.state, "", url);
   window.dispatchEvent(new HashChangeEvent("hashchange"));
-}
-
-/** The route the user came from within the app, so a table page can offer a way back. Null on a fresh open. */
-export function usePreviousRoute(current: Route): Route | null {
-  const history = useRef<{ current: string; previous: Route | null }>({ current: href(current), previous: null });
-  const key = href(current);
-  if (history.current.current !== key) {
-    history.current = { current: key, previous: parseRoute(history.current.current) };
-  }
-  return history.current.previous;
 }
