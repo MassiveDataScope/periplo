@@ -113,8 +113,13 @@ FROM ${PYTHON_IMAGE} AS runtime
 
 # Applies pending Debian security updates to the base image, then installs tini, which
 # forwards signals to uvicorn and reaps whatever a native library might leave behind.
+# A build cache keeps this layer, and so the packages it upgraded, for as long as the
+# instruction is unchanged. When the image scan reports a Debian package that already
+# has a fix, move SECURITY_REFRESH to today's date: the layer is rebuilt and upgraded.
+ARG SECURITY_REFRESH=2026-10-05
 # hadolint ignore=DL3005,DL3008
-RUN apt-get update \
+RUN echo "security refresh ${SECURITY_REFRESH}" \
+ && apt-get update \
  && apt-get upgrade --yes --no-install-recommends \
  && apt-get install --yes --no-install-recommends tini \
  && rm -rf /var/lib/apt/lists/* \
