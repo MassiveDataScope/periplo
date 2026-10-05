@@ -175,6 +175,8 @@ function fakeApi(overrides: Record<string, (request: Request) => Response | Prom
           left_without_match: new BigInt64Array([1n]),
           right_without_match: new BigInt64Array([0n]),
           rows_after_join: new BigInt64Array([10n]),
+          left_repeated_keys: new BigInt64Array([2n]),
+          right_repeated_keys: new BigInt64Array([0n]),
         });
         return new Response(new Uint8Array(tableToIPC(check, "stream")), { headers: { "x-query-id": QUERY_ID } });
       }
@@ -378,6 +380,9 @@ describe("App", () => {
     const checkCard = within(await screen.findByRole("region", { name: "Check join" }));
     expect(checkCard.getByText("9")).toBeTruthy();
     expect(checkCard.getByText("×1.00")).toBeTruthy();
+    // The key repeats before the step and not in the joined table: a lookup, read from the data.
+    expect(checkCard.getByText("N : 1")).toBeTruthy();
+    expect(checkCard.getByText("A lookup: each row finds at most one match, so no rows are multiplied.")).toBeTruthy();
 
     // Run sends the same SQL the receipt showed, and the workspace collapses to a strip above the result.
     fireEvent.click(screen.getByRole("button", { name: "Run join" }));

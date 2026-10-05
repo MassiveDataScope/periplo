@@ -166,8 +166,8 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
   const checkSettled = settled(checkSession.state, checkGeneration);
   const checkResults: readonly CheckJoinResult[] | null = useMemo(() => {
     if (!checkSettled || checkSession.state.kind !== "completed" || !checkSession.resource) return null;
-    return readCheckJoin(rowsOf(checkSession.resource, checkSession.state.rows));
-  }, [checkSettled, checkSession.state, checkSession.resource]);
+    return readCheckJoin(rowsOf(checkSession.resource, checkSession.state.rows), def?.joins.map((step) => step.alias) ?? []);
+  }, [checkSettled, checkSession.state, checkSession.resource, def]);
 
   useEffect(() => {
     if (checkSettled && checkSession.state.kind === "completed") setCheckState("done");

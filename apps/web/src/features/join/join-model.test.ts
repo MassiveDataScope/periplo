@@ -40,6 +40,19 @@ const CUSTOMERS: JoinTable = {
     { name: "created_at", type: "timestamp[us, tz=UTC]" },
   ],
 };
+// A customers table that also carries the id of its last order: both ids are shared, only one is the relation.
+const CUSTOMERS_WITH_ORDER_ID: JoinTable = {
+  ...CUSTOMERS,
+  columns: [...CUSTOMERS.columns, { name: "order_id", type: "int64" }],
+};
+const ADDRESSES: JoinTable = {
+  database: "curated_shop",
+  table: "addresses",
+  columns: [
+    { name: "address_id", type: "int64" },
+    { name: "customer_id", type: "int64" },
+  ],
+};
 const PAYMENTS: JoinTable = {
   database: "landing_shop",
   table: "payments",
@@ -67,6 +80,12 @@ describe("suggestPairs", () => {
     const customers = { ...CUSTOMERS, columns: [{ name: "id", type: "int64" }] };
     expect(suggestPairs(ORDERS, { ...customers, table: "customer" })).toEqual([{ left: "customer_id", right: "id" }]);
   });
+  it("ranks the key the added table owns first: orders reach customers by customer_id, not by a shared order_id", () => {
+    expect(suggestPairs(ORDERS, CUSTOMERS_WITH_ORDER_ID)).toEqual([
+      { left: "customer_id", right: "customer_id" },
+      { left: "order_id", right: "order_id" },
+    ]);
+  });
 });
 
 describe("canPair", () => {
@@ -81,6 +100,16 @@ describe("addTable / startJoin", () => {
     const threeTable = addTable(twoTable(), PAYMENTS);
     const paymentsStep = threeTable.joins[1]!;
     expect(paymentsStep.pairs).toEqual([{ left: { alias: "o", column: "order_id" }, right: "order_id" }]);
+  });
+
+  it("proposes one key, not every shared id ANDed together", () => {
+    const def = addTable(startJoin(ORDERS), CUSTOMERS_WITH_ORDER_ID);
+    expect(def.joins[0]!.pairs).toEqual([{ left: { alias: "o", column: "customer_id" }, right: "customer_id" }]);
+  });
+
+  it("joins a new table onto the table that owns its key, even when an earlier table shares the column", () => {
+    const def = addTable(twoTable(), ADDRESSES);
+    expect(def.joins[1]!.pairs).toEqual([{ left: { alias: "c", column: "customer_id" }, right: "customer_id" }]);
   });
 
   it("gives every table a fresh alias, numbering only on clash", () => {
@@ -137,7 +166,7 @@ describe("buildJoinSql", () => {
   });
 
   it("joins a fourth table onto an earlier one, not only the one before it", () => {
-    // orders and customers both carry customer_id, so a shipments.customer_id key is suggested against both.
+    // orders and customers both carry customer_id; customers owns it, so shipments joins onto customers.
     const shipments: JoinTable = {
       database: "landing_shop",
       table: "shipments",
@@ -148,7 +177,7 @@ describe("buildJoinSql", () => {
     };
     const def = addTable(addTable(twoTable(), PAYMENTS), shipments);
     const result = buildJoinSql(def);
-    expect(result.ok && result.sql).toContain("LEFT JOIN landing_shop.shipments AS s ON o.customer_id = s.customer_id AND c.customer_id = s.customer_id");
+    expect(result.ok && result.sql).toContain("LEFT JOIN landing_shop.shipments AS s ON c.customer_id = s.customer_id\n");
   });
 
   it("joins on several pairs and quotes only what needs it", () => {
@@ -266,32 +295,48 @@ describe("buildCheckJoinSql / readCheckJoin", () => {
         "  (SELECT COUNT(*) FROM (SELECT o.customer_id AS k0 FROM landing_shop.orders AS o) AS prev INNER JOIN curated_shop.customers AS c ON prev.k0 = c.customer_id) AS matched,",
         "  (SELECT COUNT(*) FROM (SELECT o.customer_id AS k0 FROM landing_shop.orders AS o) AS prev LEFT JOIN curated_shop.customers AS c ON prev.k0 = c.customer_id WHERE c.customer_id IS NULL) AS left_without_match,",
         "  (SELECT COUNT(*) FROM curated_shop.customers AS c LEFT JOIN (SELECT o.customer_id AS k0 FROM landing_shop.orders AS o) AS prev ON prev.k0 = c.customer_id WHERE prev.k0 IS NULL) AS right_without_match,",
-        "  (SELECT COUNT(*) FROM (SELECT o.customer_id AS k0 FROM landing_shop.orders AS o) AS prev LEFT JOIN curated_shop.customers AS c ON prev.k0 = c.customer_id) AS rows_after_join",
+        "  (SELECT COUNT(*) FROM (SELECT o.customer_id AS k0 FROM landing_shop.orders AS o) AS prev LEFT JOIN curated_shop.customers AS c ON prev.k0 = c.customer_id) AS rows_after_join,",
+        "  (SELECT COUNT(*) FROM (SELECT prev.k0 FROM (SELECT o.customer_id AS k0 FROM landing_shop.orders AS o) AS prev WHERE prev.k0 IS NOT NULL GROUP BY prev.k0 HAVING COUNT(*) > 1) AS repeated) AS left_repeated_keys,",
+        "  (SELECT COUNT(*) FROM (SELECT c.customer_id FROM curated_shop.customers AS c WHERE c.customer_id IS NOT NULL GROUP BY c.customer_id HAVING COUNT(*) > 1) AS repeated) AS right_repeated_keys",
         "UNION ALL",
         "SELECT 1 AS step_order, 'p' AS step,",
         "  (SELECT COUNT(*) FROM (SELECT o.order_id AS k0 FROM landing_shop.orders AS o\nLEFT JOIN curated_shop.customers AS c ON o.customer_id = c.customer_id) AS prev INNER JOIN landing_shop.payments AS p ON prev.k0 = p.order_id) AS matched,",
         "  (SELECT COUNT(*) FROM (SELECT o.order_id AS k0 FROM landing_shop.orders AS o\nLEFT JOIN curated_shop.customers AS c ON o.customer_id = c.customer_id) AS prev LEFT JOIN landing_shop.payments AS p ON prev.k0 = p.order_id WHERE p.order_id IS NULL) AS left_without_match,",
         "  (SELECT COUNT(*) FROM landing_shop.payments AS p LEFT JOIN (SELECT o.order_id AS k0 FROM landing_shop.orders AS o\nLEFT JOIN curated_shop.customers AS c ON o.customer_id = c.customer_id) AS prev ON prev.k0 = p.order_id WHERE prev.k0 IS NULL) AS right_without_match,",
-        "  (SELECT COUNT(*) FROM (SELECT o.order_id AS k0 FROM landing_shop.orders AS o\nLEFT JOIN curated_shop.customers AS c ON o.customer_id = c.customer_id) AS prev LEFT JOIN landing_shop.payments AS p ON prev.k0 = p.order_id) AS rows_after_join",
+        "  (SELECT COUNT(*) FROM (SELECT o.order_id AS k0 FROM landing_shop.orders AS o\nLEFT JOIN curated_shop.customers AS c ON o.customer_id = c.customer_id) AS prev LEFT JOIN landing_shop.payments AS p ON prev.k0 = p.order_id) AS rows_after_join,",
+        "  (SELECT COUNT(*) FROM (SELECT prev.k0 FROM (SELECT o.order_id AS k0 FROM landing_shop.orders AS o\nLEFT JOIN curated_shop.customers AS c ON o.customer_id = c.customer_id) AS prev WHERE prev.k0 IS NOT NULL GROUP BY prev.k0 HAVING COUNT(*) > 1) AS repeated) AS left_repeated_keys,",
+        "  (SELECT COUNT(*) FROM (SELECT p.order_id FROM landing_shop.payments AS p WHERE p.order_id IS NOT NULL GROUP BY p.order_id HAVING COUNT(*) > 1) AS repeated) AS right_repeated_keys",
         "ORDER BY step_order",
       ].join("\n"),
     );
   });
 
-  it("reads the rows back into a result per step and derives the multiplication factor", () => {
+  it("reads the rows back into a result per step and derives the multiplication factor and the relation", () => {
     const rows = [
-      { step: "c", matched: 8, left_without_match: 2, right_without_match: 1, rows_after_join: 8 },
-      { step: "p", matched: 30, left_without_match: 0, right_without_match: 5, rows_after_join: 34 },
+      { step: "c", matched: 8, left_without_match: 2, right_without_match: 1, rows_after_join: 8, left_repeated_keys: 3, right_repeated_keys: 0 },
+      { step: "p", matched: 30, left_without_match: 0, right_without_match: 5, rows_after_join: 34, left_repeated_keys: 0, right_repeated_keys: 4 },
     ];
-    expect(readCheckJoin(rows)).toEqual([
-      { alias: "c", matched: 8, leftWithoutMatch: 2, rightWithoutMatch: 1, rowsAfterJoin: 8, factor: 0.8 },
-      { alias: "p", matched: 30, leftWithoutMatch: 0, rightWithoutMatch: 5, rowsAfterJoin: 34, factor: 34 / 30 },
+    expect(readCheckJoin(rows, ["c", "p"])).toEqual([
+      { alias: "c", matched: 8, leftWithoutMatch: 2, rightWithoutMatch: 1, rowsAfterJoin: 8, factor: 0.8, relation: "many-to-one" },
+      { alias: "p", matched: 30, leftWithoutMatch: 0, rightWithoutMatch: 5, rowsAfterJoin: 34, factor: 34 / 30, relation: "one-to-many" },
     ]);
   });
 
+  it("calls a join many-to-many when the key repeats on both sides, and one-to-one when it repeats on neither", () => {
+    const row = { step: "c", matched: 1, left_without_match: 0, right_without_match: 0, rows_after_join: 1 };
+    expect(readCheckJoin([{ ...row, left_repeated_keys: 2, right_repeated_keys: 5 }], ["c"])[0]!.relation).toBe("many-to-many");
+    expect(readCheckJoin([{ ...row, left_repeated_keys: 0, right_repeated_keys: 0 }], ["c"])[0]!.relation).toBe("one-to-one");
+  });
+
+  it("keeps one result per step and ignores rows that name no step of the join", () => {
+    const row = { step: "c", matched: 1, left_without_match: 0, right_without_match: 0, rows_after_join: 1, left_repeated_keys: 0, right_repeated_keys: 0 };
+    const results = readCheckJoin([row, row, { ...row, step: "zz" }, { order_id: 1, note: "x" }], ["c"]);
+    expect(results.map((result) => result.alias)).toEqual(["c"]);
+  });
+
   it("reads bigint/string counts from an Arrow buffer without failing", () => {
-    expect(readCheckJoin([{ step: "c", matched: 3n, left_without_match: "0", right_without_match: "1", rows_after_join: 3n }])).toEqual([
-      { alias: "c", matched: 3, leftWithoutMatch: 0, rightWithoutMatch: 1, rowsAfterJoin: 3, factor: 1 },
-    ]);
+    expect(
+      readCheckJoin([{ step: "c", matched: 3n, left_without_match: "0", right_without_match: "1", rows_after_join: 3n, left_repeated_keys: 0n, right_repeated_keys: "0" }], ["c"]),
+    ).toEqual([{ alias: "c", matched: 3, leftWithoutMatch: 0, rightWithoutMatch: 1, rowsAfterJoin: 3, factor: 1, relation: "one-to-one" }]);
   });
 });

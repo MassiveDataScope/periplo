@@ -71,14 +71,23 @@ const cases: GeneratedSqlCase[] = [
   },
   { name: "join of three tables, the third suggested against the base table", sql: joinSql(THREE_TABLE_JOIN), rows: 3 },
   {
-    name: "check join: matched, unmatched and row count per step",
+    name: "check join: matched, unmatched, row count and repeated keys per step",
     sql: (() => {
       const built = buildCheckJoinSql(THREE_TABLE_JOIN);
       if (!built.ok) throw new Error("check join could not be built");
       return built.sql;
     })(),
     rows: 2,
-    first: { step: "c", matched: "3", left_without_match: "0", right_without_match: "0", rows_after_join: "3" },
+    // customer 1 has two orders and each customer appears once: a many-to-one lookup.
+    first: {
+      step: "c",
+      matched: "3",
+      left_without_match: "0",
+      right_without_match: "0",
+      rows_after_join: "3",
+      left_repeated_keys: "1",
+      right_repeated_keys: "0",
+    },
   },
   {
     name: "distribution: most frequent values, nulls included",

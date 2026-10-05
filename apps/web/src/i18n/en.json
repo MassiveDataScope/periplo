@@ -299,6 +299,19 @@
       "warn": "{{alias}} multiplies the row count: check for a duplicated key.",
       "bad": "{{alias}} multiplies the row count sharply: check for a duplicated key before running."
     },
+    "relation": "Relation",
+    "relationValue": {
+      "one-to-one": "1 : 1",
+      "many-to-one": "N : 1",
+      "one-to-many": "1 : N",
+      "many-to-many": "N : M"
+    },
+    "relationHint": {
+      "one-to-one": "The key is unique on both sides: each row finds at most one match.",
+      "many-to-one": "A lookup: each row finds at most one match, so no rows are multiplied.",
+      "one-to-many": "One to many: a row can find several matches, so the result has more rows than before.",
+      "many-to-many": "The key repeats on both sides, so {{alias}} multiplies rows. That is rarely the relation you mean: check the keys."
+    },
     "editJoin": "Edit join",
     "stripLabel": "Join: {{chain}}",
     "startTitle": "Join tables",
