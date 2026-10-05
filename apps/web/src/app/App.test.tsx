@@ -479,6 +479,35 @@ describe("App", () => {
     await waitFor(() => expect(api.sql.at(-1)).toContain("o.region = o2.region"));
   });
 
+  it("keeps the join in the URL as it is built, in place, and rebuilds it from that link", async () => {
+    renderApp();
+    await goTo("#/join/landing_shop/order");
+    await screen.findByRole("heading", { level: 2, name: "Join · order" });
+    const length = window.history.length;
+
+    fireEvent.change(screen.getByLabelText("Find a table to add"), { target: { value: "shop orders" } });
+    fireEvent.click(await screen.findByRole("button", { name: /landing_shop\.orders/ }));
+    await waitFor(() => expect(window.location.hash).toMatch(/^#\/join\/landing_shop\/order\?spec=[A-Za-z0-9_-]+$/));
+    // Editing the join never adds a Back press.
+    expect(window.history.length).toBe(length);
+    const link = window.location.hash;
+
+    // The same link, opened fresh (a reload, a colleague, the way back from the SQL editor), finds the same join.
+    cleanup();
+    window.location.hash = "";
+    renderApp();
+    await goTo(link);
+    const receipt = await screen.findByLabelText("SQL this join runs");
+    await waitFor(() => expect(receipt.textContent).toContain("LEFT JOIN landing_shop.orders AS o2 ON o.order_id = o2.order_id"));
+  });
+
+  it("says so when a join link cannot be read, and starts from the table instead", async () => {
+    renderApp();
+    await goTo("#/join/landing_shop/order?spec=not-a-join");
+    expect(await screen.findByText("This join link could not be read, so the join starts again from this table.")).toBeTruthy();
+    await waitFor(() => expect(window.location.hash).toBe("#/join/landing_shop/order"));
+  });
+
   it("shows a shareable hash the moment 'Join with…' is clicked", async () => {
     window.location.hash = "#/t/landing_shop/order";
     renderApp();

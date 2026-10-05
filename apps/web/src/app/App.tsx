@@ -247,6 +247,7 @@ function Console({ dependencies, preferences, etl }: AppProps & { readonly etl: 
             database={route.database}
             table={route.table}
             arm={route.arm}
+            spec={route.spec}
             back={previous}
             onOpenInEditor={(joinSql) => {
               setSql(joinSql);

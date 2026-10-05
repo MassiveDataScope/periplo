@@ -5,7 +5,7 @@ import type { ResultBuffer } from "@periplo/core/arrow";
 import { Button, ErrorNotice, Icon, Progress, typeFamily } from "@periplo/core/ui";
 import type { Dependencies } from "../../app/dependencies";
 import type { PreferencesStore } from "../../app/preferences";
-import { href, navigate, type Route } from "../../app/routes";
+import { href, navigate, replaceRoute, type Route } from "../../app/routes";
 import { wantOnce } from "../../api/table-facts";
 import { tableKey, type Catalog } from "../catalog-tree/catalog-model";
 import { matchTokens } from "../catalog-tree/names";
@@ -21,6 +21,8 @@ import {
   buildCheckJoinSql,
   buildJoinSql,
   canPair,
+  decodeJoinSpec,
+  encodeJoinSpec,
   joinedTables,
   keysOf,
   orderedAliases,
@@ -28,6 +30,7 @@ import {
   readCheckJoin,
   removePair,
   removeTable,
+  restoreJoin,
   setKind,
   setOutput,
   startJoin,
@@ -49,6 +52,8 @@ export interface JoinWorkspaceProps {
   readonly table: string;
   /** A column of the base table to arm on arrival ("Join on this column…"), claimed once. */
   readonly arm?: string;
+  /** The whole join from the URL (`encodeJoinSpec`): restored on arrival, then kept up to date in place. */
+  readonly spec?: string;
   readonly back: Route | null;
   /** Hands the join's SQL to the free SQL workspace, the same way Home and the database page do. */
   onOpenInEditor(sql: string): void;
@@ -118,7 +123,7 @@ function ownerOf(def: JoinDefinition, a: JoinPairSide, b: JoinPairSide): JoinPai
  * and a live SQL receipt. Owns its own query sessions (Run and Check are independent), so it survives
  * leaving the table's Data tab.
  */
-export function JoinWorkspace({ dependencies, preferences, catalog, database, table, arm, back, onOpenInEditor }: JoinWorkspaceProps) {
+export function JoinWorkspace({ dependencies, preferences, catalog, database, table, arm, spec, back, onOpenInEditor }: JoinWorkspaceProps) {
   const { t, i18n } = useTranslation();
   const facts = useTableFacts(dependencies, database, table, ["detail", "stats", "history"]);
   const detail = useMemo(() => facts.detail ?? { kind: "loading" as const }, [facts.detail]);
@@ -139,10 +144,52 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
   const boardRef = useRef<HTMLDivElement>(null);
   const bandNodes = useRef(new Map<string, HTMLElement>());
 
+  /** How many tables or keys of the join in the URL no longer exist: said once, not silently ignored. */
+  const [restoreNotice, setRestoreNotice] = useState<{ readonly kind: "dropped"; readonly count: number } | { readonly kind: "broken" } | null>(null);
+
+  // Arrival: the join in the URL is rebuilt from the tables as they read now; without one, just the base.
   useEffect(() => {
     if (def !== null || detail.kind !== "ready") return;
-    setDef(startJoin({ database, table, columns: detail.value.fields }));
-  }, [def, detail, database, table]);
+    const base: JoinTable = { database, table, columns: detail.value.fields };
+    const decoded = spec ? decodeJoinSpec(spec) : null;
+    if (!decoded || decoded.steps.length === 0) {
+      setDef(startJoin(base));
+      if (spec && !decoded) setRestoreNotice({ kind: "broken" });
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const read = new Map<string, JoinTable | null>();
+      await Promise.all(
+        decoded.steps.map(async (step) => {
+          const key = `${step.database}.${step.table}`;
+          try {
+            const snapshot = await wantOnce(dependencies.tableFacts, step.database, step.table, ["detail"]);
+            read.set(key, snapshot.detail?.kind === "ready" ? { database: step.database, table: step.table, columns: snapshot.detail.value.fields } : null);
+          } catch {
+            read.set(key, null);
+          }
+        }),
+      );
+      if (cancelled) return;
+      const restored = restoreJoin(base, decoded, (otherDatabase, otherTable) => read.get(`${otherDatabase}.${otherTable}`) ?? null);
+      setDef(restored.def);
+      setPickerOpen(restored.def.joins.length === 0);
+      if (restored.dropped > 0) setRestoreNotice({ kind: "dropped", count: restored.dropped });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [def, detail, database, table, spec, dependencies.tableFacts]);
+
+  // Every change to the join replaces the URL in place: a reload, the way back from the SQL editor or a
+  // shared link find the same join, and editing it never piles up Back presses.
+  useEffect(() => {
+    if (!def) return;
+    const next = def.joins.length > 0 ? encodeJoinSpec(def) : undefined;
+    if (next === spec) return;
+    replaceRoute({ kind: "join", database, table, ...(next ? { spec: next } : {}) });
+  }, [def, spec, database, table]);
 
   useEffect(() => {
     if (claimedArm.current || def === null || detail.kind !== "ready") return;
@@ -335,6 +382,11 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
       </p>
 
       {detail.kind === "failed" ? <ErrorNotice title={t("table.unreadable")} error={detail.error} /> : null}
+      {restoreNotice ? (
+        <p role="status" className={styles.warning}>
+          {restoreNotice.kind === "broken" ? t("join.restoreBroken") : t("join.restoreDropped", { count: restoreNotice.count })}
+        </p>
+      ) : null}
       {detail.kind === "loading" ? <Progress label={t("table.loading", { table })} /> : null}
 
       {def && collapsed ? (
