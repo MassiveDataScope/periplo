@@ -21,8 +21,6 @@ import {
   buildCheckJoinSql,
   buildJoinSql,
   canPair,
-  decodeJoinSpec,
-  encodeJoinSpec,
   joinedTables,
   keysOf,
   orderedAliases,
@@ -30,7 +28,6 @@ import {
   readCheckJoin,
   removePair,
   removeTable,
-  restoreJoin,
   setKind,
   setOutput,
   startJoin,
@@ -40,6 +37,7 @@ import {
   type JoinPairSide,
   type JoinTable,
 } from "./join-model";
+import { decodeJoinSpec, encodeJoinSpec, restoreJoin } from "./join-spec";
 import { SqlReceipt } from "./SqlReceipt";
 import { TableCard, type Armed, type BandRow } from "./TableCard";
 import styles from "./JoinWorkspace.module.css";
