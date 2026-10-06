@@ -52,6 +52,17 @@ describe("history", () => {
     expect(back).toHaveBeenCalledOnce();
   });
 
+  it("steps back to the table on whatever tab it was left on, so Close does not walk through tabs", async () => {
+    navigate(database);
+    navigate({ ...table, tab: "details" });
+    navigate({ kind: "join", database: "landing_shop", table: "orders" });
+    const length = window.history.length;
+    goBackTo(table);
+    await vi.waitFor(() => expect(window.location.hash).toBe("#/t/landing_shop/orders/details"));
+    expect(window.history.length).toBe(length);
+    expect(previousEntry()).toEqual(database);
+  });
+
   it("replaces the entry with the destination when you did not come from it, so Back does not bounce", () => {
     navigate(table);
     const back = vi.spyOn(window.history, "back");

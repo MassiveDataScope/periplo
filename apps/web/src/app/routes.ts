@@ -128,6 +128,12 @@ export function href(route: Route): string {
   }
 }
 
+/** Whether two routes show the same view: a table on another tab is still that table; anything else must be the same link. */
+export function sameView(a: Route, b: Route): boolean {
+  if (a.kind === "table" && b.kind === "table") return a.database === b.database && a.table === b.table;
+  return href(a) === href(b);
+}
+
 /** Shareable links and a working back button without a routing dependency. */
 export function useHashRoute(): Route {
   const hash = useSyncExternalStore(subscribeHistory, () => window.location.hash);

@@ -1,5 +1,5 @@
 import type { MouseEvent } from "react";
-import { href, parseRoute, replaceRoute, type Route } from "./routes";
+import { parseRoute, replaceRoute, sameView, type Route } from "./routes";
 
 /**
  * The trail of this browser tab, so "Back to …" and "Close" can step back for real instead of pushing a
@@ -126,12 +126,12 @@ export function previousEntry(): Route | null {
 }
 
 /**
- * Leaves the current view for `destination`: one step back when that is where the user came from,
- * otherwise a replaced entry, so the browser's Back never returns to the view just left.
+ * Leaves the current view for `destination`: one step back when that is where the user came from (a
+ * table on any of its tabs), otherwise a replaced entry, so the browser's Back never returns to the view just left.
  */
 export function goBackTo(destination: Route): void {
   const previous = previousEntry();
-  if (previous && href(previous) === href(destination)) window.history.back();
+  if (previous && sameView(previous, destination)) window.history.back();
   else replaceRoute(destination);
 }
 
