@@ -38,6 +38,7 @@ import {
 import { SqlReceipt } from "./SqlReceipt";
 import { TableCard, type Armed, type BandRow } from "./TableCard";
 import { readJoinTable } from "./join-tables";
+import { RestoreNotice } from "./RestoreNotice";
 import { useJoinFromUrl } from "./useJoinFromUrl";
 import styles from "./JoinWorkspace.module.css";
 
@@ -51,7 +52,7 @@ export interface JoinWorkspaceProps {
   readonly arm?: string;
   /** The whole join from the URL (`encodeJoinSpec`): restored on arrival, then kept up to date in place. */
   readonly spec?: string;
-  /** Where the workspace was opened from, read once on arrival: later edits to the join do not move it. */
+  /** Where the workspace was opened from, read once on arrival: each edit replaces the URL, and must not move it. */
   readonly back: Route | null;
   /** Hands the join's SQL to the free SQL workspace, the same way Home and the database page do. */
   onOpenInEditor(sql: string): void;
@@ -123,7 +124,6 @@ function ownerOf(def: JoinDefinition, a: JoinPairSide, b: JoinPairSide): JoinPai
  */
 export function JoinWorkspace({ dependencies, preferences, catalog, database, table, arm, spec, back, onOpenInEditor }: JoinWorkspaceProps) {
   const { t, i18n } = useTranslation();
-  // Each edit replaces the URL, which makes the previous route this same join: the way back is where the workspace was opened from.
   const [backTo] = useState(back);
   const facts = useTableFacts(dependencies, database, table, ["detail", "stats", "history"]);
   const detail = useMemo(() => facts.detail ?? { kind: "loading" as const }, [facts.detail]);
@@ -134,7 +134,7 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
   const [drag, setDrag] = useState<DragState | null>(null);
   /** Pair keys (`alias:column`) that `addTable` proposed, untouched since: dashed in the band and the wires. */
   const [suggestedKeys, setSuggestedKeys] = useState<ReadonlySet<string>>(new Set());
-  const [status, setStatus] = useState("");
+  const [status, announce] = useState("");
   /** Open or closed by hand; until then, open while the join has no other table to show. */
   const [pickerChoice, setPickerOpen] = useState<boolean | null>(null);
   const [search, setSearch] = useState("");
@@ -157,8 +157,6 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
     setArmed({ alias: baseAlias({ base: def.base }), column: field.name, type: field.type });
     setPickerOpen(false);
   }, [def, detail, arm]);
-
-  const announce = (message: string) => setStatus(message);
 
   const session = useQuerySession(dependencies.createQuerySession);
   const checkSession = useQuerySession(dependencies.createQuerySession);
@@ -186,15 +184,13 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
     markStale();
   };
 
-  /** Marks the pair a person just made by hand as no longer a suggestion: it draws solid, not dashed. */
+  /** A pair key (`alias:column`) that is no longer a suggestion: made by hand it draws solid, removed it goes. */
+  const forgetSuggestion = (key: string) => setSuggestedKeys((current) => new Set([...current].filter((entry) => entry !== key)));
+
   const markManual = (a: JoinPairSide, b: JoinPairSide) => {
     if (!def) return;
     const owner = ownerOf(def, a, b);
-    setSuggestedKeys((current) => {
-      const next = new Set(current);
-      next.delete(`${owner.alias}:${owner.column}`);
-      return next;
-    });
+    forgetSuggestion(`${owner.alias}:${owner.column}`);
   };
 
   const pairFromCard = (a: JoinPairSide, b: JoinPairSide) => {
@@ -204,11 +200,7 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
 
   const removeOnePair = (owner: string, rightColumn: string) => {
     mutate((current) => removePair(current, owner, rightColumn));
-    setSuggestedKeys((current) => {
-      const next = new Set(current);
-      next.delete(`${owner}:${rightColumn}`);
-      return next;
-    });
+    forgetSuggestion(`${owner}:${rightColumn}`);
   };
 
   const pick = async (otherDatabase: string, otherTable: string) => {
@@ -220,13 +212,10 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
       return;
     }
     const next = addTable(def, picked);
-    const newStep = next.joins.at(-1);
+    const step = next.joins.at(-1);
     setDef(next);
     markStale();
-    if (newStep) {
-      const added = newStep.pairs.map((pair) => `${newStep.alias}:${pair.right}`);
-      setSuggestedKeys((current) => new Set([...current, ...added]));
-    }
+    if (step) setSuggestedKeys((current) => new Set([...current, ...step.pairs.map((pair) => `${step.alias}:${pair.right}`)]));
     setPickerOpen(false);
     setSearch("");
   };
@@ -337,18 +326,7 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
       </p>
 
       {detail.kind === "failed" ? <ErrorNotice title={t("table.unreadable")} error={detail.error} /> : null}
-      {restoreNotice ? (
-        <p role="status" className={styles.warning}>
-          {restoreNotice.kind === "broken"
-            ? t("join.restoreBroken")
-            : [
-                restoreNotice.tables > 0 ? t("join.restoreDroppedTables", { count: restoreNotice.tables }) : "",
-                restoreNotice.keys > 0 ? t("join.restoreDroppedKeys", { count: restoreNotice.keys }) : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-        </p>
-      ) : null}
+      {restoreNotice ? <RestoreNotice notice={restoreNotice} /> : null}
       {detail.kind === "loading" ? <Progress label={t("table.loading", { table })} /> : null}
 
       {def && collapsed ? (

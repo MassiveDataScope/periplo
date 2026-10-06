@@ -6,13 +6,13 @@ import { decodeJoinSpec, encodeJoinSpec, restoreJoin, type DroppedFromSpec } fro
 import { readJoinTable } from "./join-tables";
 
 /** What the workspace says about the link a join came from: it could not be read, or parts of it were left out. */
-export type RestoreNotice = ({ readonly kind: "dropped" } & DroppedFromSpec) | { readonly kind: "broken" };
+export type JoinRestoreNotice = ({ readonly kind: "dropped" } & DroppedFromSpec) | { readonly kind: "broken" };
 
 export interface JoinFromUrl {
   readonly def: JoinDefinition | null;
   /** Edits the join; the first edit also puts away the notice about the link it was restored from. */
   readonly setDef: Dispatch<SetStateAction<JoinDefinition | null>>;
-  readonly notice: RestoreNotice | null;
+  readonly notice: JoinRestoreNotice | null;
 }
 
 /**
@@ -23,7 +23,7 @@ export interface JoinFromUrl {
  */
 export function useJoinFromUrl(tableFacts: TableFactsStore, base: JoinTable | null, spec: string | undefined): JoinFromUrl {
   const [def, setDefState] = useState<JoinDefinition | null>(null);
-  const [notice, setNotice] = useState<RestoreNotice | null>(null);
+  const [notice, setNotice] = useState<JoinRestoreNotice | null>(null);
   /** The spec this page last wrote to the URL; null until it has written one. */
   const written = useRef<{ readonly spec: string | undefined } | null>(null);
 
