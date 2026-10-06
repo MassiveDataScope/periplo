@@ -1,8 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- The sm Logo (apps/web/src/features/shell/Logo.tsx) with the token colours; apps/web/public/favicon.svg and docs/_static/logo.svg are the same file: change them together. -->
   <style>
     .ink { stroke: #141819; }
-    @media (prefers-color-scheme: dark) { .ink { stroke: #e6ebea; } }
+    .lens { fill: #ff441e; }
+    @media (prefers-color-scheme: dark) { .ink { stroke: #e6ebea; } .lens { fill: #ff5a36; } }
   </style>
   <path class="ink" fill="none" stroke-width="6.5" d="M15.1 43.2V15a6.75 6.75 0 0 1 6.75-6.74h2.7"/>
-  <circle fill="#ff441e" cx="31.1" cy="8.26" r="5"/>
+  <circle class="lens" cx="31.1" cy="8.26" r="5"/>
 </svg>
