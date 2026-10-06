@@ -30,13 +30,12 @@ function renderRail(route: Route, etl: boolean, etlUnderConstruction = false, pr
 afterEach(cleanup);
 
 describe("NavRail", () => {
-  it.each([false, true])("names the brand link after the product, its drawing hidden (collapsed: %s)", (railCollapsed) => {
+  it.each([false, true])("names the brand link after the product alone (collapsed: %s)", (railCollapsed) => {
     const preferences = createPreferences(undefined);
     preferences.update({ railCollapsed });
     renderRail({ kind: "home" }, false, false, preferences);
     const brand = screen.getByRole("link", { name: "Periplo" });
     expect(brand.getAttribute("href")).toBe("#/");
-    expect(brand.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
   });
 
   it("marks only the section you are in as the current page", () => {

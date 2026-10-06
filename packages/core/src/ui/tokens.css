@@ -3,7 +3,8 @@
  * names and figures in mono, with thin borders and 6 px corners. Neutrals and accent match massivedatascope.info.
  * The orange brand colour is a signature, never a state: the logo's lens, the full stop of page titles, the dot of
  * the current rail entry and the "now" line of the ETL chart. (An earlier release used one electric blue.)
- * The frame stays quiet so the data carries the contrast; colour means data type, never decoration.
+ * The frame stays quiet so the data carries the contrast: colour means data type or state, and apart from that
+ * one orange signature it is never decoration.
  * Components use only these custom properties: literal colours and pixel values live here and nowhere else.
  * Theme resolution: explicit [data-theme] wins, otherwise the system preference.
  * Each colour is declared once with light-dark(), so the two themes cannot drift apart.
