@@ -5,6 +5,7 @@ import "@periplo/core/ui/fonts.css";
 import "@periplo/core/ui/tokens.css";
 import { App } from "./app/App";
 import { createDependencies } from "./app/dependencies";
+import { appHistory } from "./app/history";
 import { createPreferences } from "./app/preferences";
 import { createI18n } from "./i18n";
 
@@ -18,6 +19,9 @@ function browserStorage(): Storage | undefined {
     return undefined;
   }
 }
+
+// The trail follows the browser from the first entry, before any view reads it or listens to a hashchange.
+appHistory.install();
 
 const dependencies = createDependencies({ baseUrl: import.meta.env.VITE_API_BASE_URL ?? "/api/v1" });
 const preferences = createPreferences(browserStorage());

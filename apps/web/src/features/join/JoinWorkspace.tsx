@@ -5,7 +5,7 @@ import type { ResultBuffer } from "@periplo/core/arrow";
 import { Button, ButtonLink, ErrorNotice, Icon, Progress, typeFamily } from "@periplo/core/ui";
 import type { Dependencies } from "../../app/dependencies";
 import type { PreferencesStore } from "../../app/preferences";
-import { leaveOnClick } from "../../app/history";
+import { leaveOnClick } from "../../app/leave";
 import { placeName } from "../../app/place-name";
 import { href, type Route } from "../../app/routes";
 import { wantOnce } from "../../api/table-facts";

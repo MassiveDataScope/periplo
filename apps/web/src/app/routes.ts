@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { subscribeHistory, syncHistory } from "./history";
+import { appHistory } from "./history";
 
 export const TABLE_TABS = ["data", "distribution", "details"] as const;
 /** A layer value can never be a lone dash, so it can stand for "no layer". */
@@ -134,9 +134,17 @@ export function sameView(a: Route, b: Route): boolean {
   return href(a) === href(b);
 }
 
-/** Shareable links and a working back button without a routing dependency. */
+function subscribe(listener: () => void): () => void {
+  window.addEventListener("hashchange", listener);
+  return () => window.removeEventListener("hashchange", listener);
+}
+
+/**
+ * Shareable links and a working back button without a routing dependency. The trail, installed before
+ * the console renders, hears each hashchange first, so a view reads it up to date.
+ */
 export function useHashRoute(): Route {
-  const hash = useSyncExternalStore(subscribeHistory, () => window.location.hash);
+  const hash = useSyncExternalStore(subscribe, () => window.location.hash);
   return parseRoute(hash);
 }
 
@@ -147,7 +155,7 @@ export function navigate(route: Route): void {
   if (window.location.hash === target) return;
   window.location.hash = target;
   // The hashchange event comes later; the trail is right from now on.
-  syncHistory();
+  appHistory.sync();
 }
 
 /**

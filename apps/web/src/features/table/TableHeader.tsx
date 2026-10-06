@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Icon } from "@periplo/core/ui";
-import { leaveOnClick } from "../../app/history";
+import { leaveOnClick } from "../../app/leave";
 import { href, type Route } from "../../app/routes";
 import type { Crumb } from "../lake/crumbs";
 import type { Freshness } from "../lake/freshness";

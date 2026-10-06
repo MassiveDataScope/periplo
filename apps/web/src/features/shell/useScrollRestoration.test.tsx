@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resetHistoryForTests } from "../../app/history";
+import { appHistory } from "../../app/history";
 import { navigate, useHashRoute } from "../../app/routes";
 import { useScrollRestoration } from "./useScrollRestoration";
 
@@ -16,9 +16,10 @@ describe("useScrollRestoration", () => {
   beforeEach(() => {
     window.history.replaceState(null, "", "#/");
     sessionStorage.clear();
-    resetHistoryForTests();
+    appHistory.install();
   });
   afterEach(() => {
+    appHistory.dispose();
     window.location.hash = "";
   });
 

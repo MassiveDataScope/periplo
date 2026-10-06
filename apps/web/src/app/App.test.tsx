@@ -10,6 +10,7 @@ import sourcesFixture from "../../dev/fixtures/sources.json";
 import etlFixture from "../../dev/fixtures/etl.json";
 import { App } from "./App";
 import { createDependencies } from "./dependencies";
+import { appHistory } from "./history";
 import { createPreferences, type PreferencesStore } from "./preferences";
 import { createI18n } from "../i18n";
 
@@ -76,8 +77,14 @@ beforeAll(() => {
 beforeEach(() => {
   window.location.hash = "";
   release.etlUnderConstruction = false;
+  // A fresh tab for every test: `main` installs the trail once, before the console renders.
+  sessionStorage.clear();
+  appHistory.install();
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  appHistory.dispose();
+});
 
 const QUERY_ID = "0b9f6a3e-4a53-4c1e-9d0b-0d3f6f1c2a11";
 const FIELDS = [{ name: "order_id", type: "int64", nullable: false }];

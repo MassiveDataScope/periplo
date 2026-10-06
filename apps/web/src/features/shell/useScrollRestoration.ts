@@ -1,5 +1,5 @@
 import { useEffect, type RefObject } from "react";
-import { currentIndex, lastMove, subscribeHistory } from "../../app/history";
+import { appHistory } from "../../app/history";
 
 const STORAGE_KEY = "periplo.scroll";
 /** A view fills in as its data arrives: the saved position is applied again while the page grows. */
@@ -39,15 +39,15 @@ export function useScrollRestoration(ref: RefObject<HTMLElement | null>): void {
     };
 
     const onScroll = () => {
-      positions[currentIndex()] = element.scrollTop;
+      positions[appHistory.currentIndex()] = element.scrollTop;
     };
     const onUserIntent = () => cancel();
     const onMove = () => {
       cancel();
       savePositions(positions);
-      const move = lastMove();
+      const move = appHistory.lastMove();
       if (move === "replace") return;
-      const target = move === "traversal" ? (positions[currentIndex()] ?? 0) : 0;
+      const target = move === "traversal" ? (positions[appHistory.currentIndex()] ?? 0) : 0;
       timers = RETRIES_MS.map((delay) =>
         window.setTimeout(() => {
           element.scrollTop = target;
@@ -57,7 +57,7 @@ export function useScrollRestoration(ref: RefObject<HTMLElement | null>): void {
 
     element.addEventListener("scroll", onScroll, { passive: true });
     for (const type of ["wheel", "touchstart", "keydown", "pointerdown"] as const) element.addEventListener(type, onUserIntent, { passive: true });
-    const unsubscribe = subscribeHistory(onMove);
+    const unsubscribe = appHistory.subscribe(onMove);
     const onHide = () => savePositions(positions);
     window.addEventListener("pagehide", onHide);
     return () => {

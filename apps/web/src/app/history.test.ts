@@ -1,10 +1,9 @@
 // @vitest-environment jsdom
 // The trail lives in `history.state`, the hash and session storage: all of it needs a window.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { currentIndex, goBackTo, lastMove, parentOf, previousEntry, resetHistoryForTests } from "./history";
+import { appHistory } from "./history";
 import { navigate, replaceRoute, type Route } from "./routes";
 
-const home: Route = { kind: "home" };
 const database: Route = { kind: "database", database: "landing_shop" };
 const table: Route = { kind: "table", database: "landing_shop", table: "orders", tab: "data" };
 
@@ -12,85 +11,65 @@ describe("history", () => {
   beforeEach(() => {
     window.history.replaceState(null, "", "#/");
     sessionStorage.clear();
-    resetHistoryForTests();
+    appHistory.install();
   });
   afterEach(() => {
-    vi.restoreAllMocks();
+    appHistory.dispose();
     window.location.hash = "";
   });
 
   it("has no previous entry on a fresh open", () => {
-    expect(previousEntry()).toBeNull();
+    expect(appHistory.previousHash()).toBeNull();
   });
 
-  it("remembers the entry each push came from, as a route", () => {
+  it("remembers the entry each push came from", () => {
     navigate(database);
     navigate(table);
-    expect(previousEntry()).toEqual(database);
+    expect(appHistory.previousHash()).toBe("#/d/landing_shop");
   });
 
   it("does not count a replaced entry as a step: a tab or a filter changes where you are, not where you came from", () => {
     navigate(database);
     navigate(table);
     replaceRoute({ ...table, tab: "details" });
-    expect(previousEntry()).toEqual(database);
+    expect(appHistory.previousHash()).toBe("#/d/landing_shop");
     expect(window.history.state).toMatchObject({ periploIndex: 2 });
   });
 
   it("keeps the trail in session storage, so it outlives a reload of the tab", () => {
     navigate(database);
     navigate(table);
-    resetHistoryForTests();
-    expect(previousEntry()).toEqual(database);
+    appHistory.dispose();
+    appHistory.install();
+    expect(appHistory.previousHash()).toBe("#/d/landing_shop");
   });
 
-  it("steps back for real when the destination is where you came from", () => {
+  it("follows the browser only once installed, and stops when disposed", () => {
+    appHistory.dispose();
     navigate(database);
-    navigate(table);
-    const back = vi.spyOn(window.history, "back").mockImplementation(() => undefined);
-    goBackTo(database);
-    expect(back).toHaveBeenCalledOnce();
-  });
-
-  it("steps back to the table on whatever tab it was left on, so Close does not walk through tabs", async () => {
-    navigate(database);
-    navigate({ ...table, tab: "details" });
-    navigate({ kind: "join", database: "landing_shop", table: "orders" });
-    const length = window.history.length;
-    goBackTo(table);
-    await vi.waitFor(() => expect(window.location.hash).toBe("#/t/landing_shop/orders/details"));
-    expect(window.history.length).toBe(length);
-    expect(previousEntry()).toEqual(database);
-  });
-
-  it("replaces the entry with the destination when you did not come from it, so Back does not bounce", () => {
-    navigate(table);
-    const back = vi.spyOn(window.history, "back");
-    const length = window.history.length;
-    goBackTo(database);
-    expect(back).not.toHaveBeenCalled();
-    expect(window.location.hash).toBe("#/d/landing_shop");
-    expect(window.history.length).toBe(length);
+    expect(appHistory.previousHash()).toBeNull();
+    expect(appHistory.currentIndex()).toBe(0);
   });
 
   it("tells a new entry, a replacement and a step back apart", async () => {
     navigate(database);
     navigate(table);
-    expect(lastMove()).toBe("new");
+    expect(appHistory.lastMove()).toBe("new");
     replaceRoute({ ...table, tab: "details" });
-    expect(lastMove()).toBe("replace");
+    expect(appHistory.lastMove()).toBe("replace");
     window.history.back();
-    await vi.waitFor(() => expect(currentIndex()).toBe(1));
-    expect(lastMove()).toBe("traversal");
-    expect(previousEntry()).toEqual(home);
+    await vi.waitFor(() => expect(appHistory.currentIndex()).toBe(1));
+    expect(appHistory.lastMove()).toBe("traversal");
+    expect(appHistory.previousHash()).toBe("#/");
   });
 
-  it("gives every view a logical parent for when there is no previous entry", () => {
-    expect(parentOf(table)).toEqual(database);
-    expect(parentOf({ kind: "join", database: "landing_shop", table: "orders" })).toEqual(table);
-    expect(parentOf({ kind: "etl-run", id: "r1" })).toEqual({ kind: "etl" });
-    expect(parentOf({ kind: "etl-deployment", name: "orders_daily" })).toEqual({ kind: "etl" });
-    expect(parentOf(database)).toEqual(home);
-    expect(parentOf(home)).toBeNull();
+  it("tells its listeners about every move, once the trail is up to date", () => {
+    const seen: number[] = [];
+    const unsubscribe = appHistory.subscribe(() => seen.push(appHistory.currentIndex()));
+    navigate(database);
+    replaceRoute(table);
+    unsubscribe();
+    navigate(database);
+    expect(seen).toEqual([1, 1]);
   });
 });
