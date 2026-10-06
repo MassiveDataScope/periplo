@@ -12,6 +12,7 @@ import { App } from "./App";
 import { createDependencies } from "./dependencies";
 import { createPreferences, type PreferencesStore } from "./preferences";
 import { createI18n } from "../i18n";
+import { encodeJoinSpec } from "../features/join/join-spec";
 
 const release = vi.hoisted(() => ({ etlUnderConstruction: false }));
 vi.mock("./sections", () => ({
@@ -527,6 +528,47 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", { name: /landing_shop\.orders/ }));
     await waitFor(() => expect(window.location.hash).toMatch(/\?spec=/));
     expect(screen.getByRole("link", { name: "Back to order" }).getAttribute("href")).toBe("#/t/landing_shop/order");
+  });
+
+  it("follows a join link opened over the same table instead of writing the old join back", async () => {
+    renderApp();
+    await goTo("#/join/landing_shop/order");
+    await screen.findByRole("heading", { level: 2, name: "Join · order" });
+    fireEvent.change(screen.getByLabelText("Find a table to add"), { target: { value: "shop orders" } });
+    fireEvent.click(await screen.findByRole("button", { name: /landing_shop\.orders/ }));
+    const receipt = await screen.findByLabelText("SQL this join runs");
+    await waitFor(() => expect(receipt.textContent).toContain("LEFT JOIN landing_shop.orders AS o2"));
+
+    const pasted = encodeJoinSpec({
+      base: { database: "landing_shop", table: "order", columns: [] },
+      joins: [
+        {
+          alias: "o2",
+          table: { database: "landing_shop", table: "orders", columns: [] },
+          kind: "inner",
+          pairs: [{ left: { alias: "o", column: "order_id" }, right: "order_id" }],
+        },
+      ],
+      output: {},
+    });
+    await goTo(`#/join/landing_shop/order?spec=${pasted}`);
+    await waitFor(() => expect(screen.getByLabelText("SQL this join runs").textContent).toContain("INNER JOIN landing_shop.orders AS o2 ON o.order_id = o2.order_id"));
+    expect(window.location.hash).toBe(`#/join/landing_shop/order?spec=${pasted}`);
+
+    // A plain link to the same table starts the join again rather than bringing the last one back.
+    await goTo("#/join/landing_shop/order");
+    await waitFor(() => expect(screen.getByLabelText("SQL this join runs").textContent).not.toContain("JOIN landing_shop.orders"));
+    expect(window.location.hash).toBe("#/join/landing_shop/order");
+  });
+
+  it("puts away the notice about a broken join link at the first edit", async () => {
+    renderApp();
+    await goTo("#/join/landing_shop/order?spec=not-a-join");
+    const notice = "This join link could not be read, so the join starts again from this table.";
+    expect(await screen.findByText(notice)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Find a table to add"), { target: { value: "shop orders" } });
+    fireEvent.click(await screen.findByRole("button", { name: /landing_shop\.orders/ }));
+    await waitFor(() => expect(screen.queryByText(notice)).toBeNull());
   });
 
   it("says so when a join link cannot be read, and starts from the table instead", async () => {

@@ -5,8 +5,7 @@ import type { ResultBuffer } from "@periplo/core/arrow";
 import { Button, ErrorNotice, Icon, Progress, typeFamily } from "@periplo/core/ui";
 import type { Dependencies } from "../../app/dependencies";
 import type { PreferencesStore } from "../../app/preferences";
-import { href, navigate, replaceRoute, type Route } from "../../app/routes";
-import { wantOnce } from "../../api/table-facts";
+import { href, navigate, type Route } from "../../app/routes";
 import { tableKey, type Catalog } from "../catalog-tree/catalog-model";
 import { matchTokens } from "../catalog-tree/names";
 import { ResultPane } from "../table/data/ResultPane";
@@ -30,16 +29,15 @@ import {
   removeTable,
   setKind,
   setOutput,
-  startJoin,
   type CheckJoinResult,
   type JoinDefinition,
   type JoinKind,
   type JoinPairSide,
   type JoinTable,
 } from "./join-model";
-import { decodeJoinSpec, encodeJoinSpec, restoreJoin, type DroppedFromSpec } from "./join-spec";
 import { SqlReceipt } from "./SqlReceipt";
 import { TableCard, type Armed, type BandRow } from "./TableCard";
+import { readJoinTable, useJoinFromUrl } from "./useJoinFromUrl";
 import styles from "./JoinWorkspace.module.css";
 
 export interface JoinWorkspaceProps {
@@ -129,13 +127,15 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
   const facts = useTableFacts(dependencies, database, table, ["detail", "stats", "history"]);
   const detail = useMemo(() => facts.detail ?? { kind: "loading" as const }, [facts.detail]);
 
-  const [def, setDef] = useState<JoinDefinition | null>(null);
+  const base = useMemo<JoinTable | null>(() => (detail.kind === "ready" ? { database, table, columns: detail.value.fields } : null), [detail, database, table]);
+  const { def, setDef, notice: restoreNotice } = useJoinFromUrl(dependencies.tableFacts, base, spec);
   const [armed, setArmed] = useState<Armed | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   /** Pair keys (`alias:column`) that `addTable` proposed, untouched since: dashed in the band and the wires. */
   const [suggestedKeys, setSuggestedKeys] = useState<ReadonlySet<string>>(new Set());
   const [status, setStatus] = useState("");
-  const [pickerOpen, setPickerOpen] = useState(true);
+  /** Open or closed by hand; until then, open while the join has no other table to show. */
+  const [pickerChoice, setPickerOpen] = useState<boolean | null>(null);
   const [search, setSearch] = useState("");
   const [pickError, setPickError] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -144,53 +144,7 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
   const claimedArm = useRef(false);
   const boardRef = useRef<HTMLDivElement>(null);
   const bandNodes = useRef(new Map<string, HTMLElement>());
-
-  /** How many tables or keys of the join in the URL no longer exist: said once, not silently ignored. */
-  const [restoreNotice, setRestoreNotice] = useState<({ readonly kind: "dropped" } & DroppedFromSpec) | { readonly kind: "broken" } | null>(null);
-
-  // Arrival: the join in the URL is rebuilt from the tables as they read now; without one, just the base.
-  useEffect(() => {
-    if (def !== null || detail.kind !== "ready") return;
-    const base: JoinTable = { database, table, columns: detail.value.fields };
-    const decoded = spec ? decodeJoinSpec(spec) : null;
-    if (!decoded || decoded.steps.length === 0) {
-      setDef(startJoin(base));
-      if (spec && !decoded) setRestoreNotice({ kind: "broken" });
-      return;
-    }
-    let cancelled = false;
-    void (async () => {
-      const read = new Map<string, JoinTable | null>();
-      await Promise.all(
-        decoded.steps.map(async (step) => {
-          const key = `${step.database}.${step.table}`;
-          try {
-            const snapshot = await wantOnce(dependencies.tableFacts, step.database, step.table, ["detail"]);
-            read.set(key, snapshot.detail?.kind === "ready" ? { database: step.database, table: step.table, columns: snapshot.detail.value.fields } : null);
-          } catch {
-            read.set(key, null);
-          }
-        }),
-      );
-      if (cancelled) return;
-      const restored = restoreJoin(base, decoded, (otherDatabase, otherTable) => read.get(`${otherDatabase}.${otherTable}`) ?? null);
-      setDef(restored.def);
-      setPickerOpen(restored.def.joins.length === 0);
-      if (restored.dropped.tables > 0 || restored.dropped.keys > 0) setRestoreNotice({ kind: "dropped", ...restored.dropped });
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [def, detail, database, table, spec, dependencies.tableFacts]);
-
-  // Every change to the join replaces the URL in place: a reload, the way back from the SQL editor or a
-  // shared link find the same join, and editing it never piles up Back presses.
-  useEffect(() => {
-    if (!def) return;
-    const next = def.joins.length > 0 ? encodeJoinSpec(def) : undefined;
-    if (next === spec) return;
-    replaceRoute({ kind: "join", database, table, ...(next ? { spec: next } : {}) });
-  }, [def, spec, database, table]);
+  const pickerOpen = pickerChoice ?? (def === null || def.joins.length === 0);
 
   useEffect(() => {
     if (claimedArm.current || def === null || detail.kind !== "ready") return;
@@ -258,23 +212,21 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
   const pick = async (otherDatabase: string, otherTable: string) => {
     setPickError(false);
     if (!def) return;
-    try {
-      const snapshot = await wantOnce(dependencies.tableFacts, otherDatabase, otherTable, ["detail"]);
-      if (snapshot.detail?.kind !== "ready") throw new Error("unreadable");
-      const picked: JoinTable = { database: otherDatabase, table: otherTable, columns: snapshot.detail.value.fields };
-      const next = addTable(def, picked);
-      const newStep = next.joins.at(-1);
-      setDef(next);
-      markStale();
-      if (newStep) {
-        const added = newStep.pairs.map((pair) => `${newStep.alias}:${pair.right}`);
-        setSuggestedKeys((current) => new Set([...current, ...added]));
-      }
-      setPickerOpen(false);
-      setSearch("");
-    } catch {
+    const picked = await readJoinTable(dependencies.tableFacts, otherDatabase, otherTable);
+    if (!picked) {
       setPickError(true);
+      return;
     }
+    const next = addTable(def, picked);
+    const newStep = next.joins.at(-1);
+    setDef(next);
+    markStale();
+    if (newStep) {
+      const added = newStep.pairs.map((pair) => `${newStep.alias}:${pair.right}`);
+      setSuggestedKeys((current) => new Set([...current, ...added]));
+    }
+    setPickerOpen(false);
+    setSearch("");
   };
 
   const choices = useMemo(() => {
@@ -415,7 +367,7 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
                 {entry2.table.table}
               </span>
             ))}
-            <button type="button" className={styles.addTable} aria-expanded={pickerOpen} onClick={() => setPickerOpen((open) => !open)}>
+            <button type="button" className={styles.addTable} aria-expanded={pickerOpen} onClick={() => setPickerOpen(!pickerOpen)}>
               <Icon name="insert" /> {t("join.addTable")}
             </button>
           </div>
