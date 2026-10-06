@@ -510,6 +510,9 @@ describe("App", () => {
     fireEvent.keyDown(screen.getByLabelText("Find a table to add"), { key: "Escape" });
     expect(screen.queryByLabelText("Find a table to add")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Add table" }));
+    const controls = screen.getByRole("button", { name: "Add table" }).getAttribute("aria-controls");
+    expect(controls).toBeTruthy();
+    expect(document.getElementById(controls!)?.contains(screen.getByLabelText("Find a table to add"))).toBe(true);
     fireEvent.change(screen.getByLabelText("Find a table to add"), { target: { value: "shop orders" } });
     fireEvent.click(await screen.findByRole("button", { name: /landing_shop\.orders/ }));
     await waitFor(() => expect(screen.queryByLabelText("Find a table to add")).toBeNull());

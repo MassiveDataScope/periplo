@@ -96,19 +96,21 @@ function parseEtlRoute(rest: readonly string[], search: string | undefined): Rou
   return { kind: "home" };
 }
 
+function joinHref(route: Extract<Route, { readonly kind: "join" }>): string {
+  if (!route.database || !route.table) return "#/join";
+  const params = new URLSearchParams();
+  if (route.arm) params.set("arm", route.arm);
+  if (route.spec) params.set("spec", route.spec);
+  const query = params.toString();
+  return `#/join/${encodeURIComponent(route.database)}/${encodeURIComponent(route.table)}${query ? `?${query}` : ""}`;
+}
+
 export function href(route: Route): string {
   switch (route.kind) {
     case "table":
       return `#/t/${encodeURIComponent(route.database)}/${encodeURIComponent(route.table)}${route.tab === "data" ? "" : `/${route.tab}`}`;
     case "join":
-      if (!route.database || !route.table) return "#/join";
-      {
-        const params = new URLSearchParams();
-        if (route.arm) params.set("arm", route.arm);
-        if (route.spec) params.set("spec", route.spec);
-        const query = params.toString();
-        return `#/join/${encodeURIComponent(route.database)}/${encodeURIComponent(route.table)}${query ? `?${query}` : ""}`;
-      }
+      return joinHref(route);
     case "database":
       return `#/d/${encodeURIComponent(route.database)}`;
     case "layer":

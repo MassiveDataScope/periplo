@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { settled, useQuerySession } from "@periplo/core/api/react";
 import type { ResultBuffer } from "@periplo/core/arrow";
@@ -145,6 +145,7 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
   const boardRef = useRef<HTMLDivElement>(null);
   const bandNodes = useRef(new Map<string, HTMLElement>());
   const pickerOpen = pickerChoice ?? (def === null || def.joins.length === 0);
+  const pickerId = useId();
 
   useEffect(() => {
     if (claimedArm.current || def === null || detail.kind !== "ready") return;
@@ -367,14 +368,14 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
                 {entry2.table.table}
               </span>
             ))}
-            <button type="button" className={styles.addTable} aria-expanded={pickerOpen} onClick={() => setPickerOpen(!pickerOpen)}>
+            <button type="button" className={styles.addTable} aria-expanded={pickerOpen} aria-controls={pickerId} onClick={() => setPickerOpen(!pickerOpen)}>
               <Icon name="insert" /> {t("join.addTable")}
             </button>
           </div>
 
           {/* In the page, not floating: it pushes the tables down instead of covering them. */}
           {pickerOpen ? (
-            <div className={styles.pickerRow}>
+            <div id={pickerId} className={styles.pickerRow}>
               <label className={styles.finder}>
                 <Icon name="search" />
                 <input
