@@ -501,6 +501,20 @@ describe("App", () => {
     await waitFor(() => expect(receipt.textContent).toContain("LEFT JOIN landing_shop.orders AS o2 ON o.order_id = o2.order_id"));
   });
 
+  it("adds a table from a finder in the page that closes on Esc and once a table is picked", async () => {
+    renderApp();
+    await goTo("#/join/landing_shop/order");
+    await screen.findByRole("heading", { level: 2, name: "Join · order" });
+    // Opened on arrival, as before; Esc puts it away and the plain "Add table" brings it back.
+    fireEvent.keyDown(screen.getByLabelText("Find a table to add"), { key: "Escape" });
+    expect(screen.queryByLabelText("Find a table to add")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add table" }));
+    fireEvent.change(screen.getByLabelText("Find a table to add"), { target: { value: "shop orders" } });
+    fireEvent.click(await screen.findByRole("button", { name: /landing_shop\.orders/ }));
+    await waitFor(() => expect(screen.queryByLabelText("Find a table to add")).toBeNull());
+    expect(screen.getByRole("button", { name: "Add table" }).getAttribute("aria-expanded")).toBe("false");
+  });
+
   it("says so when a join link cannot be read, and starts from the table instead", async () => {
     renderApp();
     await goTo("#/join/landing_shop/order?spec=not-a-join");

@@ -407,42 +407,50 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
                 {entry2.table.table}
               </span>
             ))}
-            <span className={styles.pickerWrap}>
-              <button type="button" className={styles.addTable} aria-expanded={pickerOpen} onClick={() => setPickerOpen((open) => !open)}>
-                <Icon name="insert" /> {t("join.addTable")}
-              </button>
-              {pickerOpen ? (
-                <span className={styles.picker}>
-                  <label className={styles.finder}>
-                    <Icon name="search" />
-                    <input
-                      type="search"
-                      autoFocus
-                      aria-label={t("join.pickerSearch")}
-                      placeholder={t("join.pickPlaceholder")}
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                    />
-                  </label>
-                  {pickError ? (
-                    <p role="alert" className={styles.warning}>
-                      {t("join.unreadable")}
-                    </p>
-                  ) : null}
-                  <ul className={styles.choices}>
-                    {choices.map((candidate) => (
-                      <li key={tableKey(candidate)}>
-                        <button type="button" className={styles.choice} onClick={() => void pick(candidate.database, candidate.name)}>
-                          <span className={styles.dim}>{candidate.database}.</span>
-                          {candidate.name}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </span>
-              ) : null}
-            </span>
+            <button type="button" className={styles.addTable} aria-expanded={pickerOpen} onClick={() => setPickerOpen((open) => !open)}>
+              <Icon name="insert" /> {t("join.addTable")}
+            </button>
           </div>
+
+          {/* In the page, not floating: it pushes the tables down instead of covering them. */}
+          {pickerOpen ? (
+            <div className={styles.pickerRow}>
+              <label className={styles.finder}>
+                <Icon name="search" />
+                <input
+                  type="search"
+                  autoFocus
+                  aria-label={t("join.pickerSearch")}
+                  placeholder={t("join.pickPlaceholder")}
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Escape") return;
+                    event.preventDefault();
+                    setPickerOpen(false);
+                    setSearch("");
+                  }}
+                />
+              </label>
+              {pickError ? (
+                <p role="alert" className={styles.warning}>
+                  {t("join.unreadable")}
+                </p>
+              ) : null}
+              {choices.length > 0 ? (
+                <ul className={styles.choices}>
+                  {choices.map((candidate) => (
+                    <li key={tableKey(candidate)}>
+                      <button type="button" className={styles.choice} onClick={() => void pick(candidate.database, candidate.name)}>
+                        <span className={styles.dim}>{candidate.database}.</span>
+                        {candidate.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className={styles.board} ref={boardRef} onPointerMove={onBoardPointerMove} onPointerUp={() => setDrag(null)}>
             <Connectors board={boardRef} nodes={bandNodes.current} links={links} live={liveWire} />

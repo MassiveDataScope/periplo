@@ -273,7 +273,7 @@
     "includeColumn": "Include {{column}} in the result",
     "less": "▴ less",
     "more": "▸ {{count}} more columns · {{selected}} selected",
-    "addTable": "+ Add table",
+    "addTable": "Add table",
     "pickerSearch": "Find a table to add",
     "pickPlaceholder": "pieces of a table name",
     "unreadable": "That table could not be read.",
