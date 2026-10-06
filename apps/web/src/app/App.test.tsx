@@ -489,13 +489,16 @@ describe("App", () => {
   });
 
   it("changes a table's tab in place, so Back leaves the table instead of walking its tabs", async () => {
-    window.location.hash = "#/t/landing_shop/order";
+    openTab("#/d/landing_shop");
     renderApp();
+    act(() => navigate({ kind: "table", database: "landing_shop", table: "order", tab: "data" }));
     await screen.findByText("9007199254740993");
     const length = window.history.length;
     fireEvent.click(screen.getByRole("tab", { name: "Details" }));
     await waitFor(() => expect(window.location.hash).toBe("#/t/landing_shop/order/details"));
     expect(window.history.length).toBe(length);
+    act(() => window.history.back());
+    await waitFor(() => expect(window.location.hash).toBe("#/d/landing_shop"));
   });
 
   it("steps back for real from 'Back to …' when that is where the table was opened from", async () => {
@@ -528,7 +531,7 @@ describe("App", () => {
   });
 
   it("shows a shareable hash the moment 'Join with…' is clicked", async () => {
-    window.location.hash = "#/t/landing_shop/order";
+    openTab("#/t/landing_shop/order");
     renderApp();
     await screen.findByText("9007199254740993");
     // A real link: Cmd+click opens the join in a new tab, and the address can be copied before clicking.

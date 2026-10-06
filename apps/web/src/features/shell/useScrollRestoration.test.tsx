@@ -19,6 +19,7 @@ describe("useScrollRestoration", () => {
     appHistory.install();
   });
   afterEach(() => {
+    vi.useRealTimers();
     cleanup();
     appHistory.dispose();
     window.location.hash = "";
@@ -38,21 +39,25 @@ describe("useScrollRestoration", () => {
     await vi.waitFor(() => expect(work.scrollTop).toBe(640));
   });
 
-  it("keeps the scroll on a replacement in place, and starts at the top when a replacement opens another view", async () => {
+  it("keeps the scroll on a replacement in place, and starts at the top when a replacement opens another view", () => {
+    // `navigate` and `replaceRoute` move the trail at once: with the retries on a fake clock, every outcome is settled.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     render(<Work />);
     const work = screen.getByRole("main", { name: "Work area" });
     const orders = { kind: "table", database: "landing_shop", table: "orders", tab: "data" } as const;
     act(() => navigate(orders));
+    act(() => vi.runAllTimers());
     work.scrollTop = 640;
     work.dispatchEvent(new Event("scroll"));
 
     act(() => replaceRoute({ ...orders, tab: "details" }));
-    await new Promise((resolve) => window.setTimeout(resolve, 10));
+    act(() => vi.runAllTimers());
     expect(work.scrollTop).toBe(640);
 
     // Close and redirects replace the entry with another view: that view is new to the user.
     act(() => replaceRoute({ kind: "database", database: "landing_shop" }, { newView: true }));
-    await vi.waitFor(() => expect(work.scrollTop).toBe(0));
+    act(() => vi.runAllTimers());
+    expect(work.scrollTop).toBe(0);
   });
 
   /** Scrolls the work area as the user would, so the position is recorded for the entry on screen. */
