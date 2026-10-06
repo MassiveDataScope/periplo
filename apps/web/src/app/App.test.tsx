@@ -507,19 +507,24 @@ describe("App", () => {
     fireEvent.click(back);
     // A real step back: the browser is on the first entry again, and no entry was added.
     await waitFor(() => expect(window.location.hash).toBe("#/d/landing_shop"));
-    expect(appHistory.currentIndex()).toBe(0);
     expect(window.history.length).toBe(length);
+    act(() => window.history.forward());
+    await waitFor(() => expect(window.location.hash).toBe("#/t/landing_shop/order"));
   });
 
   it("leaves a table opened from a direct link for its database in place, so Back does not return to it", async () => {
+    // The page the user followed the link from, outside the console's trail.
+    window.history.replaceState(null, "", "#/elsewhere");
+    window.history.pushState(null, "", "#/t/landing_shop/order");
     openTab("#/t/landing_shop/order");
     renderApp();
     const back = await screen.findByRole("link", { name: "Back to landing_shop" });
     const length = window.history.length;
     fireEvent.click(back);
     await waitFor(() => expect(window.location.hash).toBe("#/d/landing_shop"));
-    expect(appHistory.currentIndex()).toBe(0);
     expect(window.history.length).toBe(length);
+    act(() => window.history.back());
+    await waitFor(() => expect(window.location.hash).toBe("#/elsewhere"));
   });
 
   it("shows a shareable hash the moment 'Join with…' is clicked", async () => {

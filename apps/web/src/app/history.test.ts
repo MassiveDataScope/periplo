@@ -80,7 +80,6 @@ describe("history", () => {
     appHistory.dispose();
     navigate(database);
     expect(appHistory.previousHash()).toBeNull();
-    expect(appHistory.currentIndex()).toBe(0);
   });
 
   it("tells a new entry, a replacement and a step back apart", async () => {
@@ -90,26 +89,27 @@ describe("history", () => {
     replaceRoute({ ...table, tab: "details" });
     expect(appHistory.lastMove()).toBe("replace");
     window.history.back();
-    await vi.waitFor(() => expect(appHistory.currentIndex()).toBe(1));
-    expect(appHistory.lastMove()).toBe("traversal");
+    await vi.waitFor(() => expect(appHistory.lastMove()).toBe("traversal"));
+    expect(window.location.hash).toBe("#/d/landing_shop");
     expect(appHistory.previousHash()).toBe("#/");
   });
 
   it("counts a replacement that opens another view as a new entry, in the same place of the trail", () => {
     navigate(table);
+    const length = window.history.length;
     replaceRoute(database, { newView: true });
     expect(appHistory.lastMove()).toBe("new");
-    expect(appHistory.currentIndex()).toBe(1);
+    expect(window.history.length).toBe(length);
     expect(appHistory.previousHash()).toBe("#/");
   });
 
   it("tells its listeners about every move, once the trail is up to date", () => {
-    const seen: number[] = [];
-    const unsubscribe = appHistory.subscribe(() => seen.push(appHistory.currentIndex()));
+    const seen: (string | null)[] = [];
+    const unsubscribe = appHistory.subscribe(() => seen.push(appHistory.previousHash()));
     navigate(database);
     replaceRoute(table);
     unsubscribe();
     navigate(database);
-    expect(seen).toEqual([1, 1]);
+    expect(seen).toEqual(["#/", "#/"]);
   });
 });

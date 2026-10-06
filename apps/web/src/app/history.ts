@@ -17,9 +17,12 @@ export type HistoryMove = "new" | "traversal" | "replace";
 export type ReplacementMove = Extract<HistoryMove, "new" | "replace">;
 
 export interface HistoryRegistry {
-  /** Starts following the browser: stamps the entry it is on and listens to its hashchanges. Once, at startup. */
+  /** Starts following the browser: stamps the entry it is on and listens to its hashchanges. At startup; a second call does nothing. */
   install(): void;
-  /** Stops following the browser and forgets the trail in memory; session storage keeps it, as for a reload of the tab. */
+  /**
+   * The test reset: stops following the browser and forgets the trail in memory, while session storage keeps
+   * it, so `dispose()` then `install()` is a reload of the tab. The console itself never disposes.
+   */
   dispose(): void;
   /**
    * Called right after the hash changed (`navigate`, `replaceRoute`), so the trail and its listeners do not
@@ -27,8 +30,6 @@ export interface HistoryRegistry {
    */
   sync(replacedAs?: ReplacementMove): void;
   subscribe(listener: () => void): () => void;
-  /** The position of the entry the browser is on, in this tab's trail. */
-  currentIndex(): number;
   /** Names the entry the browser is on across every document of this tab, for state kept per entry (`document:index`). */
   currentEntryKey(): string;
   /** How the current entry was reached, so a view can restore its scroll on Back and start at the top on a new entry. */
@@ -65,7 +66,7 @@ function isHash(value: unknown): value is string {
   return typeof value === "string";
 }
 
-export function createHistoryRegistry(): HistoryRegistry {
+function createHistoryRegistry(): HistoryRegistry {
   /** The document whose trail this is; null until the registry first sees an entry. */
   let documentId: string | null = null;
   let current = 0;
@@ -147,7 +148,6 @@ export function createHistoryRegistry(): HistoryRegistry {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    currentIndex: () => current,
     currentEntryKey: () => `${documentId ?? ""}:${current}`,
     lastMove: () => reachedBy,
     previousHash: () => entries[current - 1] ?? null,

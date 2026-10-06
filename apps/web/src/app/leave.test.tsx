@@ -25,9 +25,11 @@ describe("leave", () => {
     navigate(table);
     const length = window.history.length;
     goBackTo(database);
-    await vi.waitFor(() => expect(appHistory.currentIndex()).toBe(1));
-    expect(window.location.hash).toBe("#/d/landing_shop");
+    await vi.waitFor(() => expect(window.location.hash).toBe("#/d/landing_shop"));
     expect(window.history.length).toBe(length);
+    // A real step back: the table is still ahead, one Forward away.
+    window.history.forward();
+    await vi.waitFor(() => expect(window.location.hash).toBe("#/t/landing_shop/orders"));
   });
 
   it("steps back to the table on whatever tab it was left on, so Close does not walk through tabs", async () => {
@@ -47,7 +49,7 @@ describe("leave", () => {
     goBackTo(database);
     expect(window.location.hash).toBe("#/d/landing_shop");
     expect(window.history.length).toBe(length);
-    expect(appHistory.currentIndex()).toBe(1);
+    expect(appHistory.previousHash()).toBe("#/");
     // Another view on screen: it starts at the top rather than keeping the scroll of the one left.
     expect(appHistory.lastMove()).toBe("new");
   });
@@ -107,7 +109,6 @@ describe("leave", () => {
       navigate(table);
       expect(clickBack(init)).toBe(false);
       expect(window.location.hash).toBe("#/t/landing_shop/orders");
-      expect(appHistory.currentIndex()).toBe(1);
     });
   });
 });
