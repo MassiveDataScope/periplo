@@ -37,7 +37,8 @@ import {
 } from "./join-model";
 import { SqlReceipt } from "./SqlReceipt";
 import { TableCard, type Armed, type BandRow } from "./TableCard";
-import { readJoinTable, useJoinFromUrl } from "./useJoinFromUrl";
+import { readJoinTable } from "./join-tables";
+import { useJoinFromUrl } from "./useJoinFromUrl";
 import styles from "./JoinWorkspace.module.css";
 
 export interface JoinWorkspaceProps {

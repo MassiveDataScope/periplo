@@ -1,22 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { wantOnce, type TableFactsStore } from "../../api/table-facts";
+import type { TableFactsStore } from "../../api/table-facts";
 import { replaceRoute } from "../../app/routes";
 import { startJoin, type JoinDefinition, type JoinTable } from "./join-model";
 import { decodeJoinSpec, encodeJoinSpec, restoreJoin, type DroppedFromSpec } from "./join-spec";
+import { readJoinTable } from "./join-tables";
 
 /** What the workspace says about the link a join came from: it could not be read, or parts of it were left out. */
 export type RestoreNotice = ({ readonly kind: "dropped" } & DroppedFromSpec) | { readonly kind: "broken" };
-
-/** A table as a join reads it from the catalog, or null when it cannot be read now. */
-export async function readJoinTable(tableFacts: TableFactsStore, database: string, table: string): Promise<JoinTable | null> {
-  try {
-    const snapshot = await wantOnce(tableFacts, database, table, ["detail"]);
-    return snapshot.detail?.kind === "ready" ? { database, table, columns: snapshot.detail.value.fields } : null;
-  } catch {
-    // An unreadable table is reported by the caller as such, not as a failure of the workspace.
-    return null;
-  }
-}
 
 export interface JoinFromUrl {
   readonly def: JoinDefinition | null;
