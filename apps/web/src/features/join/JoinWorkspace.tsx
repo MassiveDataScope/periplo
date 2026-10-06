@@ -37,6 +37,7 @@ import {
 } from "./join-model";
 import { SqlReceipt } from "./SqlReceipt";
 import { TableCard, type Armed, type BandRow } from "./TableCard";
+import { MAX_STEPS } from "./join-spec";
 import { readJoinTable } from "./join-tables";
 import { RestoreNotice } from "./RestoreNotice";
 import { useJoinFromUrl } from "./useJoinFromUrl";
@@ -145,7 +146,8 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
   const claimedArm = useRef(false);
   const boardRef = useRef<HTMLDivElement>(null);
   const bandNodes = useRef(new Map<string, HTMLElement>());
-  const pickerOpen = pickerChoice ?? (def === null || def.joins.length === 0);
+  const atLimit = def !== null && def.joins.length >= MAX_STEPS;
+  const pickerOpen = !atLimit && (pickerChoice ?? (def === null || def.joins.length === 0));
   const pickerId = useId();
 
   useEffect(() => {
@@ -347,7 +349,15 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
                 {entry2.table.table}
               </span>
             ))}
-            <button type="button" className={styles.addTable} aria-expanded={pickerOpen} aria-controls={pickerId} onClick={() => setPickerOpen(!pickerOpen)}>
+            <button
+              type="button"
+              className={styles.addTable}
+              aria-expanded={pickerOpen}
+              aria-controls={pickerId}
+              disabled={atLimit}
+              title={atLimit ? t("join.addTableLimit", { count: MAX_STEPS }) : undefined}
+              onClick={() => setPickerOpen(!pickerOpen)}
+            >
               <Icon name="insert" /> {t("join.addTable")}
             </button>
           </div>

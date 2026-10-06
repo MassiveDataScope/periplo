@@ -1,7 +1,7 @@
 import { baseAlias, canPair, defaultOutput, joinedTables, tableAlias, type JoinDefinition, type JoinKind, type JoinPairRef, type JoinStep, type JoinTable } from "./join-model";
 
-/** The most tables a link may add to its base; a longer one reads as broken rather than costing a catalog read each. */
-const MAX_STEPS = 16;
+/** The most tables a join may add to its base: the workspace stops there, and a longer link reads as broken rather than costing a catalog read each. */
+export const MAX_STEPS = 16;
 
 /** One pair of a step: `alias.column` of a table earlier in the join, equal to `right` of the step's own table. */
 export interface JoinSpecPair {

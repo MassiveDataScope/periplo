@@ -274,6 +274,7 @@
     "less": "▴ less",
     "more": "▸ {{count}} more columns · {{selected}} selected",
     "addTable": "Add table",
+    "addTableLimit": "A join holds at most {{count}} tables besides this one.",
     "pickerSearch": "Find a table to add",
     "pickPlaceholder": "pieces of a table name",
     "unreadable": "That table could not be read.",

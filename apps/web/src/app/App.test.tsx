@@ -583,6 +583,18 @@ describe("App", () => {
     await waitFor(() => expect(receipt.textContent).toContain("LEFT JOIN landing_shop.orders AS o2 ON o.order_id = o2.order_id"));
   });
 
+  it("stops adding tables at the most a join link can carry, and says why", async () => {
+    renderApp();
+    const step = (n: number) => ({ database: "landing_shop", table: "orders", alias: `s${n}`, kind: "left", on: [{ alias: "o", column: "order_id", right: "order_id" }] });
+    const spec = { v: 2, steps: Array.from({ length: 16 }, (_, n) => step(n)), output: {} };
+    const text = btoa(JSON.stringify(spec)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    await goTo(`#/join/landing_shop/order?spec=${text}`);
+    await waitFor(() => expect(screen.getByLabelText("SQL this join runs").textContent).toContain("AS o17 ON"));
+    const addTable = screen.getByRole("button", { name: "Add table" });
+    expect(addTable.hasAttribute("disabled")).toBe(true);
+    expect(addTable.getAttribute("title")).toBe("A join holds at most 16 tables besides this one.");
+  });
+
   it("says so when a join link cannot be read, and starts from the table instead", async () => {
     renderApp();
     await goTo("#/join/landing_shop/order?spec=not-a-join");
