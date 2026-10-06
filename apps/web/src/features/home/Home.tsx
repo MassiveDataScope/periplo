@@ -139,7 +139,8 @@ export function Home({ catalog, preferences, dependencies, brand, troubledSource
       <header className={styles.header}>
         {brand.logoUrl ? <img className={styles.brandLogo} src={brand.logoUrl} alt="" /> : <Logo size="lg" className={styles.homeLogo} />}
         <div>
-          <h2 className={styles.title}>{brand.name ? t("home.brandLake", { brand: brand.name }) : t("home.yourLake")}
+          <h2 className={styles.title}>
+            {brand.name ? t("home.brandLake", { brand: brand.name }) : t("home.yourLake")}
             <TitleMark />
           </h2>
           <p className={styles.summary}>
