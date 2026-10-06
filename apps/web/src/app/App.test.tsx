@@ -12,6 +12,7 @@ import { App } from "./App";
 import { createDependencies } from "./dependencies";
 import { appHistory } from "./history";
 import { createPreferences, type PreferencesStore } from "./preferences";
+import { navigate } from "./routes";
 import { createI18n } from "../i18n";
 
 const release = vi.hoisted(() => ({ etlUnderConstruction: false }));
@@ -74,16 +75,22 @@ beforeAll(() => {
   }
 });
 
-beforeEach(() => {
-  window.location.hash = "";
-  release.etlUnderConstruction = false;
-  // A fresh tab for every test: `main` installs the trail once, before the console renders.
+/** Opens the console in a fresh browser tab on `hash`: `main` installs the trail once, before the console renders. */
+function openTab(hash = ""): void {
+  appHistory.dispose();
   sessionStorage.clear();
+  window.history.replaceState(null, "", `${window.location.pathname}${hash}`);
   appHistory.install();
+}
+
+beforeEach(() => {
+  release.etlUnderConstruction = false;
+  openTab();
 });
 afterEach(() => {
   cleanup();
   appHistory.dispose();
+  vi.restoreAllMocks();
 });
 
 const QUERY_ID = "0b9f6a3e-4a53-4c1e-9d0b-0d3f6f1c2a11";
@@ -492,18 +499,27 @@ describe("App", () => {
   });
 
   it("steps back for real from 'Back to …' when that is where the table was opened from", async () => {
-    window.location.hash = "#/d/landing_shop";
+    openTab("#/d/landing_shop");
     renderApp();
-    // Generous waits: the database page reads the catalog first, slow on a cold, busy test run.
-    await screen.findByRole("heading", { level: 2, name: "landing_shop" }, { timeout: 10_000 });
-    act(() => {
-      window.location.hash = "#/t/landing_shop/order";
-    });
-    const back = await screen.findByRole("link", { name: "Back to landing_shop" }, { timeout: 10_000 });
-    const historyBack = vi.spyOn(window.history, "back").mockImplementation(() => undefined);
+    act(() => navigate({ kind: "table", database: "landing_shop", table: "order", tab: "data" }));
+    const back = await screen.findByRole("link", { name: "Back to landing_shop" });
+    const length = window.history.length;
     fireEvent.click(back);
-    expect(historyBack).toHaveBeenCalledOnce();
-    historyBack.mockRestore();
+    // A real step back: the browser is on the first entry again, and no entry was added.
+    await waitFor(() => expect(window.location.hash).toBe("#/d/landing_shop"));
+    expect(appHistory.currentIndex()).toBe(0);
+    expect(window.history.length).toBe(length);
+  });
+
+  it("leaves a table opened from a direct link for its database in place, so Back does not return to it", async () => {
+    openTab("#/t/landing_shop/order");
+    renderApp();
+    const back = await screen.findByRole("link", { name: "Back to landing_shop" });
+    const length = window.history.length;
+    fireEvent.click(back);
+    await waitFor(() => expect(window.location.hash).toBe("#/d/landing_shop"));
+    expect(appHistory.currentIndex()).toBe(0);
+    expect(window.history.length).toBe(length);
   });
 
   it("shows a shareable hash the moment 'Join with…' is clicked", async () => {
