@@ -121,5 +121,3 @@ export function TablePage({ dependencies, preferences, catalog, database, table,
     </div>
   );
 }
-
-/** A short name for a route, for "Back to …". */
