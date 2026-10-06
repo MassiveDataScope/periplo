@@ -3,7 +3,7 @@ import { readSessionJson, writeSessionJson } from "./session-json";
 /**
  * The trail of this browser tab, so "Back to …" and "Close" can step back for real instead of pushing a
  * new entry (which made Back bounce between two screens). Every entry carries its position in
- * `history.state`, and session storage maps positions to hashes: both survive a reload of the tab, and
+ * `history.state`, with the document that made it, and session storage maps each document's positions to hashes: both survive a reload of the tab, and
  * both stay right through the browser's own Back and Forward.
  *
  * A hashchange without a position is a new entry (a link or `navigate`); one with a position is the
@@ -35,22 +35,37 @@ export interface HistoryRegistry {
   previousHash(): string | null;
 }
 
-const STORAGE_KEY = "periplo.history";
-const STATE_KEY = "periploIndex";
+const INDEX_KEY = "periploIndex";
+const DOCUMENT_KEY = "periploDocument";
+
+/** Where an entry sits: the document that made it (one per fresh open of the console in this tab; a reload keeps it) and its position in that document's trail. */
+interface Stamp {
+  readonly document: string;
+  readonly index: number;
+}
+
+function stampOf(state: unknown): Stamp | null {
+  if (!state || typeof state !== "object") return null;
+  const { [INDEX_KEY]: index, [DOCUMENT_KEY]: id } = state as Record<string, unknown>;
+  return typeof index === "number" && typeof id === "string" ? { document: id, index } : null;
+}
+
+/** Unique enough within one browser tab; `crypto.randomUUID` needs a secure context the console may not have. */
+function newDocumentId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function storageKey(id: string): string {
+  return `periplo.history.${id}`;
+}
 
 function isHash(value: unknown): value is string {
   return typeof value === "string";
 }
 
-function indexOfState(state: unknown): number | null {
-  if (state && typeof state === "object" && STATE_KEY in state) {
-    const value = (state as Record<string, unknown>)[STATE_KEY];
-    return typeof value === "number" ? value : null;
-  }
-  return null;
-}
-
 export function createHistoryRegistry(): HistoryRegistry {
+  /** The document whose trail this is; null until the registry first sees an entry. */
+  let documentId: string | null = null;
   let current = 0;
   let entries: Record<string, string> = {};
   let reachedBy: HistoryMove = "new";
@@ -60,28 +75,39 @@ export function createHistoryRegistry(): HistoryRegistry {
   /**
    * Brings the trail up to date with the entry the browser is on now, and says whether anything changed.
    * The hashchange of a push `navigate` already recorded brings nothing new and is ignored, so it is never
-   * mistaken for a replacement.
+   * mistaken for a replacement. Positions count within one document: an entry stamped by another one
+   * (reached again after a reload or a visit elsewhere) brings that document's own trail back.
    */
   function recordCurrentEntry(replacedAs: ReplacementMove = "replace"): boolean {
     const hash = window.location.hash || "#/";
-    const known = indexOfState(window.history.state);
-    if (known === null) {
-      // A new entry: everything that was ahead of the previous one is gone, as in the browser.
-      const index = installed ? current + 1 : 0;
+    const stamp = stampOf(window.history.state);
+    let trailDocument: string;
+    if (stamp === null) {
+      // A new entry, the first of a fresh document or one past the current entry: everything that was ahead is gone, as in the browser.
+      trailDocument = documentId ?? newDocumentId();
+      const index = documentId === null ? 0 : current + 1;
       for (const key of Object.keys(entries)) if (Number(key) >= index) delete entries[key];
-      window.history.replaceState({ ...(window.history.state as object | null), [STATE_KEY]: index }, "");
+      window.history.replaceState({ ...(window.history.state as object | null), [INDEX_KEY]: index, [DOCUMENT_KEY]: trailDocument }, "");
       current = index;
       reachedBy = "new";
-    } else if (installed && known === current) {
+    } else if (stamp.document !== documentId) {
+      trailDocument = stamp.document;
+      entries = readSessionJson(storageKey(trailDocument), isHash);
+      current = stamp.index;
+      reachedBy = "traversal";
+    } else if (stamp.index === current) {
+      trailDocument = stamp.document;
       if (entries[current] === hash) return false;
       reachedBy = replacedAs;
     } else {
+      trailDocument = stamp.document;
+      current = stamp.index;
       reachedBy = "traversal";
-      current = known;
     }
+    documentId = trailDocument;
     entries[current] = hash;
     // When the storage is full or blocked, the trail lives on in memory for this page.
-    writeSessionJson(STORAGE_KEY, entries);
+    writeSessionJson(storageKey(trailDocument), entries);
     return true;
   }
 
@@ -100,7 +126,6 @@ export function createHistoryRegistry(): HistoryRegistry {
   return {
     install() {
       if (installed) return;
-      entries = readSessionJson(STORAGE_KEY, isHash);
       recordCurrentEntry();
       installed = true;
       window.addEventListener("hashchange", onHashChange);
@@ -108,6 +133,7 @@ export function createHistoryRegistry(): HistoryRegistry {
     dispose() {
       if (installed) window.removeEventListener("hashchange", onHashChange);
       installed = false;
+      documentId = null;
       current = 0;
       entries = {};
       reachedBy = "new";

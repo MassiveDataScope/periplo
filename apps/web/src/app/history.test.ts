@@ -44,6 +44,38 @@ describe("history", () => {
     expect(appHistory.previousHash()).toBe("#/d/landing_shop");
   });
 
+  it("keeps the trail of another document apart: an entry from before a reload is not mixed with the new ones", () => {
+    navigate(database);
+    navigate(table);
+    const stampOfTable: unknown = window.history.state;
+    // The tab opens the console afresh (a new document, as after leaving the site and typing its address)…
+    appHistory.dispose();
+    window.history.replaceState(null, "", "#/sql");
+    appHistory.install();
+    navigate({ kind: "discovery" });
+    navigate({ kind: "etl" });
+    // …then the browser goes back into an entry of the first document, which loads it again.
+    appHistory.dispose();
+    window.history.replaceState(stampOfTable, "", "#/t/landing_shop/orders");
+    appHistory.install();
+    expect(appHistory.previousHash()).toBe("#/d/landing_shop");
+  });
+
+  it("does not mix entries of another document reached without a reload", () => {
+    navigate(database);
+    navigate(table);
+    const stampOfTable: unknown = window.history.state;
+    appHistory.dispose();
+    window.history.replaceState(null, "", "#/sql");
+    appHistory.install();
+    navigate({ kind: "discovery" });
+    navigate({ kind: "etl" });
+    window.history.replaceState(stampOfTable, "", "#/t/landing_shop/orders");
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    expect(appHistory.previousHash()).toBe("#/d/landing_shop");
+    expect(appHistory.lastMove()).toBe("traversal");
+  });
+
   it("follows the browser only once installed, and stops when disposed", () => {
     appHistory.dispose();
     navigate(database);
