@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Icon } from "@periplo/core/ui";
+import { Icon, TitleMark } from "@periplo/core/ui";
 import type { Crumb } from "../lake/crumbs";
 import type { Freshness } from "../lake/freshness";
 import { FreshnessMark } from "../lake/FreshnessMark";
@@ -47,6 +47,7 @@ export function TableHeader({ crumbs, back, titleId, title, freshness, stats, co
       <div className={styles.titleRow}>
         <h2 id={titleId} className={styles.title}>
           {title}
+          <TitleMark />
         </h2>
         {freshness?.lastWrite ? <FreshnessMark value={freshness} /> : null}
         <span className={styles.spacer} />

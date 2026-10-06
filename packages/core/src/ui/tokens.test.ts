@@ -32,42 +32,42 @@ describe("design tokens", () => {
     expect(colours.filter((match) => !match[2]?.startsWith("light-dark("))).toEqual([]);
   });
 
-  it("keeps --nt-color-state-ok readable (>= 3:1) against the page background and chrome surface, in both themes", () => {
-    const lightDark = (name: string): { light: string; dark: string } => {
-      const match = tokens.match(new RegExp(`${name}:\\s*light-dark\\(([^,]+),\\s*([^)]+)\\)`));
-      const [, light, dark] = match ?? [];
-      if (light === undefined || dark === undefined) throw new Error(`token ${name} not found`);
-      return { light: light.trim(), dark: dark.trim() };
-    };
+  const lightDark = (name: string): { light: string; dark: string } => {
+    const match = tokens.match(new RegExp(`${name}:\\s*light-dark\\(([^,]+),\\s*([^)]+)\\)`));
+    const [, light, dark] = match ?? [];
+    if (light === undefined || dark === undefined) throw new Error(`token ${name} not found`);
+    return { light: light.trim(), dark: dark.trim() };
+  };
 
-    const toRgb = (hex: string): readonly [number, number, number] => {
-      const value = hex.replace("#", "");
-      return [parseInt(value.slice(0, 2), 16), parseInt(value.slice(2, 4), 16), parseInt(value.slice(4, 6), 16)];
-    };
+  const toRgb = (hex: string): readonly [number, number, number] => {
+    const value = hex.replace("#", "");
+    return [parseInt(value.slice(0, 2), 16), parseInt(value.slice(2, 4), 16), parseInt(value.slice(4, 6), 16)];
+  };
 
-    const channelLuminance = (channel: number): number => {
-      const normalised = channel / 255;
-      return normalised <= 0.04045 ? normalised / 12.92 : ((normalised + 0.055) / 1.055) ** 2.4;
-    };
+  const channelLuminance = (channel: number): number => {
+    const normalised = channel / 255;
+    return normalised <= 0.04045 ? normalised / 12.92 : ((normalised + 0.055) / 1.055) ** 2.4;
+  };
 
-    const relativeLuminance = (hex: string): number => {
-      const [r, g, b] = toRgb(hex);
-      return 0.2126 * channelLuminance(r) + 0.7152 * channelLuminance(g) + 0.0722 * channelLuminance(b);
-    };
+  const relativeLuminance = (hex: string): number => {
+    const [r, g, b] = toRgb(hex);
+    return 0.2126 * channelLuminance(r) + 0.7152 * channelLuminance(g) + 0.0722 * channelLuminance(b);
+  };
 
-    const contrastRatio = (a: string, b: string): number => {
-      const [la, lb] = [relativeLuminance(a), relativeLuminance(b)];
-      return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
-    };
+  const contrastRatio = (a: string, b: string): number => {
+    const [la, lb] = [relativeLuminance(a), relativeLuminance(b)];
+    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+  };
 
-    const stateOk = lightDark("--nt-color-state-ok");
+  it.each(["--nt-color-state-ok", "--nt-color-brand"])("keeps %s readable (>= 3:1) against the page background and chrome surface, in both themes", (name) => {
+    const colour = lightDark(name);
     const bg = lightDark("--nt-color-bg");
     const surface = lightDark("--nt-color-surface");
 
-    expect(contrastRatio(stateOk.light, bg.light)).toBeGreaterThanOrEqual(3);
-    expect(contrastRatio(stateOk.light, surface.light)).toBeGreaterThanOrEqual(3);
-    expect(contrastRatio(stateOk.dark, bg.dark)).toBeGreaterThanOrEqual(3);
-    expect(contrastRatio(stateOk.dark, surface.dark)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(colour.light, bg.light)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(colour.light, surface.light)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(colour.dark, bg.dark)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(colour.dark, surface.dark)).toBeGreaterThanOrEqual(3);
   });
 
   it("defines the running-state tokens, with the marching stripe stopped under reduced motion", () => {

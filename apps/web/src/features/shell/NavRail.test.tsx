@@ -8,10 +8,20 @@ import { NavRail } from "./NavRail";
 
 const i18n = await createI18n();
 
-function renderRail(route: Route, etl: boolean, etlUnderConstruction = false) {
+function renderRail(route: Route, etl: boolean, etlUnderConstruction = false, preferences = createPreferences(undefined)) {
   render(
     <I18nextProvider i18n={i18n}>
-      <NavRail preferences={createPreferences(undefined)} route={route} troubled={0} etl={etl} etlUnderConstruction={etlUnderConstruction} theme="system" onThemeToggle={() => undefined} onSearch={() => undefined} onCatalog={() => undefined} />
+      <NavRail
+        preferences={preferences}
+        route={route}
+        troubled={0}
+        etl={etl}
+        etlUnderConstruction={etlUnderConstruction}
+        theme="system"
+        onThemeToggle={() => undefined}
+        onSearch={() => undefined}
+        onCatalog={() => undefined}
+      />
     </I18nextProvider>,
   );
   return within(screen.getByRole("navigation", { name: "Sections" }));
@@ -20,6 +30,20 @@ function renderRail(route: Route, etl: boolean, etlUnderConstruction = false) {
 afterEach(cleanup);
 
 describe("NavRail", () => {
+  it.each([false, true])("names the brand link after the product alone (collapsed: %s)", (railCollapsed) => {
+    const preferences = createPreferences(undefined);
+    preferences.update({ railCollapsed });
+    renderRail({ kind: "home" }, false, false, preferences);
+    const brand = screen.getByRole("link", { name: "Periplo" });
+    expect(brand.getAttribute("href")).toBe("#/");
+  });
+
+  it("marks only the section you are in as the current page", () => {
+    const rail = renderRail({ kind: "sql" }, true);
+    expect(rail.getByRole("link", { name: "SQL" }).getAttribute("aria-current")).toBe("page");
+    expect(rail.getAllByRole("link").filter((link) => link.getAttribute("aria-current") !== null)).toHaveLength(1);
+  });
+
   it("has no ETL section unless the integration is configured", () => {
     const rail = renderRail({ kind: "etl" }, false);
     expect(rail.queryByRole("link", { name: "ETL" })).toBeNull();
@@ -33,11 +57,14 @@ describe("NavRail", () => {
     expect(rail.getByRole("link", { name: "Home" }).getAttribute("aria-current")).toBe("page");
   });
 
-  it.each<Route>([{ kind: "etl" }, { kind: "etl-deployment", name: "daily-orders" }, { kind: "etl-run", id: "run-1" }])("marks ETL as the current section on %o", (route) => {
-    const rail = renderRail(route, true);
-    expect(rail.getByRole("link", { name: "ETL" }).getAttribute("aria-current")).toBe("page");
-    expect(rail.getByRole("link", { name: "Home" }).getAttribute("aria-current")).toBeNull();
-  });
+  it.each<Route>([{ kind: "etl" }, { kind: "etl-deployment", name: "daily-orders" }, { kind: "etl-run", id: "run-1" }])(
+    "marks ETL as the current section on %o",
+    (route) => {
+      const rail = renderRail(route, true);
+      expect(rail.getByRole("link", { name: "ETL" }).getAttribute("aria-current")).toBe("page");
+      expect(rail.getByRole("link", { name: "Home" }).getAttribute("aria-current")).toBeNull();
+    },
+  );
 
   it.each([true, false])("shows ETL under construction, focusable but not a way in, whether or not it is configured (configured: %s)", (etl) => {
     const rail = renderRail({ kind: "home" }, etl, true);

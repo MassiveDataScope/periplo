@@ -106,10 +106,24 @@
   border: var(--nt-border-width) dashed var(--nt-color-border-strong);
 }
 
+/* Now: the brand's dot, the periscope looking at the present, on a hairline down the chart. */
 .nowline {
+  position: relative;
   inline-size: var(--nt-border-width);
   align-self: stretch;
-  background: var(--nt-color-text);
+  background: var(--nt-color-brand);
+}
+
+.nowline::before {
+  content: "";
+  position: absolute;
+  inset-block-start: calc(-1 * var(--nt-space-1));
+  inset-inline-start: 50%;
+  inline-size: var(--nt-space-2);
+  block-size: var(--nt-space-2);
+  border-radius: var(--nt-radius-full);
+  background: var(--nt-color-brand);
+  transform: translateX(-50%);
 }
 
 .axis {

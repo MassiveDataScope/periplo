@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, Dialog, ErrorNotice, Icon, Progress } from "@periplo/core/ui";
+import { Button, Dialog, ErrorNotice, Icon, Progress, TitleMark } from "@periplo/core/ui";
 import type { Dependencies } from "../../app/dependencies";
 import { href, navigate, useHashRoute } from "../../app/routes";
 import { formatAge } from "../../i18n/format";
@@ -391,7 +391,10 @@ function Loaded({
     <div className={styles.page} ref={widthRef} data-failed={stripVisible ? "" : undefined} role="region" aria-label={etl.name}>
       <header className={styles.header}>
         <div className={styles.headerMain}>
-          <h2 className={styles.title}>{etl.name}</h2>
+          <h2 className={styles.title}>
+            {etl.name}
+            <TitleMark />
+          </h2>
           <p className={styles.summaryLine}>
             <SummaryLine etl={etl} typical={typical} completed={completedCount} total={list.length} />
           </p>
