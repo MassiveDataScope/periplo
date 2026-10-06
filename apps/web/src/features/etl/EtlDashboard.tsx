@@ -2,7 +2,7 @@ import { useMemo, useRef, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 import { ErrorNotice, Icon, Progress } from "@periplo/core/ui";
 import type { Dependencies } from "../../app/dependencies";
-import { href, navigate, replaceRoute, useHashRoute, type EtlTab, type Route } from "../../app/routes";
+import { href, replaceRoute, useHashRoute, type EtlTab, type Route } from "../../app/routes";
 import { formatAge, formatClock } from "../../i18n/format";
 import { applyEtlFilters, DEFAULT_ETL_FILTERS, EtlFilters, type EtlFiltersState } from "./EtlFilters";
 import { Last12Bars } from "./Last12Bars";
@@ -131,8 +131,9 @@ function Dashboard({
     replaceRoute(routeFromFilters({ ...filters, q }, filters.tab));
   }
 
+  // Every filter replaces the entry, like the search and the tab: Back leaves the dashboard, not a filter.
   function onFiltersChange(changed: EtlFiltersState): void {
-    navigate(routeFromFilters(changed, filters.tab));
+    replaceRoute(routeFromFilters(changed, filters.tab));
   }
 
   function onTabChange(tab: EtlTab): void {

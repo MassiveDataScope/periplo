@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // `replaceRoute` reads and writes `window.location`; every other test here is plain data in, data out.
 import { afterEach, describe, expect, it } from "vitest";
-import { href, parseRoute, replaceRoute, type Route } from "./routes";
+import { href, parseRoute, replaceRoute, sameView, type Route } from "./routes";
 
 describe("routes", () => {
   it.each<Route>([
@@ -138,6 +138,20 @@ describe("routes", () => {
       } finally {
         window.removeEventListener("hashchange", onHashChange);
       }
+    });
+  });
+
+  describe("sameView", () => {
+    const orders: Route = { kind: "table", database: "landing_shop", table: "orders", tab: "data" };
+
+    it("counts a table on another tab as the same view: a tab is where you are in it, not another place", () => {
+      expect(sameView(orders, { ...orders, tab: "details" })).toBe(true);
+    });
+
+    it("tells apart another table, and any other route that is not the very same link", () => {
+      expect(sameView(orders, { ...orders, table: "customers" })).toBe(false);
+      expect(sameView({ kind: "etl" }, { kind: "etl", filters: { q: "orders" } })).toBe(false);
+      expect(sameView({ kind: "database", database: "landing_shop" }, { kind: "database", database: "landing_shop" })).toBe(true);
     });
   });
 });

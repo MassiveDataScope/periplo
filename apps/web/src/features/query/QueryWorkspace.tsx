@@ -4,9 +4,9 @@ import { useTranslation } from "react-i18next";
 import { useQuerySession } from "@periplo/core/api/react";
 import type { QueryExecution } from "@periplo/core/api";
 import { ResultsGrid } from "@periplo/core/grid";
-import { Button, ErrorNotice, Panel, StatusBar, type StatusItem } from "@periplo/core/ui";
+import { Button, ButtonLink, ErrorNotice, Panel, StatusBar, type StatusItem } from "@periplo/core/ui";
 import type { Dependencies } from "../../app/dependencies";
-import { navigate } from "../../app/routes";
+import { href } from "../../app/routes";
 import { isBusy, STATE_LABELS, toGridStatus, toneOf } from "../../api/status-mapping";
 import { formatCount } from "../../i18n/format";
 import type { Catalog } from "../catalog-tree/catalog-model";
@@ -59,7 +59,7 @@ export function QueryWorkspace({ dependencies, editorRef, catalog, sql, onSqlCha
         title={t("query.title")}
         actions={
           <>
-            <Button onClick={() => navigate({ kind: "join" })}>{t("join.startFromSql")}</Button>
+            <ButtonLink href={href({ kind: "join" })}>{t("join.startFromSql")}</ButtonLink>
             <Button variant="primary" disabled={!canRun} onClick={runQuery}>
               {t("data.run")}
             </Button>

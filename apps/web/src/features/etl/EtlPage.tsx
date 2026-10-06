@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Button, Dialog, ErrorNotice, Icon, Progress } from "@periplo/core/ui";
+import { isPlainLeftClick } from "../../app/clicks";
 import type { Dependencies } from "../../app/dependencies";
 import { href, navigate, useHashRoute } from "../../app/routes";
 import { formatAge } from "../../i18n/format";
@@ -1013,7 +1014,7 @@ function RunRow({ run, selected, failedProcess, onSelect }: { readonly run: Flow
           className={styles.runName}
           href={href({ kind: "etl-run", id: run.id })}
           onClick={(event) => {
-            if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            if (!isPlainLeftClick(event)) return;
             event.preventDefault();
             event.stopPropagation();
             onSelect();

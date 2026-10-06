@@ -10,7 +10,9 @@ import sourcesFixture from "../../dev/fixtures/sources.json";
 import etlFixture from "../../dev/fixtures/etl.json";
 import { App } from "./App";
 import { createDependencies } from "./dependencies";
+import { appHistory } from "./history";
 import { createPreferences, type PreferencesStore } from "./preferences";
+import { navigate } from "./routes";
 import { createI18n } from "../i18n";
 
 const release = vi.hoisted(() => ({ etlUnderConstruction: false }));
@@ -73,11 +75,23 @@ beforeAll(() => {
   }
 });
 
+/** Opens the console in a fresh browser tab on `hash`: `main` installs the trail once, before the console renders. */
+function openTab(hash = ""): void {
+  appHistory.dispose();
+  sessionStorage.clear();
+  window.history.replaceState(null, "", `${window.location.pathname}${hash}`);
+  appHistory.install();
+}
+
 beforeEach(() => {
-  window.location.hash = "";
   release.etlUnderConstruction = false;
+  openTab();
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  appHistory.dispose();
+  vi.restoreAllMocks();
+});
 
 const QUERY_ID = "0b9f6a3e-4a53-4c1e-9d0b-0d3f6f1c2a11";
 const FIELDS = [{ name: "order_id", type: "int64", nullable: false }];
@@ -474,12 +488,54 @@ describe("App", () => {
     await waitFor(() => expect(api.sql.at(-1)).toContain("o.region = o2.region"));
   });
 
+  it("changes a table's tab in place, so Back leaves the table instead of walking its tabs", async () => {
+    openTab("#/d/landing_shop");
+    renderApp();
+    act(() => navigate({ kind: "table", database: "landing_shop", table: "order", tab: "data" }));
+    await screen.findByText("9007199254740993");
+    const length = window.history.length;
+    fireEvent.click(screen.getByRole("tab", { name: "Details" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/t/landing_shop/order/details"));
+    expect(window.history.length).toBe(length);
+    act(() => window.history.back());
+    await waitFor(() => expect(window.location.hash).toBe("#/d/landing_shop"));
+  });
+
+  it("steps back for real from 'Back to …' when that is where the table was opened from", async () => {
+    openTab("#/d/landing_shop");
+    renderApp();
+    act(() => navigate({ kind: "table", database: "landing_shop", table: "order", tab: "data" }));
+    const back = await screen.findByRole("link", { name: "Back to landing_shop" });
+    const length = window.history.length;
+    fireEvent.click(back);
+    // A real step back: the browser is on the first entry again, and no entry was added.
+    await waitFor(() => expect(window.location.hash).toBe("#/d/landing_shop"));
+    expect(window.history.length).toBe(length);
+    act(() => window.history.forward());
+    await waitFor(() => expect(window.location.hash).toBe("#/t/landing_shop/order"));
+  });
+
+  it("leaves a table opened from a direct link for its database in place, so Back does not return to it", async () => {
+    // The page the user followed the link from, outside the console's trail.
+    window.history.replaceState(null, "", "#/elsewhere");
+    window.history.pushState(null, "", "#/t/landing_shop/order");
+    openTab("#/t/landing_shop/order");
+    renderApp();
+    const back = await screen.findByRole("link", { name: "Back to landing_shop" });
+    const length = window.history.length;
+    fireEvent.click(back);
+    await waitFor(() => expect(window.location.hash).toBe("#/d/landing_shop"));
+    expect(window.history.length).toBe(length);
+    act(() => window.history.back());
+    await waitFor(() => expect(window.location.hash).toBe("#/elsewhere"));
+  });
+
   it("shows a shareable hash the moment 'Join with…' is clicked", async () => {
-    window.location.hash = "#/t/landing_shop/order";
+    openTab("#/t/landing_shop/order");
     renderApp();
     await screen.findByText("9007199254740993");
-    fireEvent.click(screen.getByRole("button", { name: "Join with…" }));
-    expect(window.location.hash).toBe("#/join/landing_shop/order");
+    // A real link: Cmd+click opens the join in a new tab, and the address can be copied before clicking.
+    expect(screen.getByRole("link", { name: "Join with…" }).getAttribute("href")).toBe("#/join/landing_shop/order");
   });
 
   it("charts how a column is spread, only when asked, sizing it up before grouping by it", async () => {
