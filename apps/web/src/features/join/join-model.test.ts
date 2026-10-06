@@ -14,7 +14,6 @@ import {
   setKind,
   setOutput,
   startJoin,
-  suggestPairs,
   type JoinDefinition,
   type JoinTable,
 } from "./join-model";
@@ -67,27 +66,6 @@ function twoTable(): JoinDefinition {
   return addTable(startJoin(ORDERS), CUSTOMERS);
 }
 
-describe("suggestPairs", () => {
-  it("proposes identifier columns that share name and family, never a coincidence like created_at or note", () => {
-    expect(suggestPairs(ORDERS, CUSTOMERS)).toEqual([{ left: "customer_id", right: "customer_id" }]);
-  });
-
-  it("proposes nothing rather than something wrong", () => {
-    expect(suggestPairs(ORDERS, { ...CUSTOMERS, columns: [{ name: "customer_id", type: "string" }] })).toEqual([]);
-  });
-
-  it("finds the key when only one side spells it with the table's name", () => {
-    const customers = { ...CUSTOMERS, columns: [{ name: "id", type: "int64" }] };
-    expect(suggestPairs(ORDERS, { ...customers, table: "customer" })).toEqual([{ left: "customer_id", right: "id" }]);
-  });
-  it("ranks the key the added table owns first: orders reach customers by customer_id, not by a shared order_id", () => {
-    expect(suggestPairs(ORDERS, CUSTOMERS_WITH_ORDER_ID)).toEqual([
-      { left: "customer_id", right: "customer_id" },
-      { left: "order_id", right: "order_id" },
-    ]);
-  });
-});
-
 describe("canPair", () => {
   it("allows the same family and blocks different ones", () => {
     expect(canPair("int64", "int32")).toBe(true);
@@ -96,6 +74,20 @@ describe("canPair", () => {
 });
 
 describe("addTable / startJoin", () => {
+  it("proposes an identifier column that shares name and family, never a coincidence like created_at or note", () => {
+    expect(twoTable().joins[0]!.pairs).toEqual([{ left: { alias: "o", column: "customer_id" }, right: "customer_id" }]);
+  });
+
+  it("proposes nothing rather than something wrong", () => {
+    const def = addTable(startJoin(ORDERS), { ...CUSTOMERS, columns: [{ name: "customer_id", type: "string" }] });
+    expect(def.joins[0]!.pairs).toEqual([]);
+  });
+
+  it("finds the key when only one side spells it with the table's name", () => {
+    const def = addTable(startJoin(ORDERS), { ...CUSTOMERS, table: "customer", columns: [{ name: "id", type: "int64" }] });
+    expect(def.joins[0]!.pairs).toEqual([{ left: { alias: "o", column: "customer_id" }, right: "id" }]);
+  });
+
   it("suggests pairs against any table already in the join, not only the base", () => {
     const threeTable = addTable(twoTable(), PAYMENTS);
     const paymentsStep = threeTable.joins[1]!;

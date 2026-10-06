@@ -444,7 +444,7 @@ describe("App", () => {
 
   it("offers a likely match on a compact card, paired without ever opening it", async () => {
     // "region" shares a name and a family on both tables but is not identifier-looking, so
-    // `suggestPairs` leaves it alone (unlike order_id): it is there to be armed and paired by hand.
+    // `addTable` never proposes it (unlike order_id): it is there to be armed and paired by hand.
     const api = renderApp(
       fakeApi({
         "GET /api/v1/catalog/tables/landing_shop/order": () =>

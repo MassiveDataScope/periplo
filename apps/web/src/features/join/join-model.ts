@@ -12,11 +12,6 @@ export interface JoinTable {
   readonly columns: readonly JoinColumn[];
 }
 
-export interface JoinPair {
-  readonly left: string;
-  readonly right: string;
-}
-
 /** `left` keeps every row of the table the step joins onto; `inner` keeps only rows found on both sides. */
 export type JoinKind = "left" | "inner";
 
@@ -72,42 +67,36 @@ function namesTable(column: string, table: string): boolean {
  * relation, read the other way (one order, many payments). A shared identifier name alone says nothing
  * about which side owns it.
  */
-const enum PairRank {
-  SharedName = 1,
-  OwnedByEarlier = 2,
-  OwnedByAdded = 3,
-}
+type PairRank = "shared-name" | "owned-by-earlier" | "owned-by-added";
+
+const PAIR_WEIGHT: Readonly<Record<PairRank, number>> = { "shared-name": 1, "owned-by-earlier": 2, "owned-by-added": 3 };
 
 function rankPair(mine: JoinColumn, theirs: JoinColumn, left: JoinTable, right: JoinTable): PairRank | null {
   if (!canPair(mine.type, theirs.type)) return null;
-  if (namesTable(mine.name, right.table) && (theirs.name === mine.name || theirs.name.toLowerCase() === "id")) return PairRank.OwnedByAdded;
-  if (namesTable(theirs.name, left.table) && (mine.name === theirs.name || mine.name.toLowerCase() === "id")) return PairRank.OwnedByEarlier;
-  if (mine.name === theirs.name && isIdentifierName(mine.name)) return PairRank.SharedName;
+  if (namesTable(mine.name, right.table) && (theirs.name === mine.name || theirs.name.toLowerCase() === "id")) return "owned-by-added";
+  if (namesTable(theirs.name, left.table) && (mine.name === theirs.name || mine.name.toLowerCase() === "id")) return "owned-by-earlier";
+  if (mine.name === theirs.name && isIdentifierName(mine.name)) return "shared-name";
   return null;
 }
 
-interface RankedPair extends JoinPair {
-  readonly rank: PairRank;
-}
-
-function rankedPairs(left: JoinTable, right: JoinTable): RankedPair[] {
-  return left.columns
-    .flatMap((mine) =>
-      right.columns.flatMap((theirs) => {
-        const rank = rankPair(mine, theirs, left, right);
-        return rank === null ? [] : [{ left: mine.name, right: theirs.name, rank }];
-      }),
-    )
-    .sort((a, b) => b.rank - a.rank);
+/** A candidate key between a column of a table already in the join (`left`) and one of the table being added (`right`). */
+interface RankedPair {
+  readonly left: string;
+  readonly right: string;
+  readonly weight: number;
 }
 
 /**
- * Keys worth proposing, the likeliest relation first: identifier-looking columns of the same family that
- * share a name, or an `id` that the other side names after this table. Sharing `created_at` or `note` is a
- * coincidence, not a key. Works between any two tables, whichever positions they hold in the join.
+ * Keys worth proposing between two tables: identifier-looking columns of the same family that share a name, or
+ * an `id` that the other side names after its table. Sharing `created_at` or `note` is a coincidence, not a key.
  */
-export function suggestPairs(left: JoinTable, right: JoinTable): JoinPair[] {
-  return rankedPairs(left, right).map(({ left: l, right: r }) => ({ left: l, right: r }));
+function rankedPairs(left: JoinTable, right: JoinTable): RankedPair[] {
+  return left.columns.flatMap((mine) =>
+    right.columns.flatMap((theirs) => {
+      const rank = rankPair(mine, theirs, left, right);
+      return rank === null ? [] : [{ left: mine.name, right: theirs.name, weight: PAIR_WEIGHT[rank] }];
+    }),
+  );
 }
 
 /** The initial of a table name, or `t` when it starts with nothing lettered. */
@@ -146,6 +135,17 @@ function tablesInOrder(def: JoinDefinition): readonly { readonly alias: string; 
 /** Every table already in the join, paired with the alias it was given, base first: what a workspace draws one card per. */
 export const joinedTables = tablesInOrder;
 
+/** The likeliest key between a table being added and any table already in the join; on a tie, the earlier table and column win. */
+function bestPair(def: JoinDefinition, table: JoinTable): JoinPairRef | null {
+  let best: { readonly ref: JoinPairRef; readonly weight: number } | null = null;
+  for (const { alias, table: earlier } of tablesInOrder(def)) {
+    for (const pair of rankedPairs(earlier, table)) {
+      if (best === null || pair.weight > best.weight) best = { ref: { left: { alias, column: pair.left }, right: pair.right }, weight: pair.weight };
+    }
+  }
+  return best?.ref ?? null;
+}
+
 /**
  * Adds a table to a join: gives it a fresh alias, suggests pairs against every table already present, and
  * starts its output with every column except the ones its own suggested pairs would show a second time.
@@ -155,10 +155,8 @@ export function addTable(def: JoinDefinition, table: JoinTable, kind: JoinKind =
   const alias = tableAlias(table, taken);
   // One key, the likeliest relation against any table already present: ANDing every shared id would
   // join on columns that are not the relation and silently drop rows. More keys are paired by hand.
-  const best = tablesInOrder(def)
-    .flatMap(({ alias: otherAlias, table: other }) => rankedPairs(other, table).map((pair) => ({ alias: otherAlias, pair })))
-    .reduce<{ readonly alias: string; readonly pair: RankedPair } | null>((top, next) => (top === null || next.pair.rank > top.pair.rank ? next : top), null);
-  const pairs: JoinPairRef[] = best ? [{ left: { alias: best.alias, column: best.pair.left }, right: best.pair.right }] : [];
+  const best = bestPair(def, table);
+  const pairs: readonly JoinPairRef[] = best ? [best] : [];
   const keys = new Set(pairs.map((pair) => pair.right));
   const step: JoinStep = { alias, table, kind, pairs };
   return {

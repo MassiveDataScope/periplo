@@ -126,7 +126,7 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
   const [def, setDef] = useState<JoinDefinition | null>(null);
   const [armed, setArmed] = useState<Armed | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
-  /** Pair keys (`alias:column`) that came from `suggestPairs`, untouched since: dashed in the band and the wires. */
+  /** Pair keys (`alias:column`) that `addTable` proposed, untouched since: dashed in the band and the wires. */
   const [suggestedKeys, setSuggestedKeys] = useState<ReadonlySet<string>>(new Set());
   const [status, setStatus] = useState("");
   const [pickerOpen, setPickerOpen] = useState(true);
