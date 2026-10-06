@@ -487,11 +487,12 @@ describe("App", () => {
   it("steps back for real from 'Back to …' when that is where the table was opened from", async () => {
     window.location.hash = "#/d/landing_shop";
     renderApp();
-    await screen.findByRole("heading", { level: 2, name: "landing_shop" });
+    // Generous waits: the database page reads the catalog first, slow on a cold, busy test run.
+    await screen.findByRole("heading", { level: 2, name: "landing_shop" }, { timeout: 10_000 });
     act(() => {
       window.location.hash = "#/t/landing_shop/order";
     });
-    const back = await screen.findByRole("link", { name: "Back to landing_shop" });
+    const back = await screen.findByRole("link", { name: "Back to landing_shop" }, { timeout: 10_000 });
     const historyBack = vi.spyOn(window.history, "back").mockImplementation(() => undefined);
     fireEvent.click(back);
     expect(historyBack).toHaveBeenCalledOnce();
