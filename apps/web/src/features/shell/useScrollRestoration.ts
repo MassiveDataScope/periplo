@@ -34,15 +34,17 @@ export function useScrollRestoration(ref: RefObject<HTMLElement | null>): void {
     };
 
     const onScroll = () => {
-      positions[appHistory.currentIndex()] = element.scrollTop;
+      positions[appHistory.currentEntryKey()] = element.scrollTop;
     };
     const onUserIntent = () => cancel();
     const onMove = () => {
       cancel();
-      savePositions(positions);
       const move = appHistory.lastMove();
+      // A new entry may take the place of one cut off from the trail: that one's position is not its own.
+      if (move === "new") delete positions[appHistory.currentEntryKey()];
+      savePositions(positions);
       if (move === "replace") return;
-      const target = move === "traversal" ? (positions[appHistory.currentIndex()] ?? 0) : 0;
+      const target = positions[appHistory.currentEntryKey()] ?? 0;
       timers = RETRIES_MS.map((delay) =>
         window.setTimeout(() => {
           element.scrollTop = target;

@@ -29,6 +29,8 @@ export interface HistoryRegistry {
   subscribe(listener: () => void): () => void;
   /** The position of the entry the browser is on, in this tab's trail. */
   currentIndex(): number;
+  /** Names the entry the browser is on across every document of this tab, for state kept per entry (`document:index`). */
+  currentEntryKey(): string;
   /** How the current entry was reached, so a view can restore its scroll on Back and start at the top on a new entry. */
   lastMove(): HistoryMove;
   /** The hash of the entry before this one, in this tab; null on a fresh open or a direct link. */
@@ -146,6 +148,7 @@ export function createHistoryRegistry(): HistoryRegistry {
       return () => listeners.delete(listener);
     },
     currentIndex: () => current,
+    currentEntryKey: () => `${documentId ?? ""}:${current}`,
     lastMove: () => reachedBy,
     previousHash: () => entries[current - 1] ?? null,
   };

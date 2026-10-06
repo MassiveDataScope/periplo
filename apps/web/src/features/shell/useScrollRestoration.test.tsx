@@ -54,4 +54,48 @@ describe("useScrollRestoration", () => {
     act(() => replaceRoute({ kind: "database", database: "landing_shop" }, { newView: true }));
     await vi.waitFor(() => expect(work.scrollTop).toBe(0));
   });
+
+  /** Scrolls the work area as the user would, so the position is recorded for the entry on screen. */
+  function scrollTo(work: HTMLElement, top: number): void {
+    work.scrollTop = top;
+    work.dispatchEvent(new Event("scroll"));
+  }
+
+  it("does not give a reopened console the positions of the console it replaced in this tab", async () => {
+    render(<Work />);
+    act(() => navigate({ kind: "database", database: "landing_shop" }));
+    scrollTo(screen.getByRole("main", { name: "Work area" }), 640);
+    act(() => navigate({ kind: "sql" }));
+    cleanup();
+
+    // The console opens afresh in the same tab: positions count from the start again, in a new document.
+    appHistory.dispose();
+    window.history.replaceState(null, "", "#/");
+    appHistory.install();
+    render(<Work />);
+    const work = screen.getByRole("main", { name: "Work area" });
+    act(() => navigate({ kind: "discovery" }));
+    act(() => navigate({ kind: "etl" }));
+    work.scrollTop = 123; // where the user left the page, not recorded as a position
+    act(() => window.history.back());
+    await vi.waitFor(() => expect(work.scrollTop).toBe(0));
+  });
+
+  it("starts a new entry from scratch, even in the place of a scrolled entry it cut off", async () => {
+    render(<Work />);
+    const work = screen.getByRole("main", { name: "Work area" });
+    act(() => navigate({ kind: "database", database: "landing_shop" }));
+    act(() => navigate({ kind: "table", database: "landing_shop", table: "orders", tab: "data" }));
+    scrollTo(work, 640);
+    act(() => window.history.back());
+    await vi.waitFor(() => expect(window.location.hash).toBe("#/d/landing_shop"));
+
+    // A new entry takes the place of the scrolled table, which is gone from the trail.
+    act(() => navigate({ kind: "sql" }));
+    act(() => navigate({ kind: "discovery" }));
+    work.scrollTop = 123;
+    act(() => window.history.back());
+    await vi.waitFor(() => expect(window.location.hash).toBe("#/sql"));
+    await vi.waitFor(() => expect(work.scrollTop).toBe(0));
+  });
 });
