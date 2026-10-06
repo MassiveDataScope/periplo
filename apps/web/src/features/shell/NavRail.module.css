@@ -37,7 +37,6 @@
   block-size: var(--nt-size-control-lg);
 }
 
-
 .wordmark {
   block-size: 1.375rem;
 }
@@ -109,14 +108,13 @@ nav.items {
   cursor: not-allowed;
 }
 
-/* Where you are: a quiet surface and the brand's dot at the edge, the periscope's lens saying "here".
-   The weight and the surface carry it on their own; the dot is the signature, not the only signal. */
+/* Where you are: the strong weight says it without colour, the hover surface stays on, and the brand's
+   dot at the edge is the periscope's lens saying "here" — a signature, not the signal. */
 .item[aria-current="page"],
 .item[data-current="true"] {
-  position: relative;
   background: var(--nt-color-surface-hover);
   color: var(--nt-color-text);
-  font-weight: var(--nt-font-weight-medium);
+  font-weight: var(--nt-font-weight-strong);
 }
 
 .item[aria-current="page"]::before,
@@ -132,12 +130,6 @@ nav.items {
   transform: translateY(-50%);
 }
 
-.item[aria-current="page"]:hover,
-.item[data-current="true"]:hover {
-  background: var(--nt-color-surface-hover);
-  color: var(--nt-color-text);
-}
-
 .brand:focus-visible,
 .item:focus-visible {
   outline: var(--nt-focus-width) solid var(--nt-color-focus);
@@ -151,8 +143,9 @@ nav.items {
   inline-size: var(--nt-space-2);
   block-size: var(--nt-space-2);
   border-radius: var(--nt-radius-full);
-  /* Something to look at, not the brand: orange is kept for the logo's dot. */
-  background: var(--nt-color-accent);
+  /* A warning, so the warning colour: the brand's orange marks the logo, title stops, the current entry
+     and "now" on a timeline, never a status. */
+  background: var(--nt-color-warning);
 }
 
 /* Whose lake this is: the company's name under the product mark. */

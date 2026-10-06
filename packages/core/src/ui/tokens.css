@@ -97,7 +97,7 @@
   --nt-font-size-figure: 1.125rem; /* NEW 18 — figures strip values */
   --nt-font-weight-regular: 400; /* NEW */
   --nt-font-weight-medium: 500; /* NEW selected items, column names, tabs */
-  --nt-font-weight-strong: 600; /* titles only */
+  --nt-font-weight-strong: 600; /* titles and the current rail entry */
   --nt-font-line-height: 1.45;
   --nt-font-line-height-tight: 1.2; /* NEW single-line rows, headers */
   --nt-font-tracking-caps: 0.08em; /* NEW for xs uppercase overlines (mono-caps instrument labels) */
