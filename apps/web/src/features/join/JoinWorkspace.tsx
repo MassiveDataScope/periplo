@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { settled, useQuerySession } from "@periplo/core/api/react";
 import type { ResultBuffer } from "@periplo/core/arrow";
@@ -6,7 +6,6 @@ import { Button, ErrorNotice, Icon, Progress, typeFamily } from "@periplo/core/u
 import type { Dependencies } from "../../app/dependencies";
 import type { PreferencesStore } from "../../app/preferences";
 import { href, navigate, type Route } from "../../app/routes";
-import { wantOnce } from "../../api/table-facts";
 import { tableKey, type Catalog } from "../catalog-tree/catalog-model";
 import { matchTokens } from "../catalog-tree/names";
 import { ResultPane } from "../table/data/ResultPane";
@@ -30,7 +29,6 @@ import {
   removeTable,
   setKind,
   setOutput,
-  startJoin,
   type CheckJoinResult,
   type JoinDefinition,
   type JoinKind,
@@ -39,6 +37,10 @@ import {
 } from "./join-model";
 import { SqlReceipt } from "./SqlReceipt";
 import { TableCard, type Armed, type BandRow } from "./TableCard";
+import { MAX_STEPS } from "./join-spec";
+import { readJoinTable } from "./join-tables";
+import { RestoreNotice } from "./RestoreNotice";
+import { useJoinFromUrl } from "./useJoinFromUrl";
 import styles from "./JoinWorkspace.module.css";
 
 export interface JoinWorkspaceProps {
@@ -49,6 +51,9 @@ export interface JoinWorkspaceProps {
   readonly table: string;
   /** A column of the base table to arm on arrival ("Join on this column…"), claimed once. */
   readonly arm?: string;
+  /** The whole join from the URL (`encodeJoinSpec`): restored on arrival, then kept up to date in place. */
+  readonly spec?: string;
+  /** Where the workspace was opened from, read once on arrival: each edit replaces the URL, and must not move it. */
   readonly back: Route | null;
   /** Hands the join's SQL to the free SQL workspace, the same way Home and the database page do. */
   onOpenInEditor(sql: string): void;
@@ -118,18 +123,21 @@ function ownerOf(def: JoinDefinition, a: JoinPairSide, b: JoinPairSide): JoinPai
  * and a live SQL receipt. Owns its own query sessions (Run and Check are independent), so it survives
  * leaving the table's Data tab.
  */
-export function JoinWorkspace({ dependencies, preferences, catalog, database, table, arm, back, onOpenInEditor }: JoinWorkspaceProps) {
+export function JoinWorkspace({ dependencies, preferences, catalog, database, table, arm, spec, back, onOpenInEditor }: JoinWorkspaceProps) {
   const { t, i18n } = useTranslation();
+  const [backTo] = useState(back);
   const facts = useTableFacts(dependencies, database, table, ["detail", "stats", "history"]);
   const detail = useMemo(() => facts.detail ?? { kind: "loading" as const }, [facts.detail]);
 
-  const [def, setDef] = useState<JoinDefinition | null>(null);
+  const base = useMemo<JoinTable | null>(() => (detail.kind === "ready" ? { database, table, columns: detail.value.fields } : null), [detail, database, table]);
+  const { def, setDef, notice: restoreNotice } = useJoinFromUrl(dependencies.tableFacts, base, spec);
   const [armed, setArmed] = useState<Armed | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   /** Pair keys (`alias:column`) that `addTable` proposed, untouched since: dashed in the band and the wires. */
   const [suggestedKeys, setSuggestedKeys] = useState<ReadonlySet<string>>(new Set());
-  const [status, setStatus] = useState("");
-  const [pickerOpen, setPickerOpen] = useState(true);
+  const [status, announce] = useState("");
+  /** Open or closed by hand; until then, open while the join has no other table to show. */
+  const [pickerChoice, setPickerOpen] = useState<boolean | null>(null);
   const [search, setSearch] = useState("");
   const [pickError, setPickError] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -138,11 +146,9 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
   const claimedArm = useRef(false);
   const boardRef = useRef<HTMLDivElement>(null);
   const bandNodes = useRef(new Map<string, HTMLElement>());
-
-  useEffect(() => {
-    if (def !== null || detail.kind !== "ready") return;
-    setDef(startJoin({ database, table, columns: detail.value.fields }));
-  }, [def, detail, database, table]);
+  const atLimit = def !== null && def.joins.length >= MAX_STEPS;
+  const pickerOpen = !atLimit && (pickerChoice ?? (def === null || def.joins.length === 0));
+  const pickerId = useId();
 
   useEffect(() => {
     if (claimedArm.current || def === null || detail.kind !== "ready") return;
@@ -153,8 +159,6 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
     setArmed({ alias: baseAlias({ base: def.base }), column: field.name, type: field.type });
     setPickerOpen(false);
   }, [def, detail, arm]);
-
-  const announce = (message: string) => setStatus(message);
 
   const session = useQuerySession(dependencies.createQuerySession);
   const checkSession = useQuerySession(dependencies.createQuerySession);
@@ -182,15 +186,13 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
     markStale();
   };
 
-  /** Marks the pair a person just made by hand as no longer a suggestion: it draws solid, not dashed. */
+  /** A pair key (`alias:column`) that is no longer a suggestion: made by hand it draws solid, removed it goes. */
+  const forgetSuggestion = (key: string) => setSuggestedKeys((current) => new Set([...current].filter((entry) => entry !== key)));
+
   const markManual = (a: JoinPairSide, b: JoinPairSide) => {
     if (!def) return;
     const owner = ownerOf(def, a, b);
-    setSuggestedKeys((current) => {
-      const next = new Set(current);
-      next.delete(`${owner.alias}:${owner.column}`);
-      return next;
-    });
+    forgetSuggestion(`${owner.alias}:${owner.column}`);
   };
 
   const pairFromCard = (a: JoinPairSide, b: JoinPairSide) => {
@@ -200,33 +202,24 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
 
   const removeOnePair = (owner: string, rightColumn: string) => {
     mutate((current) => removePair(current, owner, rightColumn));
-    setSuggestedKeys((current) => {
-      const next = new Set(current);
-      next.delete(`${owner}:${rightColumn}`);
-      return next;
-    });
+    forgetSuggestion(`${owner}:${rightColumn}`);
   };
 
   const pick = async (otherDatabase: string, otherTable: string) => {
     setPickError(false);
     if (!def) return;
-    try {
-      const snapshot = await wantOnce(dependencies.tableFacts, otherDatabase, otherTable, ["detail"]);
-      if (snapshot.detail?.kind !== "ready") throw new Error("unreadable");
-      const picked: JoinTable = { database: otherDatabase, table: otherTable, columns: snapshot.detail.value.fields };
-      const next = addTable(def, picked);
-      const newStep = next.joins.at(-1);
-      setDef(next);
-      markStale();
-      if (newStep) {
-        const added = newStep.pairs.map((pair) => `${newStep.alias}:${pair.right}`);
-        setSuggestedKeys((current) => new Set([...current, ...added]));
-      }
-      setPickerOpen(false);
-      setSearch("");
-    } catch {
+    const picked = await readJoinTable(dependencies.tableFacts, otherDatabase, otherTable);
+    if (!picked) {
       setPickError(true);
+      return;
     }
+    const next = addTable(def, picked);
+    const step = next.joins.at(-1);
+    setDef(next);
+    markStale();
+    if (step) setSuggestedKeys((current) => new Set([...current, ...step.pairs.map((pair) => `${step.alias}:${pair.right}`)]));
+    setPickerOpen(false);
+    setSearch("");
   };
 
   const choices = useMemo(() => {
@@ -320,7 +313,7 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
     <div className={styles.page}>
       <TableHeader
         crumbs={crumbs}
-        back={back ? { href: href(back), label: table } : null}
+        back={backTo ? { href: href(backTo), label: table } : null}
         title={t("join.workspaceTitle", { table })}
         freshness={facts.freshness}
         stats={stats}
@@ -335,6 +328,7 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
       </p>
 
       {detail.kind === "failed" ? <ErrorNotice title={t("table.unreadable")} error={detail.error} /> : null}
+      {restoreNotice ? <RestoreNotice notice={restoreNotice} /> : null}
       {detail.kind === "loading" ? <Progress label={t("table.loading", { table })} /> : null}
 
       {def && collapsed ? (
@@ -355,42 +349,58 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
                 {entry2.table.table}
               </span>
             ))}
-            <span className={styles.pickerWrap}>
-              <button type="button" className={styles.addTable} aria-expanded={pickerOpen} onClick={() => setPickerOpen((open) => !open)}>
-                <Icon name="insert" /> {t("join.addTable")}
-              </button>
-              {pickerOpen ? (
-                <span className={styles.picker}>
-                  <label className={styles.finder}>
-                    <Icon name="search" />
-                    <input
-                      type="search"
-                      autoFocus
-                      aria-label={t("join.pickerSearch")}
-                      placeholder={t("join.pickPlaceholder")}
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                    />
-                  </label>
-                  {pickError ? (
-                    <p role="alert" className={styles.warning}>
-                      {t("join.unreadable")}
-                    </p>
-                  ) : null}
-                  <ul className={styles.choices}>
-                    {choices.map((candidate) => (
-                      <li key={tableKey(candidate)}>
-                        <button type="button" className={styles.choice} onClick={() => void pick(candidate.database, candidate.name)}>
-                          <span className={styles.dim}>{candidate.database}.</span>
-                          {candidate.name}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </span>
-              ) : null}
-            </span>
+            <button
+              type="button"
+              className={styles.addTable}
+              aria-expanded={pickerOpen}
+              aria-controls={pickerId}
+              disabled={atLimit}
+              title={atLimit ? t("join.addTableLimit", { count: MAX_STEPS }) : undefined}
+              onClick={() => setPickerOpen(!pickerOpen)}
+            >
+              <Icon name="insert" /> {t("join.addTable")}
+            </button>
           </div>
+
+          {/* In the page, not floating: it pushes the tables down instead of covering them. */}
+          {pickerOpen ? (
+            <div id={pickerId} className={styles.pickerRow}>
+              <label className={styles.finder}>
+                <Icon name="search" />
+                <input
+                  type="search"
+                  autoFocus
+                  aria-label={t("join.pickerSearch")}
+                  placeholder={t("join.pickPlaceholder")}
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Escape") return;
+                    event.preventDefault();
+                    setPickerOpen(false);
+                    setSearch("");
+                  }}
+                />
+              </label>
+              {pickError ? (
+                <p role="alert" className={styles.warning}>
+                  {t("join.unreadable")}
+                </p>
+              ) : null}
+              {choices.length > 0 ? (
+                <ul className={styles.choices}>
+                  {choices.map((candidate) => (
+                    <li key={tableKey(candidate)}>
+                      <button type="button" className={styles.choice} onClick={() => void pick(candidate.database, candidate.name)}>
+                        <span className={styles.dim}>{candidate.database}.</span>
+                        {candidate.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className={styles.board} ref={boardRef} onPointerMove={onBoardPointerMove} onPointerUp={() => setDrag(null)}>
             <Connectors board={boardRef} nodes={bandNodes.current} links={links} live={liveWire} />

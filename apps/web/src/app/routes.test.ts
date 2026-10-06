@@ -75,6 +75,13 @@ describe("routes", () => {
     expect(parseRoute("#/join/landing_shop/orders?arm=")).toEqual({ kind: "join", database: "landing_shop", table: "orders" });
   });
 
+  it("carries the whole join in `?spec=`, next to the column armed on arrival", () => {
+    const route: Route = { kind: "join", database: "landing_shop", table: "orders", spec: "eyJ2IjoyLCJzdGVwcyI6W10sIm91dHB1dCI6e319" };
+    expect(href(route)).toBe("#/join/landing_shop/orders?spec=eyJ2IjoyLCJzdGVwcyI6W10sIm91dHB1dCI6e319");
+    expect(parseRoute("#/join/landing_shop/orders?spec=eyJ2IjoyLCJzdGVwcyI6W10sIm91dHB1dCI6e319")).toEqual(route);
+    expect(parseRoute("#/join/landing_shop/orders?arm=id&spec=eyJ2IjoyLCJzdGVwcyI6W10sIm91dHB1dCI6e319")).toEqual({ ...route, arm: "id" });
+  });
+
   it("reads one segment under etl as a deployment name, even when that name is `runs`", () => {
     expect(parseRoute("#/etl")).toEqual({ kind: "etl" });
     expect(parseRoute("#/etl/")).toEqual({ kind: "etl" });

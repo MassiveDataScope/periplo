@@ -37,7 +37,8 @@ export type Route =
   | { readonly kind: "discovery" }
   /** The join workspace, starting from this table: its own route, so a cross of several tables can be shared and survives a tab change. */
   /** Without a base table the workspace starts by asking for one. `arm` is the column "Join on this column…" armed on arrival (`?arm=`). */
-  | { readonly kind: "join"; readonly database?: string; readonly table?: string; readonly arm?: string }
+  /** `spec` is the whole join (`encodeJoinSpec`), kept up to date with replaced entries so it survives a reload and can be shared. */
+  | { readonly kind: "join"; readonly database?: string; readonly table?: string; readonly arm?: string; readonly spec?: string }
   /** The ETL section: every deployment the orchestrator exposes to this lake. `filters` is absent for a plain link, present once the dashboard's own filters are carried in the URL. */
   | { readonly kind: "etl"; readonly filters?: EtlRouteFilters }
   /** One deployment by name. One segment is always a name, even when it reads `runs`. `run` is the run selected in the URL (`?run=`), absent for the default selection rules. */
@@ -53,8 +54,10 @@ export function parseRoute(hash: string): Route {
     return { kind: "table", database: rest[0], table: rest[1], tab };
   }
   if (section === "join" && rest.length === 2 && rest[0] && rest[1]) {
-    const arm = new URLSearchParams(search).get("arm");
-    return arm ? { kind: "join", database: rest[0], table: rest[1], arm } : { kind: "join", database: rest[0], table: rest[1] };
+    const params = new URLSearchParams(search);
+    const arm = params.get("arm");
+    const spec = params.get("spec");
+    return { kind: "join", database: rest[0], table: rest[1], ...(arm ? { arm } : {}), ...(spec ? { spec } : {}) };
   }
   if (section === "join" && (rest.length === 0 || (rest.length === 1 && !rest[0]))) return { kind: "join" };
   if (section === "d" && rest.length === 1 && rest[0]) return { kind: "database", database: rest[0] };
@@ -93,14 +96,21 @@ function parseEtlRoute(rest: readonly string[], search: string | undefined): Rou
   return { kind: "home" };
 }
 
+function joinHref(route: Extract<Route, { readonly kind: "join" }>): string {
+  if (!route.database || !route.table) return "#/join";
+  const params = new URLSearchParams();
+  if (route.arm) params.set("arm", route.arm);
+  if (route.spec) params.set("spec", route.spec);
+  const query = params.toString();
+  return `#/join/${encodeURIComponent(route.database)}/${encodeURIComponent(route.table)}${query ? `?${query}` : ""}`;
+}
+
 export function href(route: Route): string {
   switch (route.kind) {
     case "table":
       return `#/t/${encodeURIComponent(route.database)}/${encodeURIComponent(route.table)}${route.tab === "data" ? "" : `/${route.tab}`}`;
     case "join":
-      return route.database && route.table
-        ? `#/join/${encodeURIComponent(route.database)}/${encodeURIComponent(route.table)}${route.arm ? `?arm=${encodeURIComponent(route.arm)}` : ""}`
-        : "#/join";
+      return joinHref(route);
     case "database":
       return `#/d/${encodeURIComponent(route.database)}`;
     case "layer":

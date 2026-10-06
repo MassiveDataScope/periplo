@@ -12,6 +12,7 @@ import { App } from "./App";
 import { createDependencies } from "./dependencies";
 import { createPreferences, type PreferencesStore } from "./preferences";
 import { createI18n } from "../i18n";
+import { encodeJoinSpec } from "../features/join/join-spec";
 
 const release = vi.hoisted(() => ({ etlUnderConstruction: false }));
 vi.mock("./sections", () => ({
@@ -477,6 +478,128 @@ describe("App", () => {
     expect(orderCard.getByText("o.region = o2.region")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Run join" }));
     await waitFor(() => expect(api.sql.at(-1)).toContain("o.region = o2.region"));
+  });
+
+  it("keeps the join in the URL as it is built, in place, and rebuilds it from that link", async () => {
+    renderApp();
+    await goTo("#/join/landing_shop/order");
+    await screen.findByRole("heading", { level: 2, name: "Join · order" });
+    const length = window.history.length;
+
+    fireEvent.change(screen.getByLabelText("Find a table to add"), { target: { value: "shop orders" } });
+    fireEvent.click(await screen.findByRole("button", { name: /landing_shop\.orders/ }));
+    await waitFor(() => expect(window.location.hash).toMatch(/^#\/join\/landing_shop\/order\?spec=[A-Za-z0-9_-]+$/));
+    // Editing the join never adds a Back press.
+    expect(window.history.length).toBe(length);
+    const link = window.location.hash;
+
+    // The same link, opened fresh (a reload, a colleague, the way back from the SQL editor), finds the same join.
+    cleanup();
+    window.location.hash = "";
+    renderApp();
+    await goTo(link);
+    const receipt = await screen.findByLabelText("SQL this join runs");
+    await waitFor(() => expect(receipt.textContent).toContain("LEFT JOIN landing_shop.orders AS o2 ON o.order_id = o2.order_id"));
+  });
+
+  it("adds a table from a finder in the page that closes on Esc and once a table is picked", async () => {
+    renderApp();
+    await goTo("#/join/landing_shop/order");
+    await screen.findByRole("heading", { level: 2, name: "Join · order" });
+    // Opened on arrival, as before; Esc puts it away and the plain "Add table" brings it back.
+    fireEvent.keyDown(screen.getByLabelText("Find a table to add"), { key: "Escape" });
+    expect(screen.queryByLabelText("Find a table to add")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add table" }));
+    const controls = screen.getByRole("button", { name: "Add table" }).getAttribute("aria-controls");
+    expect(controls).toBeTruthy();
+    expect(document.getElementById(controls!)?.contains(screen.getByLabelText("Find a table to add"))).toBe(true);
+    fireEvent.change(screen.getByLabelText("Find a table to add"), { target: { value: "shop orders" } });
+    fireEvent.click(await screen.findByRole("button", { name: /landing_shop\.orders/ }));
+    await waitFor(() => expect(screen.queryByLabelText("Find a table to add")).toBeNull());
+    expect(screen.getByRole("button", { name: "Add table" }).getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("keeps the way back on the table the join started from, however often the join is edited", async () => {
+    window.location.hash = "#/t/landing_shop/order";
+    renderApp();
+    await screen.findByText("9007199254740993");
+    fireEvent.click(screen.getByRole("button", { name: "Join with…" }));
+    await screen.findByRole("heading", { level: 2, name: "Join · order" });
+    expect(screen.getByRole("link", { name: "Back to order" }).getAttribute("href")).toBe("#/t/landing_shop/order");
+
+    fireEvent.change(screen.getByLabelText("Find a table to add"), { target: { value: "shop orders" } });
+    fireEvent.click(await screen.findByRole("button", { name: /landing_shop\.orders/ }));
+    await waitFor(() => expect(window.location.hash).toMatch(/\?spec=/));
+    expect(screen.getByRole("link", { name: "Back to order" }).getAttribute("href")).toBe("#/t/landing_shop/order");
+  });
+
+  it("follows a join link opened over the same table instead of writing the old join back", async () => {
+    renderApp();
+    await goTo("#/join/landing_shop/order");
+    await screen.findByRole("heading", { level: 2, name: "Join · order" });
+    fireEvent.change(screen.getByLabelText("Find a table to add"), { target: { value: "shop orders" } });
+    fireEvent.click(await screen.findByRole("button", { name: /landing_shop\.orders/ }));
+    const receipt = await screen.findByLabelText("SQL this join runs");
+    await waitFor(() => expect(receipt.textContent).toContain("LEFT JOIN landing_shop.orders AS o2"));
+
+    const pasted = encodeJoinSpec({
+      base: { database: "landing_shop", table: "order", columns: [] },
+      joins: [
+        {
+          alias: "o2",
+          table: { database: "landing_shop", table: "orders", columns: [] },
+          kind: "inner",
+          pairs: [{ left: { alias: "o", column: "order_id" }, right: "order_id" }],
+        },
+      ],
+      output: {},
+    });
+    await goTo(`#/join/landing_shop/order?spec=${pasted}`);
+    await waitFor(() => expect(screen.getByLabelText("SQL this join runs").textContent).toContain("INNER JOIN landing_shop.orders AS o2 ON o.order_id = o2.order_id"));
+    expect(window.location.hash).toBe(`#/join/landing_shop/order?spec=${pasted}`);
+
+    // A plain link to the same table starts the join again rather than bringing the last one back.
+    await goTo("#/join/landing_shop/order");
+    await waitFor(() => expect(screen.getByLabelText("SQL this join runs").textContent).not.toContain("JOIN landing_shop.orders"));
+    expect(window.location.hash).toBe("#/join/landing_shop/order");
+  });
+
+  it("puts away the notice about a broken join link at the first edit", async () => {
+    renderApp();
+    await goTo("#/join/landing_shop/order?spec=not-a-join");
+    const notice = "This join link could not be read, so the join starts again from this table.";
+    expect(await screen.findByText(notice)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Find a table to add"), { target: { value: "shop orders" } });
+    fireEvent.click(await screen.findByRole("button", { name: /landing_shop\.orders/ }));
+    await waitFor(() => expect(screen.queryByText(notice)).toBeNull());
+  });
+
+  it("restores a join link whose alias is a name every object has, instead of a blank workspace", async () => {
+    renderApp();
+    const spec = { v: 2, steps: [{ database: "landing_shop", table: "orders", alias: "constructor", kind: "left", on: [{ alias: "o", column: "order_id", right: "order_id" }] }], output: {} };
+    const text = btoa(JSON.stringify(spec)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    await goTo(`#/join/landing_shop/order?spec=${text}`);
+    const receipt = await screen.findByLabelText("SQL this join runs");
+    await waitFor(() => expect(receipt.textContent).toContain("LEFT JOIN landing_shop.orders AS o2 ON o.order_id = o2.order_id"));
+  });
+
+  it("stops adding tables at the most a join link can carry, and says why", async () => {
+    renderApp();
+    const step = (n: number) => ({ database: "landing_shop", table: "orders", alias: `s${n}`, kind: "left", on: [{ alias: "o", column: "order_id", right: "order_id" }] });
+    const spec = { v: 2, steps: Array.from({ length: 16 }, (_, n) => step(n)), output: {} };
+    const text = btoa(JSON.stringify(spec)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    await goTo(`#/join/landing_shop/order?spec=${text}`);
+    await waitFor(() => expect(screen.getByLabelText("SQL this join runs").textContent).toContain("AS o17 ON"));
+    const addTable = screen.getByRole("button", { name: "Add table" });
+    expect(addTable.hasAttribute("disabled")).toBe(true);
+    expect(addTable.getAttribute("title")).toBe("A join holds at most 16 tables besides this one.");
+  });
+
+  it("says so when a join link cannot be read, and starts from the table instead", async () => {
+    renderApp();
+    await goTo("#/join/landing_shop/order?spec=not-a-join");
+    expect(await screen.findByText("This join link could not be read, so the join starts again from this table.")).toBeTruthy();
+    await waitFor(() => expect(window.location.hash).toBe("#/join/landing_shop/order"));
   });
 
   it("shows a shareable hash the moment 'Join with…' is clicked", async () => {

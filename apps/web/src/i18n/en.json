@@ -273,7 +273,8 @@
     "includeColumn": "Include {{column}} in the result",
     "less": "▴ less",
     "more": "▸ {{count}} more columns · {{selected}} selected",
-    "addTable": "+ Add table",
+    "addTable": "Add table",
+    "addTableLimit": "A join holds at most {{count}} tables besides this one.",
     "pickerSearch": "Find a table to add",
     "pickPlaceholder": "pieces of a table name",
     "unreadable": "That table could not be read.",
@@ -299,6 +300,11 @@
       "warn": "{{alias}} multiplies the row count: check for a duplicated key.",
       "bad": "{{alias}} multiplies the row count sharply: check for a duplicated key before running."
     },
+    "restoreBroken": "This join link could not be read, so the join starts again from this table.",
+    "restoreDroppedTables_one": "{{count}} table of this join could not be read and was left out.",
+    "restoreDroppedTables_other": "{{count}} tables of this join could not be read and were left out.",
+    "restoreDroppedKeys_one": "{{count}} key of this join no longer matches its tables and was left out.",
+    "restoreDroppedKeys_other": "{{count}} keys of this join no longer match their tables and were left out.",
     "relation": "Relation",
     "relationValue": {
       "one-to-one": "1 : 1",
