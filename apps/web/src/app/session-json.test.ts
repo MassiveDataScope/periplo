@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Session storage is a window API.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { readSessionJson, writeSessionJson } from "./session-json";
+import { readSessionJson, removeSessionJson, writeSessionJson } from "./session-json";
 
 const isString = (value: unknown): value is string => typeof value === "string";
 
@@ -14,6 +14,12 @@ describe("session JSON", () => {
   it("reads back what it wrote", () => {
     writeSessionJson("k", { 0: "#/", 1: "#/sql" });
     expect(readSessionJson("k", isString)).toEqual({ 0: "#/", 1: "#/sql" });
+  });
+
+  it("forgets what it removes", () => {
+    writeSessionJson("k", { 0: "#/" });
+    removeSessionJson("k");
+    expect(sessionStorage.getItem("k")).toBeNull();
   });
 
   it("reads nothing stored, broken JSON, an array or a scalar as an empty object", () => {
@@ -35,6 +41,7 @@ describe("session JSON", () => {
       throw new DOMException("blocked", "SecurityError");
     });
     expect(() => writeSessionJson("k", { 0: "#/" })).not.toThrow();
+    expect(() => removeSessionJson("k")).not.toThrow();
     expect(readSessionJson("k", isString)).toEqual({});
   });
 });

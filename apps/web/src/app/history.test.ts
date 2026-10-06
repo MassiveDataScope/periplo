@@ -76,6 +76,24 @@ describe("history", () => {
     expect(appHistory.lastMove()).toBe("traversal");
   });
 
+  it("keeps the trails of the last few documents only, so session storage does not grow with every reopening", () => {
+    const trails = () => Object.keys(sessionStorage).filter((key) => key.startsWith("periplo.history."));
+    let stampOfPrevious: unknown = null;
+    for (const hash of ["#/sql", "#/discovery", "#/etl", "#/d/a", "#/d/b", "#/d/c", "#/d/d"]) {
+      stampOfPrevious = window.history.state;
+      appHistory.dispose();
+      window.history.replaceState(null, "", hash);
+      appHistory.install();
+      navigate(database);
+    }
+    expect(trails()).toHaveLength(5);
+    // The document before this one still has its trail, for Back across the reopening.
+    appHistory.dispose();
+    window.history.replaceState(stampOfPrevious, "", "#/d/landing_shop");
+    appHistory.install();
+    expect(appHistory.previousHash()).toBe("#/d/c");
+  });
+
   it("follows the browser only once installed, and stops when disposed", () => {
     appHistory.dispose();
     navigate(database);

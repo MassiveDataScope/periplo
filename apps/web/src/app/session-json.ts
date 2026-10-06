@@ -14,6 +14,15 @@ export function readSessionJson<T>(key: string, isValue: (value: unknown) => val
   return Object.fromEntries(Object.entries(stored).filter((entry): entry is [string, T] => isValue(entry[1])));
 }
 
+/** Forgets a value kept in session storage; when the storage is blocked there is nothing to forget. */
+export function removeSessionJson(key: string): void {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    // Storage blocked: nothing was kept.
+  }
+}
+
 /** Writes a JSON object to session storage; when the storage is full or blocked, the caller keeps it in memory for this page. */
 export function writeSessionJson(key: string, value: Readonly<Record<string, unknown>>): void {
   try {

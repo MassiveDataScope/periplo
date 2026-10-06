@@ -1,4 +1,4 @@
-import { readSessionJson, writeSessionJson } from "./session-json";
+import { readSessionJson, removeSessionJson, writeSessionJson } from "./session-json";
 
 /**
  * The trail of this browser tab, so "Back to …" and "Close" can step back for real instead of pushing a
@@ -66,6 +66,26 @@ function isHash(value: unknown): value is string {
   return typeof value === "string";
 }
 
+/** The documents of this tab that keep a trail, each with the turn it was last in use. */
+const DOCUMENTS_KEY = "periplo.historyDocuments";
+/** Enough for Back across a few reopenings of the console, without session storage growing with every one. */
+const KEPT_DOCUMENTS = 5;
+
+function isTurn(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value);
+}
+
+/** Marks `id` as the document in use and forgets the trails of all but the most recently used ones. */
+function keepRecentDocuments(id: string): void {
+  const used = readSessionJson(DOCUMENTS_KEY, isTurn);
+  used[id] = Math.max(0, ...Object.values(used)) + 1;
+  const kept = Object.entries(used)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, KEPT_DOCUMENTS);
+  for (const stale of Object.keys(used)) if (!kept.some(([keptId]) => keptId === stale)) removeSessionJson(storageKey(stale));
+  writeSessionJson(DOCUMENTS_KEY, Object.fromEntries(kept));
+}
+
 function createHistoryRegistry(): HistoryRegistry {
   /** The document whose trail this is; null until the registry first sees an entry. */
   let documentId: string | null = null;
@@ -107,6 +127,7 @@ function createHistoryRegistry(): HistoryRegistry {
       current = stamp.index;
       reachedBy = "traversal";
     }
+    if (trailDocument !== documentId) keepRecentDocuments(trailDocument);
     documentId = trailDocument;
     entries[current] = hash;
     // When the storage is full or blocked, the trail lives on in memory for this page.
