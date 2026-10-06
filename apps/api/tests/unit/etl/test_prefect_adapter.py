@@ -1139,7 +1139,7 @@ async def test_flow_run_maps_run_count_retries_and_retry_delay() -> None:
 
 
 @pytest.mark.asyncio
-async def test_flow_run_falls_back_to_retry_delay_when_seconds_is_absent() -> None:
+async def test_flow_run_reads_retry_delay_without_the_deprecated_seconds() -> None:
     fake = FakePrefect()
     listing(
         fake,
@@ -1160,6 +1160,65 @@ async def test_flow_run_defaults_without_empirical_policy() -> None:
     run = deployment.last_run
     assert run is not None
     assert (run.run_count, run.retries, run.retry_delay_seconds) == (0, 0, 0.0)
+
+
+def prefect3_policy(**overrides: Any) -> dict[str, Any]:
+    """``empirical_policy`` exactly as Prefect 3.7 serialises ``FlowRunPolicy``.
+
+    ``retries`` and ``retry_delay`` are the live fields and are ``null`` for a flow with
+    no retry policy; ``max_retries`` and ``retry_delay_seconds`` are deprecated, always
+    present, and stay ``0`` even when the live fields are set.
+    """
+    base: dict[str, Any] = {
+        "max_retries": 0,
+        "retry_delay_seconds": 0.0,
+        "retries": None,
+        "retry_delay": None,
+        "pause_keys": [],
+        "resuming": False,
+        "retry_type": None,
+    }
+    return {**base, **overrides}
+
+
+@pytest.mark.asyncio
+async def test_prefect3_runs_with_and_without_a_retry_policy_list_together() -> None:
+    fake = FakePrefect()
+    resolvable(fake)
+    fake.on(
+        "POST",
+        "/flow_runs/filter",
+        [
+            run_json(id="run-1", run_count=1, empirical_policy=prefect3_policy()),
+            run_json(
+                id="run-2",
+                run_count=1,
+                empirical_policy=prefect3_policy(retries=3, retry_delay=10),
+            ),
+        ],
+    )
+
+    runs = await orchestrator(fake).list_runs("daily-orders", 25)
+
+    assert [(r.id, r.retries, r.retry_delay_seconds) for r in runs] == [
+        ("run-1", 0, 0.0),
+        ("run-2", 3, 10.0),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_retry_delay_wins_over_the_deprecated_retry_delay_seconds() -> None:
+    fake = FakePrefect()
+    resolvable(fake)
+    fake.on(
+        "POST",
+        "/flow_runs/filter",
+        [run_json(empirical_policy=prefect3_policy(retries=1, retry_delay=45))],
+    )
+
+    [run] = await orchestrator(fake).list_runs("daily-orders", 25)
+
+    assert (run.retries, run.retry_delay_seconds) == (1, 45.0)
 
 
 @pytest.mark.asyncio
