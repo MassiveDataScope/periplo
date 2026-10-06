@@ -37,7 +37,7 @@ import {
   type JoinPairSide,
   type JoinTable,
 } from "./join-model";
-import { decodeJoinSpec, encodeJoinSpec, restoreJoin } from "./join-spec";
+import { decodeJoinSpec, encodeJoinSpec, restoreJoin, type DroppedFromSpec } from "./join-spec";
 import { SqlReceipt } from "./SqlReceipt";
 import { TableCard, type Armed, type BandRow } from "./TableCard";
 import styles from "./JoinWorkspace.module.css";
@@ -143,7 +143,7 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
   const bandNodes = useRef(new Map<string, HTMLElement>());
 
   /** How many tables or keys of the join in the URL no longer exist: said once, not silently ignored. */
-  const [restoreNotice, setRestoreNotice] = useState<{ readonly kind: "dropped"; readonly count: number } | { readonly kind: "broken" } | null>(null);
+  const [restoreNotice, setRestoreNotice] = useState<({ readonly kind: "dropped" } & DroppedFromSpec) | { readonly kind: "broken" } | null>(null);
 
   // Arrival: the join in the URL is rebuilt from the tables as they read now; without one, just the base.
   useEffect(() => {
@@ -173,7 +173,7 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
       const restored = restoreJoin(base, decoded, (otherDatabase, otherTable) => read.get(`${otherDatabase}.${otherTable}`) ?? null);
       setDef(restored.def);
       setPickerOpen(restored.def.joins.length === 0);
-      if (restored.dropped > 0) setRestoreNotice({ kind: "dropped", count: restored.dropped });
+      if (restored.dropped.tables > 0 || restored.dropped.keys > 0) setRestoreNotice({ kind: "dropped", ...restored.dropped });
     })();
     return () => {
       cancelled = true;
@@ -382,7 +382,14 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
       {detail.kind === "failed" ? <ErrorNotice title={t("table.unreadable")} error={detail.error} /> : null}
       {restoreNotice ? (
         <p role="status" className={styles.warning}>
-          {restoreNotice.kind === "broken" ? t("join.restoreBroken") : t("join.restoreDropped", { count: restoreNotice.count })}
+          {restoreNotice.kind === "broken"
+            ? t("join.restoreBroken")
+            : [
+                restoreNotice.tables > 0 ? t("join.restoreDroppedTables", { count: restoreNotice.tables }) : "",
+                restoreNotice.keys > 0 ? t("join.restoreDroppedKeys", { count: restoreNotice.keys }) : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
         </p>
       ) : null}
       {detail.kind === "loading" ? <Progress label={t("table.loading", { table })} /> : null}
