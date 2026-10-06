@@ -48,6 +48,8 @@ describe("leave", () => {
     expect(window.location.hash).toBe("#/d/landing_shop");
     expect(window.history.length).toBe(length);
     expect(appHistory.currentIndex()).toBe(1);
+    // Another view on screen: it starts at the top rather than keeping the scroll of the one left.
+    expect(appHistory.lastMove()).toBe("new");
   });
 
   it("leads 'Back to …' where this tab came from, or to the view's parent on a direct link", () => {

@@ -13,14 +13,19 @@ import { readSessionJson, writeSessionJson } from "./session-json";
 
 /** How the browser reached the entry it is on: a new one, Back/Forward through known ones, or a replacement in place. */
 export type HistoryMove = "new" | "traversal" | "replace";
+/** How a replaced entry counts: in place (a tab, a filter), or as a new view (Close, a redirect). */
+export type ReplacementMove = Extract<HistoryMove, "new" | "replace">;
 
 export interface HistoryRegistry {
   /** Starts following the browser: stamps the entry it is on and listens to its hashchanges. Once, at startup. */
   install(): void;
   /** Stops following the browser and forgets the trail in memory; session storage keeps it, as for a reload of the tab. */
   dispose(): void;
-  /** Called right after the hash changed (`navigate`), so the trail and its listeners do not wait for the browser's hashchange. */
-  sync(): void;
+  /**
+   * Called right after the hash changed (`navigate`, `replaceRoute`), so the trail and its listeners do not
+   * wait for the browser's hashchange. `replacedAs` is how a replacement of the current entry counts.
+   */
+  sync(replacedAs?: ReplacementMove): void;
   subscribe(listener: () => void): () => void;
   /** The position of the entry the browser is on, in this tab's trail. */
   currentIndex(): number;
@@ -57,7 +62,7 @@ export function createHistoryRegistry(): HistoryRegistry {
    * The hashchange of a push `navigate` already recorded brings nothing new and is ignored, so it is never
    * mistaken for a replacement.
    */
-  function recordCurrentEntry(): boolean {
+  function recordCurrentEntry(replacedAs: ReplacementMove = "replace"): boolean {
     const hash = window.location.hash || "#/";
     const known = indexOfState(window.history.state);
     if (known === null) {
@@ -69,7 +74,7 @@ export function createHistoryRegistry(): HistoryRegistry {
       reachedBy = "new";
     } else if (installed && known === current) {
       if (entries[current] === hash) return false;
-      reachedBy = "replace";
+      reachedBy = replacedAs;
     } else {
       reachedBy = "traversal";
       current = known;
@@ -84,8 +89,12 @@ export function createHistoryRegistry(): HistoryRegistry {
     for (const listener of listeners) listener();
   }
 
+  function update(replacedAs?: ReplacementMove): void {
+    if (recordCurrentEntry(replacedAs)) notify();
+  }
+
   function onHashChange(): void {
-    if (recordCurrentEntry()) notify();
+    update();
   }
 
   return {
@@ -103,8 +112,8 @@ export function createHistoryRegistry(): HistoryRegistry {
       entries = {};
       reachedBy = "new";
     },
-    sync() {
-      if (installed) onHashChange();
+    sync(replacedAs) {
+      if (installed) update(replacedAs);
     },
     subscribe(listener) {
       listeners.add(listener);

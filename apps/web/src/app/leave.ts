@@ -16,7 +16,7 @@ export function previousRoute(): Route | null {
 export function goBackTo(destination: Route): void {
   const previous = previousRoute();
   if (previous && sameView(previous, destination)) window.history.back();
-  else replaceRoute(destination);
+  else replaceRoute(destination, { newView: true });
 }
 
 /** Where "Back to …" leads from a view: the entry this tab came from, or the view's parent when there is none. */

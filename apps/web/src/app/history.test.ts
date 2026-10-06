@@ -63,6 +63,14 @@ describe("history", () => {
     expect(appHistory.previousHash()).toBe("#/");
   });
 
+  it("counts a replacement that opens another view as a new entry, in the same place of the trail", () => {
+    navigate(table);
+    replaceRoute(database, { newView: true });
+    expect(appHistory.lastMove()).toBe("new");
+    expect(appHistory.currentIndex()).toBe(1);
+    expect(appHistory.previousHash()).toBe("#/");
+  });
+
   it("tells its listeners about every move, once the trail is up to date", () => {
     const seen: number[] = [];
     const unsubscribe = appHistory.subscribe(() => seen.push(appHistory.currentIndex()));

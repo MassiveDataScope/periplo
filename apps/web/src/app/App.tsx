@@ -79,7 +79,7 @@ function Console({ dependencies, preferences, etl }: AppProps & { readonly etl: 
   // Without the integration the ETL routes do not exist: anyone landing on one goes Home.
   useEffect(() => {
     // A redirect replaces the entry: Back must not land on the ETL route only to be sent away again.
-    if (etlRoute && etl.kind === "ready" && !etl.value.configured) replaceRoute({ kind: "home" });
+    if (etlRoute && etl.kind === "ready" && !etl.value.configured) replaceRoute({ kind: "home" }, { newView: true });
   }, [etlRoute, etl]);
 
   const openTable = route.kind === "table" ? tableKey({ database: route.database, name: route.table }) : null;

@@ -158,14 +158,20 @@ export function navigate(route: Route): void {
   appHistory.sync();
 }
 
+export interface ReplaceOptions {
+  /** The replacement opens another view (Close, a redirect) rather than changing the one on screen: it starts at the top. */
+  readonly newView?: boolean;
+}
+
 /**
  * Same destination as `navigate`, but as a replaced history entry: for filters and other state that
  * should follow a link, not pile up Back presses. `replaceState` does not fire `hashchange` on its
  * own, so this dispatches one, which is all `useHashRoute` needs to pick up the new hash.
  */
-export function replaceRoute(route: Route): void {
+export function replaceRoute(route: Route, { newView = false }: ReplaceOptions = {}): void {
   const url = new URL(window.location.href);
   url.hash = href(route);
   window.history.replaceState(window.history.state, "", url);
+  appHistory.sync(newView ? "new" : "replace");
   window.dispatchEvent(new HashChangeEvent("hashchange"));
 }
