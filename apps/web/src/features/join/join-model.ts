@@ -282,8 +282,8 @@ function prevOn(step: JoinStep): string {
 /**
  * One read-only statement, a `UNION ALL` of one row per step, each counting: rows matched, rows of the
  * chain before this step without a match here, rows of this table without a match in the chain, and the
- * row count after this step joins in, and how many key values repeat on each side (what tells a lookup
- * from a fan-out). The multiplication factor is not a column: `readCheckJoin` derives it from `matched`,
+ * row count after this step joins in, and how many key values that find a match repeat on each side (what
+ * tells a lookup from a fan-out). The multiplication factor is not a column: `readCheckJoin` derives it from `matched`,
  * `left_without_match` and `rows_after_join`, the way the SQL never needs a division.
  */
 export function buildCheckJoinSql(def: JoinDefinition): { readonly ok: true; readonly sql: string } | { readonly ok: false } {
@@ -295,14 +295,17 @@ export function buildCheckJoinSql(def: JoinDefinition): { readonly ok: true; rea
     const firstRight = step.pairs[0]!.right;
     const prevKeys = step.pairs.map((_pair, index) => `prev.${quoteIdentifier(`k${index}`)}`).join(", ");
     const ownKeys = step.pairs.map((pair) => `${step.alias}.${quoteIdentifier(pair.right)}`).join(", ");
+    // Only a key that finds a match on the other side can multiply rows; equality on every pair also skips a NULL in any key.
+    const matchedHere = `EXISTS (SELECT 1 FROM ${table} AS ${step.alias} WHERE ${on})`;
+    const matchedInChain = `EXISTS (SELECT 1 FROM ${prev} WHERE ${on})`;
     return [
       `SELECT ${index} AS step_order, '${step.alias.replaceAll("'", "''")}' AS step,`,
       `  (SELECT COUNT(*) FROM ${prev} INNER JOIN ${table} AS ${step.alias} ON ${on}) AS matched,`,
       `  (SELECT COUNT(*) FROM ${prev} LEFT JOIN ${table} AS ${step.alias} ON ${on} WHERE ${step.alias}.${quoteIdentifier(firstRight)} IS NULL) AS left_without_match,`,
       `  (SELECT COUNT(*) FROM ${table} AS ${step.alias} LEFT JOIN ${prev} ON ${on} WHERE prev.${quoteIdentifier("k0")} IS NULL) AS right_without_match,`,
       `  (SELECT COUNT(*) FROM ${prev} ${step.kind === "left" ? "LEFT" : "INNER"} JOIN ${table} AS ${step.alias} ON ${on}) AS rows_after_join,`,
-      `  (SELECT COUNT(*) FROM (SELECT ${prevKeys} FROM ${prev} WHERE prev.${quoteIdentifier("k0")} IS NOT NULL GROUP BY ${prevKeys} HAVING COUNT(*) > 1) AS repeated) AS left_repeated_keys,`,
-      `  (SELECT COUNT(*) FROM (SELECT ${ownKeys} FROM ${table} AS ${step.alias} WHERE ${step.alias}.${quoteIdentifier(firstRight)} IS NOT NULL GROUP BY ${ownKeys} HAVING COUNT(*) > 1) AS repeated) AS right_repeated_keys`,
+      `  (SELECT COUNT(*) FROM (SELECT ${prevKeys} FROM ${prev} WHERE ${matchedHere} GROUP BY ${prevKeys} HAVING COUNT(*) > 1) AS repeated) AS left_repeated_keys,`,
+      `  (SELECT COUNT(*) FROM (SELECT ${ownKeys} FROM ${table} AS ${step.alias} WHERE ${matchedInChain} GROUP BY ${ownKeys} HAVING COUNT(*) > 1) AS repeated) AS right_repeated_keys`,
     ].join("\n");
   });
   return { ok: true, sql: `${blocks.join("\nUNION ALL\n")}\nORDER BY step_order` };

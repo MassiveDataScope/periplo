@@ -296,19 +296,46 @@ describe("buildCheckJoinSql / readCheckJoin", () => {
         "  (SELECT COUNT(*) FROM (SELECT o.customer_id AS k0 FROM landing_shop.orders AS o) AS prev LEFT JOIN curated_shop.customers AS c ON prev.k0 = c.customer_id WHERE c.customer_id IS NULL) AS left_without_match,",
         "  (SELECT COUNT(*) FROM curated_shop.customers AS c LEFT JOIN (SELECT o.customer_id AS k0 FROM landing_shop.orders AS o) AS prev ON prev.k0 = c.customer_id WHERE prev.k0 IS NULL) AS right_without_match,",
         "  (SELECT COUNT(*) FROM (SELECT o.customer_id AS k0 FROM landing_shop.orders AS o) AS prev LEFT JOIN curated_shop.customers AS c ON prev.k0 = c.customer_id) AS rows_after_join,",
-        "  (SELECT COUNT(*) FROM (SELECT prev.k0 FROM (SELECT o.customer_id AS k0 FROM landing_shop.orders AS o) AS prev WHERE prev.k0 IS NOT NULL GROUP BY prev.k0 HAVING COUNT(*) > 1) AS repeated) AS left_repeated_keys,",
-        "  (SELECT COUNT(*) FROM (SELECT c.customer_id FROM curated_shop.customers AS c WHERE c.customer_id IS NOT NULL GROUP BY c.customer_id HAVING COUNT(*) > 1) AS repeated) AS right_repeated_keys",
+        "  (SELECT COUNT(*) FROM (SELECT prev.k0 FROM (SELECT o.customer_id AS k0 FROM landing_shop.orders AS o) AS prev WHERE EXISTS (SELECT 1 FROM curated_shop.customers AS c WHERE prev.k0 = c.customer_id) GROUP BY prev.k0 HAVING COUNT(*) > 1) AS repeated) AS left_repeated_keys,",
+        "  (SELECT COUNT(*) FROM (SELECT c.customer_id FROM curated_shop.customers AS c WHERE EXISTS (SELECT 1 FROM (SELECT o.customer_id AS k0 FROM landing_shop.orders AS o) AS prev WHERE prev.k0 = c.customer_id) GROUP BY c.customer_id HAVING COUNT(*) > 1) AS repeated) AS right_repeated_keys",
         "UNION ALL",
         "SELECT 1 AS step_order, 'p' AS step,",
         "  (SELECT COUNT(*) FROM (SELECT o.order_id AS k0 FROM landing_shop.orders AS o\nLEFT JOIN curated_shop.customers AS c ON o.customer_id = c.customer_id) AS prev INNER JOIN landing_shop.payments AS p ON prev.k0 = p.order_id) AS matched,",
         "  (SELECT COUNT(*) FROM (SELECT o.order_id AS k0 FROM landing_shop.orders AS o\nLEFT JOIN curated_shop.customers AS c ON o.customer_id = c.customer_id) AS prev LEFT JOIN landing_shop.payments AS p ON prev.k0 = p.order_id WHERE p.order_id IS NULL) AS left_without_match,",
         "  (SELECT COUNT(*) FROM landing_shop.payments AS p LEFT JOIN (SELECT o.order_id AS k0 FROM landing_shop.orders AS o\nLEFT JOIN curated_shop.customers AS c ON o.customer_id = c.customer_id) AS prev ON prev.k0 = p.order_id WHERE prev.k0 IS NULL) AS right_without_match,",
         "  (SELECT COUNT(*) FROM (SELECT o.order_id AS k0 FROM landing_shop.orders AS o\nLEFT JOIN curated_shop.customers AS c ON o.customer_id = c.customer_id) AS prev LEFT JOIN landing_shop.payments AS p ON prev.k0 = p.order_id) AS rows_after_join,",
-        "  (SELECT COUNT(*) FROM (SELECT prev.k0 FROM (SELECT o.order_id AS k0 FROM landing_shop.orders AS o\nLEFT JOIN curated_shop.customers AS c ON o.customer_id = c.customer_id) AS prev WHERE prev.k0 IS NOT NULL GROUP BY prev.k0 HAVING COUNT(*) > 1) AS repeated) AS left_repeated_keys,",
-        "  (SELECT COUNT(*) FROM (SELECT p.order_id FROM landing_shop.payments AS p WHERE p.order_id IS NOT NULL GROUP BY p.order_id HAVING COUNT(*) > 1) AS repeated) AS right_repeated_keys",
+        "  (SELECT COUNT(*) FROM (SELECT prev.k0 FROM (SELECT o.order_id AS k0 FROM landing_shop.orders AS o\nLEFT JOIN curated_shop.customers AS c ON o.customer_id = c.customer_id) AS prev WHERE EXISTS (SELECT 1 FROM landing_shop.payments AS p WHERE prev.k0 = p.order_id) GROUP BY prev.k0 HAVING COUNT(*) > 1) AS repeated) AS left_repeated_keys,",
+        "  (SELECT COUNT(*) FROM (SELECT p.order_id FROM landing_shop.payments AS p WHERE EXISTS (SELECT 1 FROM (SELECT o.order_id AS k0 FROM landing_shop.orders AS o\nLEFT JOIN curated_shop.customers AS c ON o.customer_id = c.customer_id) AS prev WHERE prev.k0 = p.order_id) GROUP BY p.order_id HAVING COUNT(*) > 1) AS repeated) AS right_repeated_keys",
         "ORDER BY step_order",
       ].join("\n"),
     );
+  });
+
+  it("counts a repeated key only when it finds a match, on every pair of a composite key", () => {
+    // Repeated keys that match nothing never multiply a row: counting them called a lookup many-to-many.
+    // Equality on every pair also leaves out a NULL in any key, not only in the first one.
+    const def: JoinDefinition = {
+      base: { database: "landing_shop", table: "order", columns: [{ name: "id", type: "int64" }, { name: "Region", type: "string" }] },
+      joins: [
+        {
+          alias: "o2",
+          table: { database: "landing_shop", table: "orders", columns: [{ name: "order_id", type: "int64" }, { name: "region", type: "string" }] },
+          kind: "left",
+          pairs: [
+            { left: { alias: "o", column: "id" }, right: "order_id" },
+            { left: { alias: "o", column: "Region" }, right: "region" },
+          ],
+        },
+      ],
+      output: { o: ["id"], o2: ["order_id"] },
+    };
+    const prev = '(SELECT o.id AS k0, o."Region" AS k1 FROM landing_shop."order" AS o) AS prev';
+    const on = "prev.k0 = o2.order_id AND prev.k1 = o2.region";
+    const result = buildCheckJoinSql(def);
+    expect(result.ok && result.sql.split("\n").slice(-3, -1)).toEqual([
+      `  (SELECT COUNT(*) FROM (SELECT prev.k0, prev.k1 FROM ${prev} WHERE EXISTS (SELECT 1 FROM landing_shop.orders AS o2 WHERE ${on}) GROUP BY prev.k0, prev.k1 HAVING COUNT(*) > 1) AS repeated) AS left_repeated_keys,`,
+      `  (SELECT COUNT(*) FROM (SELECT o2.order_id, o2.region FROM landing_shop.orders AS o2 WHERE EXISTS (SELECT 1 FROM ${prev} WHERE ${on}) GROUP BY o2.order_id, o2.region HAVING COUNT(*) > 1) AS repeated) AS right_repeated_keys`,
+    ]);
   });
 
   it("reads the rows back into a result per step and derives the multiplication factor and the relation", () => {
