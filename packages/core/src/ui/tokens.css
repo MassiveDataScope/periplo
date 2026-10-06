@@ -1,7 +1,8 @@
 /*
  * Periplo design tokens — "Chart room, softened": ink on white over cool green-grey chrome, one sea-teal accent,
- * names and figures in mono, with thin borders and 6 px corners. Neutrals and accent match massivedatascope.info;
- * the orange brand dot is reserved for the logo. (An earlier release used one electric blue.)
+ * names and figures in mono, with thin borders and 6 px corners. Neutrals and accent match massivedatascope.info.
+ * The orange brand colour is a signature, never a state: the logo's lens, the full stop of page titles, the dot of
+ * the current rail entry and the "now" line of the ETL chart. (An earlier release used one electric blue.)
  * The frame stays quiet so the data carries the contrast; colour means data type, never decoration.
  * Components use only these custom properties: literal colours and pixel values live here and nowhere else.
  * Theme resolution: explicit [data-theme] wins, otherwise the system preference.
@@ -38,12 +39,14 @@
   --nt-color-accent-hover: light-dark(#1f524d, #9fd3c9);
   --nt-color-on-accent: light-dark(#ffffff, #0e1213);
   --nt-color-focus: light-dark(#2b6b65, #9fd3c9);
-  --nt-color-brand: light-dark(#ff441e, #ff5a36); /* the brand's dot: the logo's lens, the full stop of page titles, where you are in the rail and "now" on a timeline; never a status */
+  /* the brand's signature, never a state: the logo's lens, the full stop of page titles, the current rail entry's dot, the ETL chart's "now" */
+  --nt-color-brand: light-dark(#ff441e, #ff5a36);
 
   /* ── Semantic ─────────────────────────────────────────────────────────── */
   --nt-color-success: light-dark(#1f6f37, #6ccf8e);
   --nt-color-success-surface: light-dark(#e5f3e8, #12291a); /* NEW */
-  --nt-color-state-ok: light-dark(#4f9a66, #3f8a58); /* NEW calmed success for bars/dots/timeline marks only (UX-final value); text and icons keep --nt-color-success */
+  /* NEW calmed success for bars/dots/timeline marks only (UX-final value); text and icons keep --nt-color-success */
+  --nt-color-state-ok: light-dark(#4f9a66, #3f8a58);
   --nt-color-warning: light-dark(#875000, #efb65c);
   --nt-color-warning-surface: light-dark(#fbf0dc, #2e2210); /* NEW */
   --nt-color-danger: light-dark(#b3261e, #ff8f85);
@@ -52,7 +55,8 @@
   --nt-color-danger-surface: light-dark(#fdecea, #351513);
   --nt-color-info: light-dark(#2a5db0, #8ab4f8); /* NEW */
   --nt-color-info-surface: light-dark(#e8eefb, #152238); /* NEW */
-  --nt-color-state-run: light-dark(#2a5db0, #8ab4f8); /* NEW running bars/dots — its own name so bars can be tuned apart from info text, though it starts equal to it */
+  /* NEW running bars/dots — its own name so bars can be tuned apart from info text, though it starts equal to it */
+  --nt-color-state-run: light-dark(#2a5db0, #8ab4f8);
   --nt-color-state-run-stripe: light-dark(rgba(255, 255, 255, 0.32), rgba(12, 13, 14, 0.34)); /* NEW the moving stripe over a running bar */
 
   /* ── Data-type families (NEW) — foreground + badge surface ────────────── */
