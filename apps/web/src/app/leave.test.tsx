@@ -1,9 +1,8 @@
-// @vitest-environment jsdom
-// Leaving a view reads the trail and moves the browser: it needs a window.
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { appHistory } from "./history";
-import { backDestination, goBackTo, parentOf } from "./leave";
-import { navigate, type Route } from "./routes";
+import { backDestination, goBackTo, leaveOnClick, parentOf } from "./leave";
+import { href, navigate, type Route } from "./routes";
 
 const home: Route = { kind: "home" };
 const database: Route = { kind: "database", database: "landing_shop" };
@@ -16,6 +15,7 @@ describe("leave", () => {
     appHistory.install();
   });
   afterEach(() => {
+    cleanup();
     appHistory.dispose();
     window.location.hash = "";
   });
@@ -66,5 +66,48 @@ describe("leave", () => {
     expect(parentOf({ kind: "etl-deployment", name: "orders_daily" })).toEqual({ kind: "etl" });
     expect(parentOf(database)).toEqual(home);
     expect(parentOf(home)).toBeNull();
+  });
+
+  describe("leaveOnClick", () => {
+    /** Clicks the "Back to …" link and says whether the page took the click over (prevented the link's own behaviour). */
+    function clickBack(init: MouseEventInit): boolean {
+      render(
+        <a href={href(database)} onClick={leaveOnClick(database)}>
+          Back to landing_shop
+        </a>,
+      );
+      let prevented = false;
+      // Runs after React's handler; it then stops jsdom from following the link, which a real browser would do in a new tab.
+      const record = (event: Event) => {
+        prevented = event.defaultPrevented;
+        event.preventDefault();
+      };
+      document.addEventListener("click", record);
+      try {
+        fireEvent.click(screen.getByRole("link", { name: "Back to landing_shop" }), init);
+      } finally {
+        document.removeEventListener("click", record);
+      }
+      return prevented;
+    }
+
+    it("takes a plain click over and leaves the view", () => {
+      navigate(table);
+      expect(clickBack({ button: 0 })).toBe(true);
+      expect(window.location.hash).toBe("#/d/landing_shop");
+    });
+
+    it.each<[string, MouseEventInit]>([
+      ["Cmd", { metaKey: true }],
+      ["Ctrl", { ctrlKey: true }],
+      ["Shift", { shiftKey: true }],
+      ["Alt", { altKey: true }],
+      ["the middle button", { button: 1 }],
+    ])("leaves a click with %s to the link, so it can open in a new tab", (_, init) => {
+      navigate(table);
+      expect(clickBack(init)).toBe(false);
+      expect(window.location.hash).toBe("#/t/landing_shop/orders");
+      expect(appHistory.currentIndex()).toBe(1);
+    });
   });
 });
