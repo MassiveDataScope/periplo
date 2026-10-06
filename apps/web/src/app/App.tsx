@@ -49,7 +49,13 @@ interface AppProps {
   readonly preferences: PreferencesStore;
 }
 
-/** Picks the console once, so `useEtlStatus` never mounts and never calls the ETL API when it is under construction. */
+/**
+ * Picks the console once, so `useEtlStatus` never mounts and never calls the ETL API when it is under construction.
+ *
+ * Precondition: `appHistory.install()` (app/history.ts) has run before the first render, as `main` does, so the
+ * trail hears every hashchange before any view. Without it "Back to …" and Close always fall back to the view's
+ * parent and the work area never restores its scroll; tests install it the same way (`openTab` in App.test.tsx).
+ */
 export function App(props: AppProps) {
   return ETL_UNDER_CONSTRUCTION ? <Console {...props} etl={ETL_UNDER_CONSTRUCTION_SECTION} /> : <ConsoleWithEtl {...props} />;
 }
