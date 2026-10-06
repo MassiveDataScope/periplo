@@ -37,8 +37,8 @@ export function LayerPage({ catalog, layer }: LayerPageProps) {
       </nav>
       <h2 className={styles.title} data-sans={group.declared || undefined}>
         {name}
-        {group.value !== null && !group.declared ? <span className={styles.note}> · {t("catalog.notDeclared")}</span> : null}
         <TitleMark />
+        {group.value !== null && !group.declared ? <span className={styles.note}> · {t("catalog.notDeclared")}</span> : null}
       </h2>
       {group.description ? <p className={styles.note}>{group.description}</p> : null}
       <dl className={styles.figures}>
