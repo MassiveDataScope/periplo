@@ -48,8 +48,10 @@ export function useJoinFromUrl(tableFacts: TableFactsStore, base: JoinTable | nu
         const restored = restoreJoin(base, decoded, (database, table) => read.get(`${database}.${table}`) ?? null);
         setDefState(restored.def);
         setNotice(restored.dropped.tables > 0 || restored.dropped.keys > 0 ? { kind: "dropped", ...restored.dropped } : null);
-      } catch {
+      } catch (error) {
         // A link that still breaks the restore must not leave the workspace blank: start again from the base, and say so.
+        // A throw here is a bug, not a bad link, so it is logged rather than swallowed.
+        console.error("Could not restore the join from its link", error);
         setDefState(startJoin(base));
         setNotice({ kind: "broken" });
       }
