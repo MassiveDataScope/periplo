@@ -38,7 +38,7 @@
   --nt-color-accent-hover: light-dark(#1f524d, #9fd3c9);
   --nt-color-on-accent: light-dark(#ffffff, #0e1213);
   --nt-color-focus: light-dark(#2b6b65, #9fd3c9);
-  --nt-color-brand: light-dark(#ff441e, #ff5a36); /* the lens of the logo and nothing else */
+  --nt-color-brand: light-dark(#ff441e, #ff5a36); /* the brand's dot: the logo's lens, the full stop of page titles, where you are in the rail and "now" on a timeline; never a status */
 
   /* ── Semantic ─────────────────────────────────────────────────────────── */
   --nt-color-success: light-dark(#1f6f37, #6ccf8e);

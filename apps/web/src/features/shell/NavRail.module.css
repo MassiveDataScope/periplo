@@ -109,17 +109,33 @@ nav.items {
   cursor: not-allowed;
 }
 
-/* Where you are: the entry inverts to ink on paper. Unmistakable, and it needs no colour at all. */
+/* Where you are: a quiet surface and the brand's dot at the edge, the periscope's lens saying "here".
+   The weight and the surface carry it on their own; the dot is the signature, not the only signal. */
 .item[aria-current="page"],
 .item[data-current="true"] {
-  background: var(--nt-color-text);
-  color: var(--nt-color-bg);
+  position: relative;
+  background: var(--nt-color-surface-hover);
+  color: var(--nt-color-text);
+  font-weight: var(--nt-font-weight-medium);
+}
+
+.item[aria-current="page"]::before,
+.item[data-current="true"]::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: calc(-1 * var(--nt-space-1-5));
+  inset-block-start: 50%;
+  inline-size: var(--nt-space-1-5);
+  block-size: var(--nt-space-1-5);
+  border-radius: var(--nt-radius-full);
+  background: var(--nt-color-brand);
+  transform: translateY(-50%);
 }
 
 .item[aria-current="page"]:hover,
 .item[data-current="true"]:hover {
-  background: var(--nt-color-text);
-  color: var(--nt-color-bg);
+  background: var(--nt-color-surface-hover);
+  color: var(--nt-color-text);
 }
 
 .brand:focus-visible,
@@ -135,7 +151,8 @@ nav.items {
   inline-size: var(--nt-space-2);
   block-size: var(--nt-space-2);
   border-radius: var(--nt-radius-full);
-  background: var(--nt-color-warning);
+  /* Something to look at, not the brand: orange is kept for the logo's dot. */
+  background: var(--nt-color-accent);
 }
 
 /* Whose lake this is: the company's name under the product mark. */

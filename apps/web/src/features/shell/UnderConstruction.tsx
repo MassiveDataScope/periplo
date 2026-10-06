@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
-import { Icon } from "@periplo/core/ui";
+import { Icon, TitleMark } from "@periplo/core/ui";
 import { href } from "../../app/routes";
 import styles from "./UnderConstruction.module.css";
 
@@ -13,6 +13,7 @@ export function UnderConstruction({ section }: { section: string }) {
       <Icon name="construction" className={styles.symbol} />
       <h2 id={titleId} className={styles.title}>
         {t("underConstruction.title", { section })}
+        <TitleMark />
       </h2>
       <p className={styles.message}>{t("underConstruction.message")}</p>
       <a className={styles.home} href={href({ kind: "home" })}>

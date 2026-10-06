@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { TitleMark } from "@periplo/core/ui";
 import { href } from "../../app/routes";
 import { formatCount } from "../../i18n/format";
 import { buildExplorerTree, flattenDatabases, type Catalog } from "../catalog-tree/catalog-model";
@@ -37,6 +38,7 @@ export function LayerPage({ catalog, layer }: LayerPageProps) {
       <h2 className={styles.title} data-sans={group.declared || undefined}>
         {name}
         {group.value !== null && !group.declared ? <span className={styles.note}> · {t("catalog.notDeclared")}</span> : null}
+        <TitleMark />
       </h2>
       {group.description ? <p className={styles.note}>{group.description}</p> : null}
       <dl className={styles.figures}>
