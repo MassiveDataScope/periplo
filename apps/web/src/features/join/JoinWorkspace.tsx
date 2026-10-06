@@ -52,6 +52,7 @@ export interface JoinWorkspaceProps {
   readonly arm?: string;
   /** The whole join from the URL (`encodeJoinSpec`): restored on arrival, then kept up to date in place. */
   readonly spec?: string;
+  /** Where the workspace was opened from, read once on arrival: later edits to the join do not move it. */
   readonly back: Route | null;
   /** Hands the join's SQL to the free SQL workspace, the same way Home and the database page do. */
   onOpenInEditor(sql: string): void;
@@ -123,6 +124,8 @@ function ownerOf(def: JoinDefinition, a: JoinPairSide, b: JoinPairSide): JoinPai
  */
 export function JoinWorkspace({ dependencies, preferences, catalog, database, table, arm, spec, back, onOpenInEditor }: JoinWorkspaceProps) {
   const { t, i18n } = useTranslation();
+  // Each edit replaces the URL, which makes the previous route this same join: the way back is where the workspace was opened from.
+  const [backTo] = useState(back);
   const facts = useTableFacts(dependencies, database, table, ["detail", "stats", "history"]);
   const detail = useMemo(() => facts.detail ?? { kind: "loading" as const }, [facts.detail]);
 
@@ -365,7 +368,7 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
     <div className={styles.page}>
       <TableHeader
         crumbs={crumbs}
-        back={back ? { href: href(back), label: table } : null}
+        back={backTo ? { href: href(backTo), label: table } : null}
         title={t("join.workspaceTitle", { table })}
         freshness={facts.freshness}
         stats={stats}

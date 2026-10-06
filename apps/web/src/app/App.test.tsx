@@ -515,6 +515,20 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Add table" }).getAttribute("aria-expanded")).toBe("false");
   });
 
+  it("keeps the way back on the table the join started from, however often the join is edited", async () => {
+    window.location.hash = "#/t/landing_shop/order";
+    renderApp();
+    await screen.findByText("9007199254740993");
+    fireEvent.click(screen.getByRole("button", { name: "Join with…" }));
+    await screen.findByRole("heading", { level: 2, name: "Join · order" });
+    expect(screen.getByRole("link", { name: "Back to order" }).getAttribute("href")).toBe("#/t/landing_shop/order");
+
+    fireEvent.change(screen.getByLabelText("Find a table to add"), { target: { value: "shop orders" } });
+    fireEvent.click(await screen.findByRole("button", { name: /landing_shop\.orders/ }));
+    await waitFor(() => expect(window.location.hash).toMatch(/\?spec=/));
+    expect(screen.getByRole("link", { name: "Back to order" }).getAttribute("href")).toBe("#/t/landing_shop/order");
+  });
+
   it("says so when a join link cannot be read, and starts from the table instead", async () => {
     renderApp();
     await goTo("#/join/landing_shop/order?spec=not-a-join");
