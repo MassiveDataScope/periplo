@@ -1,25 +1,20 @@
 import { useEffect, type RefObject } from "react";
 import { appHistory } from "../../app/history";
+import { readSessionJson, writeSessionJson } from "../../app/session-json";
 
 const STORAGE_KEY = "periplo.scroll";
 /** A view fills in as its data arrives: the saved position is applied again while the page grows. */
 const RETRIES_MS = [0, 100, 300, 700];
+/** Signs that the user has taken over the scroll: the retries stop. */
+const USER_INTENT_EVENTS = ["wheel", "touchstart", "keydown", "pointerdown"] as const;
 
-function loadPositions(): Record<number, number> {
-  try {
-    const stored: unknown = JSON.parse(sessionStorage.getItem(STORAGE_KEY) ?? "{}");
-    return stored && typeof stored === "object" ? (stored as Record<number, number>) : {};
-  } catch {
-    return {};
-  }
+function isPosition(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }
 
-function savePositions(positions: Record<number, number>): void {
-  try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(positions));
-  } catch {
-    // Storage full or blocked: positions live on in memory for this page.
-  }
+/** Positions live on in memory for this page when the storage is full or blocked. */
+function savePositions(positions: Readonly<Record<string, number>>): void {
+  writeSessionJson(STORAGE_KEY, positions);
 }
 
 /**
@@ -31,7 +26,7 @@ export function useScrollRestoration(ref: RefObject<HTMLElement | null>): void {
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
-    const positions = loadPositions();
+    const positions = readSessionJson(STORAGE_KEY, isPosition);
     let timers: number[] = [];
     const cancel = () => {
       for (const timer of timers) window.clearTimeout(timer);
@@ -56,7 +51,7 @@ export function useScrollRestoration(ref: RefObject<HTMLElement | null>): void {
     };
 
     element.addEventListener("scroll", onScroll, { passive: true });
-    for (const type of ["wheel", "touchstart", "keydown", "pointerdown"] as const) element.addEventListener(type, onUserIntent, { passive: true });
+    for (const type of USER_INTENT_EVENTS) element.addEventListener(type, onUserIntent, { passive: true });
     const unsubscribe = appHistory.subscribe(onMove);
     const onHide = () => savePositions(positions);
     window.addEventListener("pagehide", onHide);
@@ -64,7 +59,7 @@ export function useScrollRestoration(ref: RefObject<HTMLElement | null>): void {
       cancel();
       unsubscribe();
       element.removeEventListener("scroll", onScroll);
-      for (const type of ["wheel", "touchstart", "keydown", "pointerdown"] as const) element.removeEventListener(type, onUserIntent);
+      for (const type of USER_INTENT_EVENTS) element.removeEventListener(type, onUserIntent);
       window.removeEventListener("pagehide", onHide);
       savePositions(positions);
     };

@@ -1,3 +1,5 @@
+import { readSessionJson, writeSessionJson } from "./session-json";
+
 /**
  * The trail of this browser tab, so "Back to …" and "Close" can step back for real instead of pushing a
  * new entry (which made Back bounce between two screens). Every entry carries its position in
@@ -31,6 +33,10 @@ export interface HistoryRegistry {
 const STORAGE_KEY = "periplo.history";
 const STATE_KEY = "periploIndex";
 
+function isHash(value: unknown): value is string {
+  return typeof value === "string";
+}
+
 function indexOfState(state: unknown): number | null {
   if (state && typeof state === "object" && STATE_KEY in state) {
     const value = (state as Record<string, unknown>)[STATE_KEY];
@@ -41,27 +47,10 @@ function indexOfState(state: unknown): number | null {
 
 export function createHistoryRegistry(): HistoryRegistry {
   let current = 0;
-  let entries: Record<number, string> = {};
+  let entries: Record<string, string> = {};
   let reachedBy: HistoryMove = "new";
   let installed = false;
   const listeners = new Set<() => void>();
-
-  function load(): void {
-    try {
-      const stored: unknown = JSON.parse(sessionStorage.getItem(STORAGE_KEY) ?? "{}");
-      entries = stored && typeof stored === "object" ? (stored as Record<number, string>) : {};
-    } catch {
-      entries = {};
-    }
-  }
-
-  function save(): void {
-    try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-    } catch {
-      // Storage full or blocked: the trail lives on in memory for this page.
-    }
-  }
 
   /**
    * Brings the trail up to date with the entry the browser is on now, and says whether anything changed.
@@ -74,7 +63,7 @@ export function createHistoryRegistry(): HistoryRegistry {
     if (known === null) {
       // A new entry: everything that was ahead of the previous one is gone, as in the browser.
       const index = installed ? current + 1 : 0;
-      for (const key of Object.keys(entries)) if (Number(key) >= index) delete entries[Number(key)];
+      for (const key of Object.keys(entries)) if (Number(key) >= index) delete entries[key];
       window.history.replaceState({ ...(window.history.state as object | null), [STATE_KEY]: index }, "");
       current = index;
       reachedBy = "new";
@@ -86,7 +75,8 @@ export function createHistoryRegistry(): HistoryRegistry {
       current = known;
     }
     entries[current] = hash;
-    save();
+    // When the storage is full or blocked, the trail lives on in memory for this page.
+    writeSessionJson(STORAGE_KEY, entries);
     return true;
   }
 
@@ -101,7 +91,7 @@ export function createHistoryRegistry(): HistoryRegistry {
   return {
     install() {
       if (installed) return;
-      load();
+      entries = readSessionJson(STORAGE_KEY, isHash);
       recordCurrentEntry();
       installed = true;
       window.addEventListener("hashchange", onHashChange);

@@ -1,4 +1,5 @@
 import type { MouseEvent } from "react";
+import { isPlainLeftClick } from "./clicks";
 import { appHistory } from "./history";
 import { parseRoute, replaceRoute, sameView, type Route } from "./routes";
 
@@ -30,7 +31,7 @@ export function backDestination(route: Route): Route | null {
  */
 export function leaveOnClick(destination: Route): (event: MouseEvent<HTMLAnchorElement>) => void {
   return (event) => {
-    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (!isPlainLeftClick(event)) return;
     event.preventDefault();
     goBackTo(destination);
   };
