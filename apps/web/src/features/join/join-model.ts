@@ -12,11 +12,6 @@ export interface JoinTable {
   readonly columns: readonly JoinColumn[];
 }
 
-export interface JoinPair {
-  readonly left: string;
-  readonly right: string;
-}
-
 /** `left` keeps every row of the table the step joins onto; `inner` keeps only rows found on both sides. */
 export type JoinKind = "left" | "inner";
 
@@ -66,21 +61,41 @@ function namesTable(column: string, table: string): boolean {
 }
 
 /**
- * Keys worth proposing: identifier-looking columns of the same family that share a name, or an `id`
- * that the other side names after this table. Sharing `created_at` or `note` is a coincidence, not a key.
- * Works between any two tables, whichever positions they hold in the join.
+ * How sure a candidate pair is to be the relation between two tables, highest first. A column named after
+ * the table being added (`orders.customer_id` reaching `customers`) is that table's key: each row finds at
+ * most one, the many-to-one lookup a person means. A column named after the earlier table is still a
+ * relation, read the other way (one order, many payments). A shared identifier name alone says nothing
+ * about which side owns it.
  */
-export function suggestPairs(left: JoinTable, right: JoinTable): JoinPair[] {
+type PairRank = "shared-name" | "owned-by-earlier" | "owned-by-added";
+
+const PAIR_WEIGHT: Readonly<Record<PairRank, number>> = { "shared-name": 1, "owned-by-earlier": 2, "owned-by-added": 3 };
+
+function rankPair(mine: JoinColumn, theirs: JoinColumn, left: JoinTable, right: JoinTable): PairRank | null {
+  if (!canPair(mine.type, theirs.type)) return null;
+  if (namesTable(mine.name, right.table) && (theirs.name === mine.name || theirs.name.toLowerCase() === "id")) return "owned-by-added";
+  if (namesTable(theirs.name, left.table) && (mine.name === theirs.name || mine.name.toLowerCase() === "id")) return "owned-by-earlier";
+  if (mine.name === theirs.name && isIdentifierName(mine.name)) return "shared-name";
+  return null;
+}
+
+/** A candidate key between a column of a table already in the join (`left`) and one of the table being added (`right`). */
+interface RankedPair {
+  readonly left: string;
+  readonly right: string;
+  readonly weight: number;
+}
+
+/**
+ * Keys worth proposing between two tables: identifier-looking columns of the same family that share a name, or
+ * an `id` that the other side names after its table. Sharing `created_at` or `note` is a coincidence, not a key.
+ */
+function rankedPairs(left: JoinTable, right: JoinTable): RankedPair[] {
   return left.columns.flatMap((mine) =>
-    right.columns
-      .filter((theirs) => canPair(mine.type, theirs.type))
-      .filter(
-        (theirs) =>
-          (mine.name === theirs.name && isIdentifierName(mine.name)) ||
-          (theirs.name.toLowerCase() === "id" && namesTable(mine.name, right.table)) ||
-          (mine.name.toLowerCase() === "id" && namesTable(theirs.name, left.table)),
-      )
-      .map((theirs) => ({ left: mine.name, right: theirs.name })),
+    right.columns.flatMap((theirs) => {
+      const rank = rankPair(mine, theirs, left, right);
+      return rank === null ? [] : [{ left: mine.name, right: theirs.name, weight: PAIR_WEIGHT[rank] }];
+    }),
   );
 }
 
@@ -120,6 +135,17 @@ function tablesInOrder(def: JoinDefinition): readonly { readonly alias: string; 
 /** Every table already in the join, paired with the alias it was given, base first: what a workspace draws one card per. */
 export const joinedTables = tablesInOrder;
 
+/** The likeliest key between a table being added and any table already in the join; on a tie, the earlier table and column win. */
+function bestPair(def: JoinDefinition, table: JoinTable): JoinPairRef | null {
+  let best: { readonly ref: JoinPairRef; readonly weight: number } | null = null;
+  for (const { alias, table: earlier } of tablesInOrder(def)) {
+    for (const pair of rankedPairs(earlier, table)) {
+      if (best === null || pair.weight > best.weight) best = { ref: { left: { alias, column: pair.left }, right: pair.right }, weight: pair.weight };
+    }
+  }
+  return best?.ref ?? null;
+}
+
 /**
  * Adds a table to a join: gives it a fresh alias, suggests pairs against every table already present, and
  * starts its output with every column except the ones its own suggested pairs would show a second time.
@@ -127,9 +153,10 @@ export const joinedTables = tablesInOrder;
 export function addTable(def: JoinDefinition, table: JoinTable, kind: JoinKind = "left"): JoinDefinition {
   const taken = new Set(aliasesInOrder(def));
   const alias = tableAlias(table, taken);
-  const pairs: JoinPairRef[] = tablesInOrder(def).flatMap(({ alias: otherAlias, table: other }) =>
-    suggestPairs(other, table).map((pair) => ({ left: { alias: otherAlias, column: pair.left }, right: pair.right })),
-  );
+  // One key, the likeliest relation against any table already present: ANDing every shared id would
+  // join on columns that are not the relation and silently drop rows. More keys are paired by hand.
+  const best = bestPair(def, table);
+  const pairs: readonly JoinPairRef[] = best ? [best] : [];
   const keys = new Set(pairs.map((pair) => pair.right));
   const step: JoinStep = { alias, table, kind, pairs };
   return {
@@ -253,8 +280,9 @@ function prevOn(step: JoinStep): string {
 /**
  * One read-only statement, a `UNION ALL` of one row per step, each counting: rows matched, rows of the
  * chain before this step without a match here, rows of this table without a match in the chain, and the
- * row count after this step joins in. The multiplication factor is not a column: `readCheckJoin` derives
- * it from `matched`, `left_without_match` and `rows_after_join`, the way the SQL never needs a division.
+ * row count after this step joins in, and how many key values that find a match repeat on each side (what
+ * tells a lookup from a fan-out). The multiplication factor is not a column: `readCheckJoin` derives it from `matched`,
+ * `left_without_match` and `rows_after_join`, the way the SQL never needs a division.
  */
 export function buildCheckJoinSql(def: JoinDefinition): { readonly ok: true; readonly sql: string } | { readonly ok: false } {
   if (def.joins.length === 0 || def.joins.some((step) => step.pairs.length === 0)) return { ok: false };
@@ -263,12 +291,19 @@ export function buildCheckJoinSql(def: JoinDefinition): { readonly ok: true; rea
     const table = qualifiedName(step.table.database, step.table.table);
     const on = prevOn(step);
     const firstRight = step.pairs[0]!.right;
+    const prevKeys = step.pairs.map((_pair, index) => `prev.${quoteIdentifier(`k${index}`)}`).join(", ");
+    const ownKeys = step.pairs.map((pair) => `${step.alias}.${quoteIdentifier(pair.right)}`).join(", ");
+    // Only a key that finds a match on the other side can multiply rows; equality on every pair also skips a NULL in any key.
+    const matchedHere = `EXISTS (SELECT 1 FROM ${table} AS ${step.alias} WHERE ${on})`;
+    const matchedInChain = `EXISTS (SELECT 1 FROM ${prev} WHERE ${on})`;
     return [
       `SELECT ${index} AS step_order, '${step.alias.replaceAll("'", "''")}' AS step,`,
       `  (SELECT COUNT(*) FROM ${prev} INNER JOIN ${table} AS ${step.alias} ON ${on}) AS matched,`,
       `  (SELECT COUNT(*) FROM ${prev} LEFT JOIN ${table} AS ${step.alias} ON ${on} WHERE ${step.alias}.${quoteIdentifier(firstRight)} IS NULL) AS left_without_match,`,
       `  (SELECT COUNT(*) FROM ${table} AS ${step.alias} LEFT JOIN ${prev} ON ${on} WHERE prev.${quoteIdentifier("k0")} IS NULL) AS right_without_match,`,
-      `  (SELECT COUNT(*) FROM ${prev} ${step.kind === "left" ? "LEFT" : "INNER"} JOIN ${table} AS ${step.alias} ON ${on}) AS rows_after_join`,
+      `  (SELECT COUNT(*) FROM ${prev} ${step.kind === "left" ? "LEFT" : "INNER"} JOIN ${table} AS ${step.alias} ON ${on}) AS rows_after_join,`,
+      `  (SELECT COUNT(*) FROM (SELECT ${prevKeys} FROM ${prev} WHERE ${matchedHere} GROUP BY ${prevKeys} HAVING COUNT(*) > 1) AS repeated) AS left_repeated_keys,`,
+      `  (SELECT COUNT(*) FROM (SELECT ${ownKeys} FROM ${table} AS ${step.alias} WHERE ${matchedInChain} GROUP BY ${ownKeys} HAVING COUNT(*) > 1) AS repeated) AS right_repeated_keys`,
     ].join("\n");
   });
   return { ok: true, sql: `${blocks.join("\nUNION ALL\n")}\nORDER BY step_order` };
@@ -282,6 +317,17 @@ export interface CheckJoinResult {
   readonly rowsAfterJoin: number;
   /** `rowsAfterJoin` divided by the rows of the chain before this step; 0 when that chain was empty. */
   readonly factor: number;
+  /** Read from the data: a side is "many" when any of its key values repeats. */
+  readonly relation: JoinRelation;
+}
+
+export type JoinRelation = "one-to-one" | "many-to-one" | "one-to-many" | "many-to-many";
+
+function relationOf(leftRepeated: number, rightRepeated: number): JoinRelation {
+  if (leftRepeated > 0 && rightRepeated > 0) return "many-to-many";
+  if (leftRepeated > 0) return "many-to-one";
+  if (rightRepeated > 0) return "one-to-many";
+  return "one-to-one";
 }
 
 function asNumber(value: unknown): number {
@@ -291,21 +337,31 @@ function asNumber(value: unknown): number {
   return 0;
 }
 
-/** Reads the rows `buildCheckJoinSql`'s statement returns into one result per step, in step order. */
-export function readCheckJoin(rows: readonly Record<string, unknown>[]): readonly CheckJoinResult[] {
-  return rows.map((row) => {
+/**
+ * Reads the rows `buildCheckJoinSql`'s statement returns into one result per step, in step order. Only rows
+ * naming a step of this join count, once each: a result that is not the check's own shape is not read as one.
+ */
+export function readCheckJoin(rows: readonly Record<string, unknown>[], aliases: readonly string[]): readonly CheckJoinResult[] {
+  const seen = new Set<string>();
+  return rows.flatMap((row) => {
+    const alias = typeof row.step === "string" ? row.step : "";
+    if (!aliases.includes(alias) || seen.has(alias)) return [];
+    seen.add(alias);
     const matched = asNumber(row.matched);
     const leftWithoutMatch = asNumber(row.left_without_match);
     const rightWithoutMatch = asNumber(row.right_without_match);
     const rowsAfterJoin = asNumber(row.rows_after_join);
     const chainRows = matched + leftWithoutMatch;
-    return {
-      alias: String(row.step ?? ""),
-      matched,
-      leftWithoutMatch,
-      rightWithoutMatch,
-      rowsAfterJoin,
-      factor: chainRows === 0 ? 0 : rowsAfterJoin / chainRows,
-    };
+    return [
+      {
+        alias,
+        matched,
+        leftWithoutMatch,
+        rightWithoutMatch,
+        rowsAfterJoin,
+        factor: chainRows === 0 ? 0 : rowsAfterJoin / chainRows,
+        relation: relationOf(asNumber(row.left_repeated_keys), asNumber(row.right_repeated_keys)),
+      },
+    ];
   });
 }

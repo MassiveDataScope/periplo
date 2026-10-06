@@ -58,6 +58,17 @@ const RESERVED_JOIN_ORDERS: JoinDefinition = (() => {
 })();
 // orders LEFT JOIN customers LEFT JOIN order: three tables chained, the third suggested against the base, not the one before it.
 const THREE_TABLE_JOIN = addTable(ORDERS_WITH_CUSTOMERS, RESERVED);
+// orders joined onto itself (`o2`) by hand, on the given pairs: the lake's orders repeat customer 1 and year 2026.
+function ordersOntoItself(pairs: readonly (readonly [string, string])[]): JoinDefinition {
+  const def = addTable(startJoin(ORDERS), ORDERS);
+  return { ...def, joins: [{ ...def.joins[0]!, pairs: pairs.map(([left, right]) => ({ left: { alias: "o", column: left }, right })) }] };
+}
+
+function checkSql(join: JoinDefinition): string {
+  const built = buildCheckJoinSql(join);
+  if (!built.ok) throw new Error("check join could not be built");
+  return built.sql;
+}
 
 const cases: GeneratedSqlCase[] = [
   { name: "preview of a table", sql: previewSql("landing_shop", "orders"), rows: 3 },
@@ -71,14 +82,54 @@ const cases: GeneratedSqlCase[] = [
   },
   { name: "join of three tables, the third suggested against the base table", sql: joinSql(THREE_TABLE_JOIN), rows: 3 },
   {
-    name: "check join: matched, unmatched and row count per step",
-    sql: (() => {
-      const built = buildCheckJoinSql(THREE_TABLE_JOIN);
-      if (!built.ok) throw new Error("check join could not be built");
-      return built.sql;
-    })(),
+    name: "check join: matched, unmatched, row count and repeated keys per step",
+    sql: checkSql(THREE_TABLE_JOIN),
     rows: 2,
-    first: { step: "c", matched: "3", left_without_match: "0", right_without_match: "0", rows_after_join: "3" },
+    // customer 1 has two orders and each customer appears once: a many-to-one lookup.
+    first: {
+      step: "c",
+      matched: "3",
+      left_without_match: "0",
+      right_without_match: "0",
+      rows_after_join: "3",
+      left_repeated_keys: "1",
+      right_repeated_keys: "0",
+    },
+  },
+  {
+    name: "check join: a composite key repeated on both sides and matched is many-to-many",
+    sql: checkSql(
+      ordersOntoItself([
+        ["customer_id", "customer_id"],
+        ["year", "year"],
+      ]),
+    ),
+    rows: 1,
+    // (customer 1, 2026) twice on each side: four rows out of two, plus the (2, 2025) row once.
+    first: {
+      step: "o2",
+      matched: "5",
+      left_without_match: "0",
+      right_without_match: "0",
+      rows_after_join: "5",
+      left_repeated_keys: "1",
+      right_repeated_keys: "1",
+    },
+  },
+  {
+    name: "check join: keys repeated on both sides that match nothing are not many-to-many",
+    sql: checkSql(ordersOntoItself([["customer_id", "year"]])),
+    rows: 1,
+    // customer_id repeats 1 and year repeats 2026, but no customer_id equals a year: nothing is multiplied.
+    first: {
+      step: "o2",
+      matched: "0",
+      left_without_match: "3",
+      right_without_match: "3",
+      rows_after_join: "3",
+      left_repeated_keys: "0",
+      right_repeated_keys: "0",
+    },
   },
   {
     name: "distribution: most frequent values, nulls included",

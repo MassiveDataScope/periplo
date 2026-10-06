@@ -175,6 +175,8 @@ function fakeApi(overrides: Record<string, (request: Request) => Response | Prom
           left_without_match: new BigInt64Array([1n]),
           right_without_match: new BigInt64Array([0n]),
           rows_after_join: new BigInt64Array([10n]),
+          left_repeated_keys: new BigInt64Array([2n]),
+          right_repeated_keys: new BigInt64Array([0n]),
         });
         return new Response(new Uint8Array(tableToIPC(check, "stream")), { headers: { "x-query-id": QUERY_ID } });
       }
@@ -378,6 +380,9 @@ describe("App", () => {
     const checkCard = within(await screen.findByRole("region", { name: "Check join" }));
     expect(checkCard.getByText("9")).toBeTruthy();
     expect(checkCard.getByText("×1.00")).toBeTruthy();
+    // The key repeats before the step and not in the joined table: a lookup, read from the data.
+    expect(checkCard.getByText("N : 1")).toBeTruthy();
+    expect(checkCard.getByText("A lookup: each row finds at most one match, so no rows are multiplied.")).toBeTruthy();
 
     // Run sends the same SQL the receipt showed, and the workspace collapses to a strip above the result.
     fireEvent.click(screen.getByRole("button", { name: "Run join" }));
@@ -439,7 +444,7 @@ describe("App", () => {
 
   it("offers a likely match on a compact card, paired without ever opening it", async () => {
     // "region" shares a name and a family on both tables but is not identifier-looking, so
-    // `suggestPairs` leaves it alone (unlike order_id): it is there to be armed and paired by hand.
+    // `addTable` never proposes it (unlike order_id): it is there to be armed and paired by hand.
     const api = renderApp(
       fakeApi({
         "GET /api/v1/catalog/tables/landing_shop/order": () =>
