@@ -55,8 +55,19 @@ describe("encodeJoinSpec / decodeJoinSpec", () => {
 
   it("carries a table's columns only when they differ from the ones a new join would pick", () => {
     const def = addTable(startJoin(ORDERS), CUSTOMERS);
-    expect(decodeJoinSpec(encodeJoinSpec(def))?.output).toEqual({});
-    expect(decodeJoinSpec(encodeJoinSpec(setOutput(def, "o", ["order_id"])))?.output).toEqual({ o: ["order_id"] });
+    expect(decodeJoinSpec(encodeJoinSpec(def))?.output).toEqual(new Map());
+    expect(decodeJoinSpec(encodeJoinSpec(setOutput(def, "o", ["order_id"])))?.output).toEqual(new Map([["o", ["order_id"]]]));
+  });
+
+  it("reads a link with more tables than a join can hold as broken", () => {
+    const step = { database: "curated_shop", table: "customers", alias: "c", kind: "left", on: [] };
+    expect(decodeJoinSpec(handWritten({ v: 2, steps: Array.from({ length: 16 }, () => step), output: {} }))).not.toBeNull();
+    expect(decodeJoinSpec(handWritten({ v: 2, steps: Array.from({ length: 17 }, () => step), output: {} }))).toBeNull();
+  });
+
+  it("reads an output entry that is not a list of column names as broken", () => {
+    expect(decodeJoinSpec(handWritten({ v: 2, steps: [], output: { o: "order_id" } }))).toBeNull();
+    expect(decodeJoinSpec(handWritten({ v: 2, steps: [], output: { o: [1] } }))).toBeNull();
   });
 
   it("reads nothing from a spec it cannot parse, does not know the version of, or holds an unknown kind of join", () => {
@@ -106,6 +117,39 @@ describe("restoreJoin", () => {
     const built = buildJoinSql(restored.def);
     expect(built.ok && built.sql).toContain("LEFT JOIN curated_shop.customers AS c ON o.customer_id = c.customer_id");
     expect(JSON.stringify(built)).not.toContain("secret");
+  });
+
+  it.each(["constructor", "toString", "valueOf", "__proto__"])("restores a link whose alias is %s like any other name", (name) => {
+    const text = handWritten({
+      v: 2,
+      steps: [{ database: "curated_shop", table: "customers", alias: name, kind: "left", on: [{ alias: "o", column: "customer_id", right: "customer_id" }] }],
+      output: {},
+    });
+    const restored = restoreJoin(ORDERS, decodeJoinSpec(text)!, lookup);
+    expect(restored.def.output).toEqual({ o: ["order_id", "customer_id", "amount"], c: ["name"] });
+
+    // The same name on a pair onto a table that is not there, and as an output key of its own.
+    const onto = handWritten({
+      v: 2,
+      steps: [{ database: "curated_shop", table: "customers", alias: "c", kind: "left", on: [{ alias: name, column: "customer_id", right: "customer_id" }] }],
+      output: { [name]: ["name"] },
+    });
+    const pairOnto = restoreJoin(ORDERS, decodeJoinSpec(onto)!, lookup);
+    expect(pairOnto.def.joins[0]!.pairs).toEqual([]);
+    expect(pairOnto.dropped).toEqual({ tables: 0, keys: 1 });
+    expect(pairOnto.def.output).toEqual({ o: ["order_id", "customer_id", "amount"], c: ["customer_id", "name"] });
+  });
+
+  it("keeps a column once in the output, however often the link names it", () => {
+    const text = handWritten({
+      v: 2,
+      steps: [{ database: "curated_shop", table: "customers", alias: "c", kind: "left", on: [{ alias: "o", column: "customer_id", right: "customer_id" }] }],
+      output: { c: ["name", "name"] },
+    });
+    const restored = restoreJoin(ORDERS, decodeJoinSpec(text)!, lookup);
+    expect(restored.def.output.c).toEqual(["name"]);
+    const built = buildJoinSql(restored.def);
+    expect(built.ok && built.sql.split("\n")[0]).toBe("SELECT o.*, c.name");
   });
 
   it("drops a pair naming a table that is not in the join, whatever it says", () => {

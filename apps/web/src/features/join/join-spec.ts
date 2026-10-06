@@ -1,13 +1,16 @@
 import { baseAlias, canPair, defaultOutput, joinedTables, tableAlias, type JoinDefinition, type JoinKind, type JoinPairRef, type JoinStep, type JoinTable } from "./join-model";
 
+/** The most tables a link may add to its base; a longer one reads as broken rather than costing a catalog read each. */
+const MAX_STEPS = 16;
+
 /** One pair of a step: `alias.column` of a table earlier in the join, equal to `right` of the step's own table. */
-interface JoinSpecPair {
+export interface JoinSpecPair {
   readonly alias: string;
   readonly column: string;
   readonly right: string;
 }
 
-interface JoinSpecStep {
+export interface JoinSpecStep {
   readonly database: string;
   readonly table: string;
   /** Only names the table inside the spec, for `on` and `output`: the restored join gives every table an alias of its own. */
@@ -21,12 +24,13 @@ interface JoinSpecStep {
  * from the SQL editor, and can be shared. The base table is the route's own; each step names its table,
  * alias, kind and pairs, and `output` the columns wanted from a table, only where they differ from
  * `defaultOutput`. Columns are not carried: they are read again from the catalog when the join is restored.
- * Version 1 carried positional pairs and was never released; it reads as a broken link.
+ * Version 1 carried positional pairs and was never released; it reads as a broken link. Read back, `output`
+ * is a map: an alias from a link is any text, `constructor` or `__proto__` included, and never reaches a prototype.
  */
-interface JoinSpec {
+export interface JoinSpec {
   readonly v: 2;
   readonly steps: readonly JoinSpecStep[];
-  readonly output: Readonly<Record<string, readonly string[]>>;
+  readonly output: ReadonlyMap<string, readonly string[]>;
 }
 
 function toBase64Url(text: string): string {
@@ -51,13 +55,12 @@ function sameColumns(a: readonly string[], b: readonly string[]): boolean {
 
 /** The join as URL-safe text: base64url of a versioned JSON, whatever characters its names hold. */
 export function encodeJoinSpec(def: JoinDefinition): string {
-  const output: Record<string, readonly string[]> = {};
-  for (const { alias, table } of joinedTables(def)) {
+  const output = joinedTables(def).flatMap(({ alias, table }) => {
     const wanted = def.output[alias] ?? [];
     const pairs = def.joins.find((step) => step.alias === alias)?.pairs ?? [];
-    if (!sameColumns(wanted, defaultOutput(table, pairs))) output[alias] = wanted;
-  }
-  const spec: JoinSpec = {
+    return sameColumns(wanted, defaultOutput(table, pairs)) ? [] : [[alias, wanted] as const];
+  });
+  const wire = {
     v: 2,
     steps: def.joins.map((step) => ({
       database: step.table.database,
@@ -66,9 +69,9 @@ export function encodeJoinSpec(def: JoinDefinition): string {
       kind: step.kind,
       on: step.pairs.map((pair) => ({ alias: pair.left.alias, column: pair.left.column, right: pair.right })),
     })),
-    output,
+    output: Object.fromEntries(output),
   };
-  return toBase64Url(JSON.stringify(spec));
+  return toBase64Url(JSON.stringify(wire));
 }
 
 const isText = (value: unknown): value is string => typeof value === "string";
@@ -93,8 +96,20 @@ function isSpecStep(value: unknown): value is JoinSpecStep {
   );
 }
 
+const isColumnList = (value: unknown): value is string[] => Array.isArray(value) && value.every(isText);
+
+/** The columns wanted per alias, or null when any entry is not a list of column names. */
+function readOutput(value: Record<string, unknown>): ReadonlyMap<string, readonly string[]> | null {
+  const output = new Map<string, readonly string[]>();
+  for (const [alias, columns] of Object.entries(value)) {
+    if (!isColumnList(columns)) return null;
+    output.set(alias, columns);
+  }
+  return output;
+}
+
 /** Reads a spec back, or null for anything that is not a version-2 join: a broken or foreign link is ignored, not trusted. */
-export function decodeJoinSpec(text: string) {
+export function decodeJoinSpec(text: string): JoinSpec | null {
   const json = fromBase64Url(text);
   if (json === null) return null;
   let value: unknown;
@@ -103,9 +118,11 @@ export function decodeJoinSpec(text: string) {
   } catch {
     return null;
   }
-  if (!isRecord(value) || value.v !== 2 || !Array.isArray(value.steps) || !isRecord(value.output)) return null;
-  const outputOk = Object.values(value.output).every((columns) => Array.isArray(columns) && columns.every(isText));
-  return value.steps.every(isSpecStep) && outputOk ? (value as unknown as JoinSpec) : null;
+  if (!isRecord(value) || value.v !== 2 || !isRecord(value.output)) return null;
+  const { steps } = value;
+  if (!Array.isArray(steps) || steps.length > MAX_STEPS || !steps.every(isSpecStep)) return null;
+  const output = readOutput(value.output);
+  return output ? { v: 2, steps, output } : null;
 }
 
 /** What a restore left out: tables that no longer read, and keys whose columns are gone or no longer comparable. */
@@ -161,9 +178,9 @@ export function restoreJoin(
 
   const output: Record<string, readonly string[]> = {};
   for (const [specAlias, { alias, table }] of present) {
-    const wanted = spec.output[specAlias];
+    const wanted = spec.output.get(specAlias);
     const pairs = joins.find((step) => step.alias === alias)?.pairs ?? [];
-    output[alias] = wanted ? wanted.filter((name) => columnOf(table, name) !== undefined) : defaultOutput(table, pairs);
+    output[alias] = wanted ? [...new Set(wanted)].filter((name) => columnOf(table, name) !== undefined) : defaultOutput(table, pairs);
   }
   return { def: { base, joins, output }, dropped: { tables: droppedTables, keys: droppedKeys } };
 }

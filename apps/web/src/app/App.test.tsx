@@ -574,6 +574,15 @@ describe("App", () => {
     await waitFor(() => expect(screen.queryByText(notice)).toBeNull());
   });
 
+  it("restores a join link whose alias is a name every object has, instead of a blank workspace", async () => {
+    renderApp();
+    const spec = { v: 2, steps: [{ database: "landing_shop", table: "orders", alias: "constructor", kind: "left", on: [{ alias: "o", column: "order_id", right: "order_id" }] }], output: {} };
+    const text = btoa(JSON.stringify(spec)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    await goTo(`#/join/landing_shop/order?spec=${text}`);
+    const receipt = await screen.findByLabelText("SQL this join runs");
+    await waitFor(() => expect(receipt.textContent).toContain("LEFT JOIN landing_shop.orders AS o2 ON o.order_id = o2.order_id"));
+  });
+
   it("says so when a join link cannot be read, and starts from the table instead", async () => {
     renderApp();
     await goTo("#/join/landing_shop/order?spec=not-a-join");

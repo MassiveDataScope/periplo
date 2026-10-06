@@ -54,9 +54,15 @@ export function useJoinFromUrl(tableFacts: TableFactsStore, base: JoinTable | nu
         }),
       );
       if (cancelled) return;
-      const restored = restoreJoin(base, decoded, (database, table) => read.get(`${database}.${table}`) ?? null);
-      setDefState(restored.def);
-      setNotice(restored.dropped.tables > 0 || restored.dropped.keys > 0 ? { kind: "dropped", ...restored.dropped } : null);
+      try {
+        const restored = restoreJoin(base, decoded, (database, table) => read.get(`${database}.${table}`) ?? null);
+        setDefState(restored.def);
+        setNotice(restored.dropped.tables > 0 || restored.dropped.keys > 0 ? { kind: "dropped", ...restored.dropped } : null);
+      } catch {
+        // A link that still breaks the restore must not leave the workspace blank: start again from the base, and say so.
+        setDefState(startJoin(base));
+        setNotice({ kind: "broken" });
+      }
     })();
     return () => {
       cancelled = true;
