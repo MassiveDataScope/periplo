@@ -3,7 +3,8 @@
 Every response is decoded into a private msgspec struct of just the fields this adapter
 reads, so malformed JSON and an unexpected shape fail the same way: as ``Upstream``.
 No message or log line names the base URL, its host or a credential; the only thing
-logged about a failed call is Prefect's status and the relative path asked for.
+logged about a failed call is Prefect's status, the relative path asked for and, for a
+response that does not decode, the JSON path of the field that failed.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import logging
+import re
 import statistics
 import time
 import uuid
@@ -90,6 +92,9 @@ _LIST_CACHE_SIZE = 32
 _DID_NOT_ANSWER = "The ETL orchestrator did not answer"
 _REJECTED = "The ETL orchestrator rejected the request"
 _DETAIL_LIMIT = 500
+# msgspec ends a validation error with the JSON path it failed at. Only that path is
+# logged: the rest of the message can quote a value from the response.
+_DECODE_FIELD = re.compile(r" - at `(?P<field>\$[^`]*)`$")
 # The dashboard's run strip: the last 12 non-scheduled runs of each deployment.
 _RECENT_RUNS = 12
 # Summary window and Prefect's own page limit for the two 24h counts.
@@ -144,6 +149,8 @@ class _PrefectTaskRun(msgspec.Struct):
     id: str
     name: str
     task_key: str
+    # Optional in Prefect's schema, but only for a run created without any state, which
+    # neither Prefect's client nor its scheduler does; required here so it stays a ``RunState``.
     state_type: RunState
     tags: list[str] = []
     start_time: datetime | None = None
@@ -172,8 +179,8 @@ class _CreatedBy(msgspec.Struct):
 class _EmpiricalPolicy(msgspec.Struct):
     """Prefect 3's ``FlowRunPolicy``, reduced to its retry settings.
 
-    ``retries`` and ``retry_delay`` are the live fields, ``null`` for a flow with no
-    retry policy. ``retry_delay_seconds`` is deprecated: Prefect 3 still sends it, as
+    ``retries`` and ``retry_delay`` are the live fields, ``null`` (or ``0``) for a flow
+    with no retry policy. ``retry_delay_seconds`` is deprecated: Prefect 3 still sends it, as
     ``0`` whatever the live delay is, so it is only a fallback for a ``retry_delay``
     that is absent or ``null``. A list of delays is a task-run policy, never a flow run's.
     """
@@ -187,6 +194,8 @@ class _PrefectRun(msgspec.Struct):
     id: str
     name: str
     flow_id: str
+    # Optional in Prefect's schema, but only for a run created without any state, which
+    # neither Prefect's client nor its scheduler does; required here so it stays a ``RunState``.
     state_type: RunState
     state_name: str
     state: _State | None = None
@@ -1216,6 +1225,7 @@ class PrefectOrchestrator:
                 status=response.status_code,
                 path=path,
                 cause=type(error).__name__,
+                field=_decode_field(error),
             )
             raise Upstream(_DID_NOT_ANSWER) from None
 
@@ -1228,6 +1238,12 @@ class PrefectOrchestrator:
                 transport=self._transport,
             )
         return self._client
+
+
+def _decode_field(error: msgspec.DecodeError) -> str | None:
+    """The JSON path a response failed to decode at (``$[0].run_count``), if one is named."""
+    match = _DECODE_FIELD.search(str(error))
+    return match["field"] if match else None
 
 
 def _auth_headers(api_key: str | None, auth_string: str | None) -> dict[str, str]:
@@ -1367,6 +1383,7 @@ def _recent_or_empty(deployment: str, result: list[FlowRun] | BaseException) -> 
 
 
 def _retry_delay_seconds(policy: _EmpiricalPolicy | None) -> float:
+    """The live ``retry_delay``, else the deprecated ``retry_delay_seconds``, else 0."""
     if policy is None:
         return 0.0
     if policy.retry_delay is not None:

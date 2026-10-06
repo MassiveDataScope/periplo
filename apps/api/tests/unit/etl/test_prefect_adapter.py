@@ -108,6 +108,25 @@ def run_json(**overrides: Any) -> dict[str, Any]:
     return {**base, **overrides}
 
 
+def prefect3_policy(**overrides: Any) -> dict[str, Any]:
+    """``empirical_policy`` exactly as Prefect 3.7 serialises ``FlowRunPolicy``.
+
+    ``retries`` and ``retry_delay`` are the live fields and are ``null`` for a flow with
+    no retry policy; ``max_retries`` and ``retry_delay_seconds`` are deprecated, always
+    present, and stay ``0`` even when the live fields are set.
+    """
+    base: dict[str, Any] = {
+        "max_retries": 0,
+        "retry_delay_seconds": 0.0,
+        "retries": None,
+        "retry_delay": None,
+        "pause_keys": [],
+        "resuming": False,
+        "retry_type": None,
+    }
+    return {**base, **overrides}
+
+
 def deployment_json(**overrides: Any) -> dict[str, Any]:
     base: dict[str, Any] = {
         "id": "dep-1",
@@ -1115,10 +1134,7 @@ async def test_flow_run_maps_run_count_retries_and_retry_delay() -> None:
         [deployment_json()],
         recent={
             "dep-1": [
-                run_json(
-                    run_count=3,
-                    empirical_policy={"retries": 2, "retry_delay_seconds": 30.0},
-                )
+                run_json(run_count=3, empirical_policy=prefect3_policy(retries=2, retry_delay=30))
             ]
         },
     )
@@ -1139,12 +1155,12 @@ async def test_flow_run_maps_run_count_retries_and_retry_delay() -> None:
 
 
 @pytest.mark.asyncio
-async def test_flow_run_reads_retry_delay_without_the_deprecated_seconds() -> None:
+async def test_flow_run_falls_back_to_the_deprecated_retry_delay_seconds() -> None:
     fake = FakePrefect()
     listing(
         fake,
         [deployment_json()],
-        recent={"dep-1": [run_json(empirical_policy={"retries": 1, "retry_delay": 45})]},
+        recent={"dep-1": [run_json(empirical_policy={"retries": 1, "retry_delay_seconds": 45.0})]},
     )
     [deployment] = (await orchestrator(fake).list_deployments()).etls
     run = deployment.last_run
@@ -1162,63 +1178,22 @@ async def test_flow_run_defaults_without_empirical_policy() -> None:
     assert (run.run_count, run.retries, run.retry_delay_seconds) == (0, 0, 0.0)
 
 
-def prefect3_policy(**overrides: Any) -> dict[str, Any]:
-    """``empirical_policy`` exactly as Prefect 3.7 serialises ``FlowRunPolicy``.
-
-    ``retries`` and ``retry_delay`` are the live fields and are ``null`` for a flow with
-    no retry policy; ``max_retries`` and ``retry_delay_seconds`` are deprecated, always
-    present, and stay ``0`` even when the live fields are set.
-    """
-    base: dict[str, Any] = {
-        "max_retries": 0,
-        "retry_delay_seconds": 0.0,
-        "retries": None,
-        "retry_delay": None,
-        "pause_keys": [],
-        "resuming": False,
-        "retry_type": None,
-    }
-    return {**base, **overrides}
-
-
 @pytest.mark.asyncio
-async def test_prefect3_runs_with_and_without_a_retry_policy_list_together() -> None:
+async def test_a_run_without_a_retry_policy_does_not_break_the_list() -> None:
     fake = FakePrefect()
     resolvable(fake)
     fake.on(
         "POST",
         "/flow_runs/filter",
-        [
-            run_json(id="run-1", run_count=1, empirical_policy=prefect3_policy()),
-            run_json(
-                id="run-2",
-                run_count=1,
-                empirical_policy=prefect3_policy(retries=3, retry_delay=10),
-            ),
-        ],
+        [run_json(id="run-1"), run_json(id="run-2", empirical_policy=prefect3_policy())],
     )
 
     runs = await orchestrator(fake).list_runs("daily-orders", 25)
 
     assert [(r.id, r.retries, r.retry_delay_seconds) for r in runs] == [
         ("run-1", 0, 0.0),
-        ("run-2", 3, 10.0),
+        ("run-2", 0, 0.0),
     ]
-
-
-@pytest.mark.asyncio
-async def test_retry_delay_wins_over_the_deprecated_retry_delay_seconds() -> None:
-    fake = FakePrefect()
-    resolvable(fake)
-    fake.on(
-        "POST",
-        "/flow_runs/filter",
-        [run_json(empirical_policy=prefect3_policy(retries=1, retry_delay=45))],
-    )
-
-    [run] = await orchestrator(fake).list_runs("daily-orders", 25)
-
-    assert (run.retries, run.retry_delay_seconds) == (1, 45.0)
 
 
 @pytest.mark.asyncio
@@ -2506,6 +2481,30 @@ async def test_failures_are_retryable_upstream(
         "The ETL orchestrator did not answer",
         True,
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("bad_field", "field_path"),
+    [
+        ({"run_count": None}, "$[1].run_count"),
+        # msgspec quotes an invalid literal in its message: only the path may be logged.
+        ({"state_type": HOST}, "$[1].state_type"),
+    ],
+)
+async def test_an_undecodable_response_logs_the_field_path_but_no_value(
+    bad_field: dict[str, Any], field_path: str
+) -> None:
+    fake = FakePrefect()
+    resolvable(fake)
+    fake.on("POST", "/flow_runs/filter", [run_json(id="run-1"), run_json(id="run-2", **bad_field)])
+
+    with structlog.testing.capture_logs() as captured, pytest.raises(Upstream):
+        await orchestrator(fake).list_runs("daily-orders", 25)
+
+    [failure] = [e for e in captured if e["event"] == "etl.upstream_error"]
+    assert (failure["path"], failure["field"]) == ("/flow_runs/filter", field_path)
+    assert HOST not in json.dumps(captured, default=str)
 
 
 @pytest.mark.asyncio
