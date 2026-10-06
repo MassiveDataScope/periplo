@@ -1,6 +1,5 @@
 .wordmark {
   flex: none;
-  block-size: 1.25rem;
   inline-size: auto;
   color: var(--nt-color-text);
   overflow: visible;
@@ -16,6 +15,7 @@
   stroke-width: 145;
 }
 
+/* The same lens as the logo's, so the brand dot is drawn in one place. */
 .lens {
-  fill: var(--nt-color-brand);
+  composes: lens from "./Logo.module.css";
 }
