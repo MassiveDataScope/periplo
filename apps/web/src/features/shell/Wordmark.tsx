@@ -1,6 +1,6 @@
 import styles from "./Wordmark.module.css";
 
-export interface WordmarkProps {
+interface WordmarkProps {
   readonly className?: string;
 }
 

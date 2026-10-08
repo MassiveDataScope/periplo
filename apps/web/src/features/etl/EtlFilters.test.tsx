@@ -1,233 +1,335 @@
 import { useState } from "react";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { I18nextProvider } from "react-i18next";
 import { createI18n } from "../../i18n";
-import { applyEtlFilters, DEFAULT_ETL_FILTERS, EtlFilters, type EtlFiltersState } from "./EtlFilters";
+import { EtlFilters } from "./EtlFilters";
+import { applyEtlFilters, DEFAULT_ETL_FILTERS, type EtlFiltersState } from "./etl-filters";
+import type { RunsNowByEtl } from "./etl-groups";
+import { deriveFacets, type FacetConfigs } from "./facets";
 import type { Etl, RecentRun } from "./useEtl";
 
 const i18n = await createI18n();
 
 afterEach(cleanup);
 
-const runAt = (state: RecentRun["state"]): RecentRun => ({
-  id: `run-${state}`,
-  state,
-  start_at: "2026-01-01T00:00:00.000Z",
-  end_at: "2026-01-01T00:05:00.000Z",
+const done: RecentRun = {
+  id: "r",
+  state: "COMPLETED",
+  run_count: 1,
+  expected_start_at: null,
+  start_at: "2026-01-01T00:00:00Z",
+  attempt_started_at: "2026-01-01T00:00:00Z",
+  end_at: "2026-01-01T00:05:00Z",
   attempts: null,
-});
+};
 
-function makeEtl(overrides: Partial<Etl> & { name: string; tags: string[] }): Etl {
+function makeEtl(name: string, tags: readonly string[], overrides: Partial<Etl> = {}): Etl {
   return {
-    id: `dep-${overrides.name}`,
-    flow_name: overrides.name,
+    id: name,
+    name,
+    flow_name: name,
     description: null,
+    tags: [...tags],
     paused: false,
     schedule: null,
     parameters: {},
     last_run: null,
-    recent: [runAt("COMPLETED")],
+    recent: [done],
     next_run_at: null,
     schedule_inactive: false,
-    cadence: null,
-    mode: null,
     accepts_processes: false,
     external_url: null,
+    triggered_by: null,
+    triggers: [],
+    archived: null,
     ...overrides,
   };
 }
 
-const ordersSnapshot = makeEtl({ name: "orders_snapshot_daily", tags: ["cadence:daily", "source:postgres", "target:lake", "team:data-platform"] });
-const suppliersWeekly = makeEtl({ name: "suppliers_catalog_weekly", tags: ["cadence:weekly", "source:sftp_csv", "target:core", "team:data-platform"] });
-const failedEtl = makeEtl({ name: "customer_facts_daily", tags: ["cadence:daily", "source:table"], recent: [runAt("COMPLETED"), runAt("FAILED")] });
-const crashedEtl = makeEtl({ name: "returns_reconciliation_daily", tags: ["source:http_api"], recent: [runAt("RUNNING"), runAt("CRASHED")] });
-const runningEtl = makeEtl({ name: "suppliers_catalog_backfill", tags: ["mode:backfill"], recent: [runAt("COMPLETED"), runAt("RUNNING")] });
-const attentionEtl = makeEtl({ name: "nightly_delta_maintenance", tags: ["kind:maintenance"], schedule_inactive: true });
-const pausedEtl = makeEtl({ name: "paused_after_failure", tags: ["source:postgres", "kind:maintenance"], schedule_inactive: true });
-const selfTagged = makeEtl({ name: "self_tagged_etl", tags: ["self_tagged_etl", "team:data-platform"] });
+// An installation's own prefixes, which the console knows nothing of in advance.
+const etls: Etl[] = [
+  makeEtl("ingest_a", ["system:crm", "owner:ana", "tier:gold", "nightly"]),
+  makeEtl("ingest_b", ["system:ledger", "owner:ana", "tier:silver", "nightly"]),
+  makeEtl("ingest_c", ["system:crm", "owner:bo", "zone:eu", "adhoc"]),
+  makeEtl("ingest_d", ["system:sftp", "owner:cy", "zone:us", "ingest_d"]),
+  makeEtl("ingest_e", ["system:ledger", "owner:dee", "lane:1"], { schedule_inactive: true }),
+  makeEtl("ingest_f", ["system:http", "owner:ed", "lane:2"]),
+];
 
-const etls: Etl[] = [ordersSnapshot, suppliersWeekly, failedEtl, crashedEtl, runningEtl, attentionEtl, pausedEtl, selfTagged];
+const NO_LIVE: RunsNowByEtl = new Map();
 
-function Harness({ initial = DEFAULT_ETL_FILTERS }: { readonly initial?: EtlFiltersState }) {
+function Harness({ initial = DEFAULT_ETL_FILTERS, configs = {} }: { readonly initial?: EtlFiltersState; readonly configs?: FacetConfigs }) {
   const [value, setValue] = useState(initial);
+  const facets = deriveFacets(etls, configs, value.tags);
+  const matching = applyEtlFilters(etls, value, NO_LIVE).length;
   return (
-    <EtlFilters
-      etls={etls}
-      value={value}
-      onSearchChange={(q) => setValue((current) => ({ ...current, q }))}
-      onFiltersChange={setValue}
-    />
+    <>
+      <EtlFilters
+        etls={etls}
+        facets={facets}
+        runsNow={NO_LIVE}
+        value={value}
+        matching={matching}
+        onSearchChange={(q) => setValue((current) => ({ ...current, q }))}
+        onFiltersChange={setValue}
+      />
+      <output aria-label="Shown">{matching}</output>
+    </>
   );
 }
 
-function renderFilters(initial?: EtlFiltersState) {
+const shown = (): string | null => screen.getByRole("status", { name: "Shown" }).textContent;
+
+function renderFilters(initial?: EtlFiltersState, configs?: FacetConfigs) {
   return render(
     <I18nextProvider i18n={i18n}>
-      <Harness initial={initial} />
+      <Harness initial={initial} configs={configs} />
     </I18nextProvider>,
   );
 }
 
-function openPopover(name: string): void {
-  fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${name}`) }));
-}
-
-describe("applyEtlFilters", () => {
-  it("matches the name and tags by pieces, in order", () => {
-    const shown = applyEtlFilters(etls, { ...DEFAULT_ETL_FILTERS, q: "orders snap" });
-    expect(shown.map((etl) => etl.name)).toEqual(["orders_snapshot_daily"]);
-  });
-
-  it("ORs within a tag group and ANDs across groups", () => {
-    // Both ordersSnapshot and suppliersWeekly are cadence:daily/weekly (irrelevant, no cadence group), but only ordersSnapshot has source:postgres AND team:data-platform.
-    const shown = applyEtlFilters(etls, { ...DEFAULT_ETL_FILTERS, tags: ["source:postgres", "team:data-platform"] });
-    expect(shown.map((etl) => etl.name).sort()).toEqual(["orders_snapshot_daily"]);
-
-    // Two tags from the same group (source): OR, so both sftp_csv and postgres sources show.
-    const orShown = applyEtlFilters(etls, { ...DEFAULT_ETL_FILTERS, tags: ["source:postgres", "source:sftp_csv"] });
-    expect(orShown.map((etl) => etl.name).sort()).toEqual(["orders_snapshot_daily", "paused_after_failure", "suppliers_catalog_weekly"]);
-  });
-
-  it("matches Failed on the newest of the last 12 runs", () => {
-    const shown = applyEtlFilters(etls, { ...DEFAULT_ETL_FILTERS, state: ["failed"] });
-    expect(shown.map((etl) => etl.name).sort()).toEqual(["customer_facts_daily", "returns_reconciliation_daily"]);
-  });
-
-  it("matches Running on the newest of the last 12 runs", () => {
-    const shown = applyEtlFilters(etls, { ...DEFAULT_ETL_FILTERS, state: ["running"] });
-    expect(shown.map((etl) => etl.name)).toEqual(["suppliers_catalog_backfill"]);
-  });
-
-  it("matches Needs attention with the same predicate the tiles use", () => {
-    const shown = applyEtlFilters(etls, { ...DEFAULT_ETL_FILTERS, state: ["attention"] });
-    expect(shown.map((etl) => etl.name).sort()).toEqual(["nightly_delta_maintenance", "paused_after_failure"]);
-  });
-
-  it("matches Paused after failure on an inactive schedule alone", () => {
-    const shown = applyEtlFilters(etls, { ...DEFAULT_ETL_FILTERS, state: ["paused"] });
-    expect(shown.map((etl) => etl.name).sort()).toEqual(["nightly_delta_maintenance", "paused_after_failure"]);
-  });
-
-  it("ORs several selected states", () => {
-    const shown = applyEtlFilters(etls, { ...DEFAULT_ETL_FILTERS, state: ["failed", "running"] });
-    expect(shown.map((etl) => etl.name).sort()).toEqual(["customer_facts_daily", "returns_reconciliation_daily", "suppliers_catalog_backfill"]);
-  });
-});
+const bar = () => within(screen.getByTestId("facet-bar"));
 
 describe("EtlFilters", () => {
   it("filters by typing pieces of the name and tags", () => {
     renderFilters();
-    const input = screen.getByLabelText("Filter ETLs");
-    fireEvent.change(input, { target: { value: "orders snap" } });
-    expect(screen.getByText("1 of 8 ETLs")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Filter ETLs"), { target: { value: "ingest crm" } });
+    expect(shown()).toBe("2");
   });
 
-  it("opens the Tags popover grouped by prefix, without a cadence group and without an ETL's own-name tag", () => {
+  it("offers State first, then up to three facets of the tags, the rest under More, each named by its prefix", () => {
     renderFilters();
-    openPopover("Tags");
-    const dialog = screen.getByRole("dialog", { name: "Tags" });
-    expect(within(dialog).getByText("source")).toBeTruthy();
-    expect(within(dialog).getByText("team")).toBeTruthy();
-    expect(within(dialog).queryByText("cadence")).toBeNull();
-    expect(within(dialog).queryByText(/^daily$/)).toBeNull();
-    expect(within(dialog).queryByRole("checkbox", { name: /self_tagged_etl/ })).toBeNull();
+    // owner and system: every ETL; Labels: 3; tier, zone and lane: 2 each, by name.
+    expect(
+      bar()
+        .getAllByRole("button", { expanded: false })
+        .map((button) => button.textContent),
+    ).toEqual(["State", "Owner", "System", "Labels", "More"]);
   });
 
-  it("shows a facet count per tag option that reacts to the other active filters", () => {
-    renderFilters();
-    openPopover("Tags");
-    const dialog = screen.getByRole("dialog", { name: "Tags" });
-    // postgres appears on ordersSnapshot and pausedEtl: 2, before anything else is selected.
-    expect(within(dialog).getByRole("checkbox", { name: /postgres/ }).closest("label")?.textContent).toContain("2");
+  describe("on a bar too narrow for every facet", () => {
+    // jsdom lays nothing out: a button is 8px a character, and the facets get `room` pixels.
+    let room = 0;
+    const restore: Array<() => void> = [];
+    const stub = (name: "offsetWidth" | "clientWidth", get: (element: HTMLElement) => number) => {
+      const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, name);
+      Object.defineProperty(HTMLElement.prototype, name, {
+        configurable: true,
+        get: function (this: HTMLElement) {
+          return get(this);
+        },
+      });
+      restore.push(() => Object.defineProperty(HTMLElement.prototype, name, original ?? { configurable: true, value: 0 }));
+    };
+    beforeEach(() => {
+      stub("offsetWidth", (element) => (element.textContent ?? "").length * 8);
+      stub("clientWidth", () => room);
+    });
+    afterEach(() => restore.splice(0).forEach((undo) => undo()));
 
-    // Selecting team:data-platform (a different group) narrows what postgres's own count would be if added.
-    fireEvent.click(within(dialog).getByRole("checkbox", { name: /data-platform/ }));
-    expect(within(dialog).getByRole("checkbox", { name: /postgres/ }).closest("label")?.textContent).toContain("1");
+    const longLabels: FacetConfigs = {
+      owner: { label: "Data owner responsible", order: 1, hidden: false, role: null, values: null },
+      system: { label: "Source system of record", order: 2, hidden: false, role: null, values: null },
+    };
+    const onTheBar = () =>
+      bar()
+        .getAllByRole("button", { expanded: false })
+        .map((button) => button.textContent);
+
+    it("moves the facets that do not fit under More, the last first", () => {
+      room = 400;
+      renderFilters(undefined, longLabels);
+      expect(onTheBar()).toEqual(["State", "Data owner responsible", "More"]);
+      fireEvent.click(bar().getByRole("button", { name: "More" }));
+      expect(
+        within(screen.getByRole("dialog", { name: "More filters" }))
+          .getAllByRole("listbox")
+          .map((list) => list.getAttribute("aria-label")),
+      ).toEqual(["Source system of record", "Labels", "Lane", "Tier", "Zone"]);
+    });
+
+    it("keeps room for More whenever facets wait under it", () => {
+      // State, Owner, System and Labels take 176px; More another 32.
+      room = 190;
+      renderFilters();
+      expect(onTheBar()).toEqual(["State", "Owner", "System", "More"]);
+    });
+
+    it("never moves State", () => {
+      room = 10;
+      renderFilters(undefined, longLabels);
+      expect(onTheBar()).toEqual(["State", "More"]);
+    });
   });
 
-  it("selects several tags: OR within a group, AND across groups, and shrinks the count", () => {
-    renderFilters();
-    openPopover("Tags");
-    const dialog = screen.getByRole("dialog", { name: "Tags" });
-    fireEvent.click(within(dialog).getByRole("checkbox", { name: /postgres/ }));
-    fireEvent.click(within(dialog).getByRole("checkbox", { name: /data-platform/ }));
-    expect(screen.getByText("1 of 8 ETLs")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^Tags/ }).textContent).toContain("2");
+  it("takes the installation's labels and order, and leaves out what it hides", () => {
+    const configs: FacetConfigs = {
+      system: { label: "Source system", order: 1, hidden: false, role: null, values: null },
+      owner: { label: null, order: null, hidden: true, role: null, values: null },
+    };
+    renderFilters(undefined, configs);
+    expect(
+      bar()
+        .getAllByRole("button", { expanded: false })
+        .map((button) => button.textContent),
+    ).toEqual(["State", "Source system", "Labels", "Lane", "More"]);
   });
 
-  it("searches tags inside the Tags popover", () => {
+  it("picks values in a listbox with their counts, the empty ones last, OR within a facet", () => {
     renderFilters();
-    openPopover("Tags");
-    const dialog = screen.getByRole("dialog", { name: "Tags" });
-    fireEvent.change(within(dialog).getByLabelText("Search tags"), { target: { value: "http_api" } });
-    expect(within(dialog).getByRole("checkbox", { name: /http_api/ })).toBeTruthy();
-    expect(within(dialog).queryByRole("checkbox", { name: /postgres/ })).toBeNull();
+    fireEvent.click(bar().getByRole("button", { name: "System" }));
+    const list = screen.getByRole("listbox", { name: "System" });
+    expect(list.getAttribute("aria-multiselectable")).toBe("true");
+    const options = within(list).getAllByRole("option");
+    expect(options.map((option) => option.textContent)).toEqual(["crm2", "ledger2", "http1", "sftp1"]);
+    fireEvent.click(options[0]!);
+    fireEvent.click(options[1]!);
+    expect(shown()).toBe("4");
+    expect(
+      within(list)
+        .getAllByRole("option")
+        .filter((option) => option.getAttribute("aria-selected") === "true"),
+    ).toHaveLength(2);
   });
 
-  it("closes the Tags popover on Esc and returns focus to its button", () => {
+  it("says a facet's picks on its button, and clears them from there", () => {
+    renderFilters({ ...DEFAULT_ETL_FILTERS, tags: ["system:crm", "system:ledger"] });
+    const button = bar().getByRole("button", { name: "System, 2 selected: crm, ledger" });
+    expect(button.textContent).toBe("System: crm +1");
+    fireEvent.click(bar().getByRole("button", { name: "Clear System" }));
+    expect(shown()).toBe("6");
+  });
+
+  it("ANDs across facets, and dims a value that would show nothing given the other picks", () => {
+    renderFilters({ ...DEFAULT_ETL_FILTERS, tags: ["owner:ana"] });
+    fireEvent.click(bar().getByRole("button", { name: "System" }));
+    const options = within(screen.getByRole("listbox", { name: "System" })).getAllByRole("option");
+    expect(options.map((option) => [option.textContent, option.hasAttribute("data-empty")])).toEqual([
+      ["crm1", false],
+      ["ledger1", false],
+      ["http0", true],
+      ["sftp0", true],
+    ]);
+  });
+
+  it("moves with the arrows, picks with Space, keeps only one, and clears", () => {
     renderFilters();
-    openPopover("Tags");
-    expect(screen.getByRole("dialog", { name: "Tags" })).toBeTruthy();
+    fireEvent.click(bar().getByRole("button", { name: "System" }));
+    const list = screen.getByRole("listbox", { name: "System" });
+    list.focus();
+    fireEvent.keyDown(list, { key: "ArrowDown" });
+    fireEvent.keyDown(list, { key: " " });
+    expect(list.getAttribute("aria-activedescendant")).toBeTruthy();
+    expect(shown()).toBe("2");
+    fireEvent.keyDown(list, { key: "ArrowDown" });
+    fireEvent.keyDown(list, { key: " " });
+    expect(shown()).toBe("4");
+    fireEvent.click(screen.getByRole("button", { name: "Only ledger" }));
+    expect(shown()).toBe("2");
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    expect(shown()).toBe("6");
+  });
+
+  it("points its active option by an id without the value, which may hold spaces", () => {
+    const spaced = [makeEtl("a", ["owner:ana maria"]), makeEtl("b", ["owner:bo"])];
+    render(
+      <I18nextProvider i18n={i18n}>
+        <EtlFilters
+          etls={spaced}
+          facets={deriveFacets(spaced, {}, [])}
+          runsNow={NO_LIVE}
+          value={DEFAULT_ETL_FILTERS}
+          matching={2}
+          onSearchChange={() => {}}
+          onFiltersChange={() => {}}
+        />
+      </I18nextProvider>,
+    );
+    fireEvent.click(bar().getByRole("button", { name: "Owner" }));
+    const list = screen.getByRole("listbox", { name: "Owner" });
+    fireEvent.keyDown(list, { key: "ArrowDown" });
+    const active = list.getAttribute("aria-activedescendant") ?? "";
+    expect(active).not.toMatch(/\s/);
+    expect(document.getElementById(active)?.textContent).toBe("ana maria1");
+  });
+
+  it("closes on Esc and gives the focus back to its button", () => {
+    renderFilters();
+    const button = bar().getByRole("button", { name: "System" });
+    fireEvent.click(button);
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("dialog", { name: "Tags" })).toBeNull();
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: /^Tags/ }));
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(document.activeElement).toBe(button);
   });
 
-  it("closes the Tags popover on a pointer down outside it, but a pointer down inside leaves it open", () => {
+  it("searches inside a facet only when it has more than eight values", () => {
+    const many = Array.from({ length: 9 }, (_, index) => makeEtl(`e${index}`, [`site:s${index}`]));
+    render(
+      <I18nextProvider i18n={i18n}>
+        <EtlFilters
+          etls={many}
+          facets={deriveFacets(many, {}, [])}
+          runsNow={NO_LIVE}
+          value={DEFAULT_ETL_FILTERS}
+          matching={9}
+          onSearchChange={() => {}}
+          onFiltersChange={() => {}}
+        />
+      </I18nextProvider>,
+    );
+    fireEvent.click(bar().getByRole("button", { name: "Site" }));
+    const search = screen.getByRole("searchbox", { name: "Search Site" });
+    fireEvent.change(search, { target: { value: "s3" } });
+    expect(
+      within(screen.getByRole("listbox", { name: "Site" }))
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["s31"]);
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    const list = screen.getByRole("listbox", { name: "Site" });
+    expect(document.activeElement).toBe(list);
+    expect(document.getElementById(list.getAttribute("aria-activedescendant") ?? "")?.textContent).toBe("s31");
+    cleanup();
     renderFilters();
-    openPopover("Tags");
-    const dialog = screen.getByRole("dialog", { name: "Tags" });
-
-    fireEvent.pointerDown(dialog);
-    expect(screen.getByRole("dialog", { name: "Tags" })).toBeTruthy();
-
-    fireEvent.pointerDown(document.body);
-    expect(screen.queryByRole("dialog", { name: "Tags" })).toBeNull();
+    fireEvent.click(bar().getByRole("button", { name: "System" }));
+    expect(screen.queryByRole("searchbox", { name: /^Search/ })).toBeNull();
   });
 
-  it("selects the four State options and shrinks the count, OR among themselves", () => {
+  it("keeps the facets past the first four under More, each its own list", () => {
     renderFilters();
-    openPopover("State");
-    const dialog = screen.getByRole("dialog", { name: "State" });
-    expect(within(dialog).getByRole("checkbox", { name: /Failed/ })).toBeTruthy();
-    expect(within(dialog).getByRole("checkbox", { name: /Running/ })).toBeTruthy();
-    expect(within(dialog).getByRole("checkbox", { name: /Needs attention/ })).toBeTruthy();
-    expect(within(dialog).getByRole("checkbox", { name: /Paused after failure/ })).toBeTruthy();
-
-    fireEvent.click(within(dialog).getByRole("checkbox", { name: /Failed/ }));
-    expect(screen.getByText("2 of 8 ETLs")).toBeTruthy();
-    fireEvent.click(within(dialog).getByRole("checkbox", { name: /Running/ }));
-    expect(screen.getByText("3 of 8 ETLs")).toBeTruthy();
+    fireEvent.click(bar().getByRole("button", { name: "More" }));
+    const more = screen.getByRole("dialog", { name: "More filters" });
+    expect(
+      within(more)
+        .getAllByRole("listbox")
+        .map((list) => list.getAttribute("aria-label")),
+    ).toEqual(["Lane", "Tier", "Zone"]);
+    fireEvent.click(within(within(more).getByRole("listbox", { name: "Tier" })).getAllByRole("option")[0]!);
+    expect(shown()).toBe("1");
   });
 
-  it("shows removable chips for every active tag and state filter", () => {
-    renderFilters({ ...DEFAULT_ETL_FILTERS, tags: ["source:postgres"], state: ["failed"] });
-    const postgresChip = screen.getByRole("button", { name: "Remove source: postgres" });
-    expect(postgresChip.textContent).toContain("source: postgres");
-    fireEvent.click(postgresChip);
-    expect(screen.queryByRole("button", { name: "Remove source: postgres" })).toBeNull();
-
-    const failedChip = screen.getByRole("button", { name: "Remove Failed" });
-    fireEvent.click(failedChip);
-    expect(screen.queryByRole("button", { name: "Remove Failed" })).toBeNull();
-  });
-
-  it("shows Clear filters only once a filter is active, and it resets everything", () => {
+  it("filters by State with the same list, its counts the lists' own", () => {
     renderFilters();
-    expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();
-    openPopover("State");
-    fireEvent.click(within(screen.getByRole("dialog", { name: "State" })).getByRole("checkbox", { name: /Running/ }));
-    expect(screen.getByText("1 of 8 ETLs")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
-    expect(screen.getByText("8 of 8 ETLs")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();
+    fireEvent.click(bar().getByRole("button", { name: "State" }));
+    const options = within(screen.getByRole("listbox", { name: "State" })).getAllByRole("option");
+    expect(options.map((option) => option.textContent)).toEqual(["Needs attention1", "Paused after failure1", "Failed0", "Running0"]);
+    fireEvent.click(options[0]!);
+    expect(shown()).toBe("1");
   });
 
-  it("starts from the filters it is given, as the URL would supply on load", () => {
-    renderFilters({ ...DEFAULT_ETL_FILTERS, q: "suppliers" });
-    const input = screen.getByLabelText("Filter ETLs") as HTMLInputElement;
-    expect(input.value).toBe("suppliers");
-    expect(screen.getByText("2 of 8 ETLs")).toBeTruthy();
+  it("opens every facet at once in one sheet on a narrow pane, and shows how many ETLs it lets through", () => {
+    renderFilters({ ...DEFAULT_ETL_FILTERS, tags: ["owner:ana"] });
+    fireEvent.click(bar().getByRole("button", { name: "Filters · 1" }));
+    const sheet = screen.getByRole("dialog", { name: "Filters" });
+    expect(
+      within(sheet)
+        .getAllByRole("listbox")
+        .map((list) => list.getAttribute("aria-label")),
+    ).toEqual(["State", "Owner", "System", "Labels", "Lane", "Tier", "Zone"]);
+    fireEvent.click(within(within(sheet).getByRole("listbox", { name: "Tier" })).getAllByRole("option")[0]!);
+    fireEvent.click(within(sheet).getByRole("button", { name: "Show 1 ETL" }));
+    expect(screen.queryByRole("dialog", { name: "Filters" })).toBeNull();
+    expect(shown()).toBe("1");
   });
 });

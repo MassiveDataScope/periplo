@@ -1,26 +1,42 @@
 import { describe, expect, it } from "vitest";
-import { describeSchedule, formatDuration, isTerminal, toneOf, type RunState, type Schedule } from "./run-state";
+import type { ExecutionStatus } from "@periplo/core/ui";
+import { describeSchedule, formatDuration, isScheduleOff, isTerminal, statusOf, type Schedule, type StepState } from "./run-state";
 
 const schedule = (overrides: Partial<Schedule>): Schedule => ({ kind: "cron", cron: null, interval_seconds: null, timezone: null, active: true, ...overrides });
 
 describe("run-state", () => {
-  it.each<[RunState, ReturnType<typeof toneOf>]>([
-    ["COMPLETED", "success"],
-    ["FAILED", "danger"],
-    ["CRASHED", "danger"],
-    ["RUNNING", "info"],
-    ["PENDING", "info"],
-    ["SCHEDULED", "info"],
-    ["CANCELLING", "info"],
-    ["CANCELLED", "neutral"],
-    ["PAUSED", "neutral"],
-  ])("gives %s the %s tone", (state, tone) => {
-    expect(toneOf(state)).toBe(tone);
+  it.each<[StepState, ExecutionStatus]>([
+    ["COMPLETED", "completed"],
+    ["FAILED", "failed"],
+    ["CRASHED", "failed"],
+    ["INTERRUPTED", "failed"],
+    ["RUNNING", "running"],
+    ["SCHEDULED", "scheduled"],
+    ["PENDING", "scheduled"],
+    ["CANCELLING", "stopped"],
+    ["CANCELLED", "stopped"],
+    ["PAUSED", "stopped"],
+  ])("draws %s as %s", (state, status) => {
+    expect(statusOf(state, null)).toBe(status);
+  });
+
+  it.each<[StepState, ExecutionStatus]>([
+    ["SCHEDULED", "running"],
+    ["PENDING", "running"],
+    ["CANCELLING", "stopped"],
+    ["COMPLETED", "completed"],
+    ["FAILED", "failed"],
+  ])("draws %s with a start time as %s: started is running, even before the orchestrator says so", (state, status) => {
+    expect(statusOf(state, "2026-01-01T00:00:00Z")).toBe(status);
   });
 
   it("knows which states never change again", () => {
     for (const state of ["COMPLETED", "FAILED", "CANCELLED", "CRASHED"] as const) expect(isTerminal(state)).toBe(true);
     for (const state of ["SCHEDULED", "PENDING", "RUNNING", "PAUSED", "CANCELLING"] as const) expect(isTerminal(state)).toBe(false);
+  });
+
+  it("counts a step a closed attempt never got to finish as terminal: it will not change again either", () => {
+    expect(isTerminal("INTERRUPTED")).toBe(true);
   });
 
   it("formats a duration with at most two units", () => {
@@ -53,5 +69,16 @@ describe("run-state", () => {
   it("names an rrule and a missing schedule", () => {
     expect(describeSchedule(schedule({ kind: "rrule" }))).toEqual({ kind: "rrule", text: "rrule" });
     expect(describeSchedule(null)).toEqual({ kind: "manual", text: "manual" });
+  });
+});
+
+describe("isScheduleOff", () => {
+  const schedule = { kind: "cron" as const, cron: "0 4 * * *", interval_seconds: null, timezone: null, active: true };
+  it("is true however the schedule stopped: paused by hand, switched off, or off after a failure", () => {
+    expect(isScheduleOff({ paused: false, schedule, schedule_inactive: false })).toBe(false);
+    expect(isScheduleOff({ paused: true, schedule, schedule_inactive: false })).toBe(true);
+    expect(isScheduleOff({ paused: false, schedule: { ...schedule, active: false }, schedule_inactive: false })).toBe(true);
+    expect(isScheduleOff({ paused: false, schedule, schedule_inactive: true })).toBe(true);
+    expect(isScheduleOff({ paused: false, schedule: null, schedule_inactive: false })).toBe(false);
   });
 });

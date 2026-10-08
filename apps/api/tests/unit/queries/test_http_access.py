@@ -174,7 +174,10 @@ def _make_app(
         max_concurrent=2, max_rows=100, max_bytes=1 << 20, timeout_seconds=5
     )
     app = FastAPI()
-    access = Access(authorizer or SwitchAuthorizer(allow_operate=False), audit or LogAuditSink())
+    access = Access(
+        authorizer or SwitchAuthorizer(allow_operate=False, allow_archive=False),
+        audit or LogAuditSink(),
+    )
     planes = single_plane(state, engine)
     gate = credentials or process_gate()
     app.include_router(create_router(planes, runtime, access=access, credentials=gate))

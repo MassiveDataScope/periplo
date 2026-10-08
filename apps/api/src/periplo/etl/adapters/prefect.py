@@ -1,9 +1,11 @@
-"""``Orchestrator`` over the Prefect 3 REST API.
+"""``Orchestrator`` over the Prefect 3 REST API (tested against 3.7; a Prefect older than
+3.7 cannot filter runs by creator, and ``_started_by`` falls back to a wider query).
 
 Every response is decoded into a private msgspec struct of just the fields this adapter
 reads, so malformed JSON and an unexpected shape fail the same way: as ``Upstream``.
 No message or log line names the base URL, its host or a credential; the only thing
-logged about a failed call is Prefect's status and the relative path asked for.
+logged about a failed call is Prefect's status, the relative path asked for and, for a
+response that does not decode, the JSON path of the field that failed.
 """
 
 from __future__ import annotations
@@ -15,9 +17,9 @@ import statistics
 import time
 import uuid
 from collections import OrderedDict
-from collections.abc import Callable, Collection, Sequence
+from collections.abc import Callable, Collection, Iterable, Sequence
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx2
@@ -26,12 +28,22 @@ from croniter import CroniterBadCronError, CroniterBadDateError, croniter
 from loom.core.config import ConfigError
 from loom.core.logger import get_logger
 
+from periplo.etl.adapters.prefect_automations import ChainLink, chain_links, with_chains
+from periplo.etl.adapters.prefect_chains import (
+    CHAIN_RETRY_AFTER,
+    ChainResolver,
+    RunChain,
+    automation_of,
+)
+from periplo.etl.adapters.prefect_decode import decode_field
 from periplo.etl.errors import (
     ETL_NOT_KNOWN,
     RUN_NOT_KNOWN,
     Ambiguous,
     Busy,
     EtlError,
+    NotCancellable,
+    NotRetryable,
     Rejected,
     Unknown,
     Upstream,
@@ -53,6 +65,7 @@ from periplo.etl.ports import (
     RunAttempt,
     RunDetail,
     RunGrid,
+    RunLink,
     RunningRun,
     RunState,
     RunTasks,
@@ -61,8 +74,10 @@ from periplo.etl.ports import (
     Step,
     StepDetail,
     Summary,
+    TriggerKind,
     Upcoming,
 )
+from periplo.etl.run_control import RunFacts, StateProposal, cancel_proposal, retry_proposal
 from periplo.etl.tasks import (
     FlowStateIn,
     TaskRunIn,
@@ -95,8 +110,6 @@ _RECENT_RUNS = 12
 # Summary window and Prefect's own page limit for the two 24h counts.
 _SUMMARY_WINDOW = timedelta(hours=24)
 _SUMMARY_LIMIT = 200
-_CADENCE_PREFIX = "cadence:"
-_MODE_PREFIX = "mode:"
 # Prefect's own tag for a run its scheduler created, as opposed to a manual or API launch.
 _AUTO_SCHEDULED_TAG = "auto-scheduled"
 
@@ -131,6 +144,12 @@ _ATTEMPT_CACHE_TTL_ACTIVE = 3.0
 # answers in one page and a bounded batched task-run query.
 _RUNNING_LIMIT = 20
 _RUNNING_QUERY_LIMIT = _RUNNING_LIMIT + 1
+# Prefect's START_TIME_DESC sorts by coalesce(start_time, expected_start_time), so a run
+# waiting to start for weeks sorts last and is the first the cap cuts: the few PENDING runs
+# without a start that have waited longest are asked for apart and kept beyond the cap.
+# The limit is global, across every ETL: the 5 runs waiting longest, as one stuck run per
+# ETL is enough to flag it. It costs one more small request on every list poll.
+_WAITING_LIMIT = 5
 # Run history: 24 hourly buckets over the last day, 7 daily buckets over the last week.
 _HISTORY_1H_BUCKETS = 24
 _HISTORY_7D_BUCKETS = 7
@@ -161,12 +180,23 @@ class _PrefectFlowState(msgspec.Struct):
     message: str | None = None
 
 
+class _StateDetails(msgspec.Struct):
+    scheduled_time: datetime | None = None
+    """For a SCHEDULED state: when it is due, e.g. a retry's ``now + retry_delay``."""
+
+
 class _State(msgspec.Struct):
     message: str | None = None
+    timestamp: datetime | None = None
+    """When the run entered this state: how long it has been cancelling, for a force."""
+    state_details: _StateDetails | None = None
 
 
 class _CreatedBy(msgspec.Struct):
     display_value: str | None = None
+    type: str | None = None
+    """``AUTOMATION`` for a run an automation created, with the automation's ``id``."""
+    id: str | None = None
 
 
 class _EmpiricalPolicy(msgspec.Struct):
@@ -190,9 +220,26 @@ class _PrefectRun(msgspec.Struct):
     start_time: datetime | None = None
     end_time: datetime | None = None
     total_run_time: float | None = None
+    created: datetime | None = None
     created_by: _CreatedBy | None = None
     run_count: int = 0
     empirical_policy: _EmpiricalPolicy | None = None
+    infrastructure_pid: str | None = None
+    """What a worker launched for it (an ECS task, a process); none for a run never sent."""
+
+
+class _PrefectStateType(msgspec.Struct):
+    type: RunState
+
+
+class _PrefectSetStateResult(msgspec.Struct):
+    """Prefect's answer to ``set_state``: ``ACCEPT``; ``REJECT`` with the state the run is
+    in afterwards (another one set instead, e.g. ``CANCELLED`` for a scheduled run with
+    nothing to stop, or the one it was already in); ``ABORT`` or ``WAIT``. Its
+    ``details`` (the reason) are never read: they stay Prefect's."""
+
+    status: Literal["ACCEPT", "REJECT", "ABORT", "WAIT"]
+    state: _PrefectStateType | None = None
 
 
 class _PrefectSchedule(msgspec.Struct):
@@ -248,13 +295,21 @@ class _RunEntry:
     entry itself, so evicting the entry (the LRU is bounded) drops it too.
     """
 
-    __slots__ = ("lock", "fetched_at", "run", "detail", "tasks")
+    __slots__ = (
+        "lock",
+        "fetched_at",
+        "run",
+        "detail",
+        "tasks",
+        "chain",
+    )
 
     def __init__(self) -> None:
         self.lock = asyncio.Lock()
         self.fetched_at = float("-inf")
         self.run: _PrefectRun | None = None
         self.detail: RunDetail | None = None
+        self.chain = RunChain()
         self.tasks: RunTasks | None = None
 
 
@@ -303,6 +358,18 @@ class PrefectOrchestrator:
         self._noise_prefixes = list(noise_prefixes)
         self._ui_url = ui_url
         self._run_cache: OrderedDict[str, _RunEntry] = OrderedDict()
+        # The workspace's chain automations and when they were read (``_LIST_TTL``), or
+        # when reading them last failed (``CHAIN_RETRY_AFTER``).
+        self._chains: tuple[float, list[ChainLink]] | None = None
+        self._chains_failed_at: float | None = None
+        self._chain = ChainResolver[_PrefectRun](
+            chain_links=self._chain_links,
+            owned_runs=self._owned_runs,
+            deployment_name=self._deployment_name,
+            run_filter=self._run_filter,
+            now=now,
+            clock=clock,
+        )
         self._client: httpx2.AsyncClient | None = None
         self._inflight = asyncio.Semaphore(_IN_FLIGHT)
         self._recent_runs_slots = asyncio.Semaphore(_RECENT_RUNS_CONCURRENCY)
@@ -316,7 +383,7 @@ class PrefectOrchestrator:
         self._grid_cache: dict[tuple[str, int], tuple[float, RunGrid]] = {}
         self._grid_locks: dict[tuple[str, int], asyncio.Lock] = {}
         # ``FlowRun.attempts``: one cache slot per run id, bounded LRU, single-flight.
-        self._attempt_cache: OrderedDict[str, tuple[float, list[RunAttempt]]] = OrderedDict()
+        self._attempt_cache: OrderedDict[str, tuple[float, int, list[RunAttempt]]] = OrderedDict()
         self._attempt_locks: dict[str, asyncio.Lock] = {}
 
     def __repr__(self) -> str:
@@ -388,6 +455,7 @@ class PrefectOrchestrator:
             _recent_or_empty(raw.name, result) for raw, result in zip(found, results, strict=True)
         ]
         recent_lists = await self._fill_attempts_grouped(recent_lists)
+        self._forget_changed(run for recent in recent_lists for run in recent)
         deployments = [
             _deployment(
                 raw, flow_names.get(raw.flow_id, ""), recent, now=self._now, ui_url=self._ui_url
@@ -395,8 +463,14 @@ class PrefectOrchestrator:
             for raw, recent in zip(found, recent_lists, strict=True)
         ]
         deployments.sort(key=lambda d: (d.name, d.flow_name))
+        # A chain is something more to show: the list goes on without the links it cannot read.
+        try:
+            links = await self._chain_links()
+        except EtlError:
+            links = []
+        deployments = with_chains(deployments, links)
         ids = [d.id for d in deployments]
-        running_count, failed, completed = await self._summary_counts(deployments, ids)
+        failed, completed = await self._summary_counts(ids)
         running_runs, running_truncated = await self._running_runs(deployments, ids)
         upcoming = await self._upcoming(deployments, ids)
         now = self._now().astimezone(UTC)
@@ -417,7 +491,7 @@ class PrefectOrchestrator:
             median_seconds=_median_seconds(deployments, timedelta(days=7), now=now),
         )
         summary = Summary(
-            running=running_count,
+            running=_running_count(deployments, running_runs),
             failed_24h=failed,
             completed_24h=completed,
             history=history_1h,
@@ -438,19 +512,18 @@ class PrefectOrchestrator:
             running_truncated=False,
         )
 
-    async def _summary_counts(
-        self, deployments: list[Deployment], ids: list[str]
-    ) -> tuple[int, int, int]:
-        running = sum(1 for d in deployments if d.recent and d.recent[-1].state == "RUNNING")
+    async def _summary_counts(self, ids: list[str]) -> tuple[int, int]:
+        """FAILED/CRASHED and COMPLETED runs across ``ids`` that ended in the last 24h."""
         since = self._now().astimezone(UTC) - _SUMMARY_WINDOW
         failed = await self._count_runs(ids, since, ["FAILED", "CRASHED"])
         completed = await self._count_runs(ids, since, ["COMPLETED"])
-        return running, failed, completed
+        return failed, completed
 
     async def _running_runs(
         self, deployments: list[Deployment], ids: list[str]
     ) -> tuple[list[RunningRun], bool]:
-        """RUNNING or PENDING runs across ``ids``, newest start first, capped at 20."""
+        """RUNNING or PENDING runs across ``ids``, newest start first, capped at 20; then
+        the PENDING runs without a start that have waited longest, which the cap may cut."""
         filters = {
             "deployment_id": {"any_": ids},
             "state": {"type": {"any_": ["RUNNING", "PENDING"]}},
@@ -464,6 +537,8 @@ class PrefectOrchestrator:
         truncated = len(found) > _RUNNING_LIMIT
         capped = found[:_RUNNING_LIMIT]
         currents = await self._current_processes([raw.id for raw in capped]) if capped else {}
+        listed = {raw.id for raw in capped}
+        waiting = [raw for raw in await self._waiting_runs(ids) if raw.id not in listed]
         names = {d.id: d.name for d in deployments}
         typical = {d.id: _typical_seconds(d.recent) for d in deployments}
         runs = [
@@ -473,9 +548,36 @@ class PrefectOrchestrator:
                 current=currents.get(raw.id),
                 typical_seconds=typical.get(raw.deployment_id or ""),
             )
-            for raw in capped
+            for raw in [*capped, *waiting]
         ]
         return runs, truncated
+
+    async def _waiting_runs(self, ids: list[str]) -> list[_PrefectRun]:
+        """Runs across ``ids`` waiting to start that the running query may leave out, a few
+        of each, longest waiting first: PENDING runs that never started (no start sorts
+        last there), and retries nobody has picked up (SCHEDULED, named AwaitingRetry)."""
+        never_started = {
+            "deployment_id": {"any_": ids},
+            "state": {"type": {"any_": ["PENDING"]}},
+            "start_time": {"is_null_": True},
+        }
+        awaiting_retry = {
+            "deployment_id": {"any_": ids},
+            "state": {"type": {"any_": ["SCHEDULED"]}, "name": {"any_": ["AwaitingRetry"]}},
+        }
+        found = await asyncio.gather(
+            *(
+                self._owned_runs(
+                    {
+                        "flow_runs": self._run_filter(filters),
+                        "sort": "EXPECTED_START_TIME_ASC",
+                        "limit": _WAITING_LIMIT,
+                    }
+                )
+                for filters in (never_started, awaiting_retry)
+            )
+        )
+        return [raw for runs in found for raw in runs]
 
     async def _current_processes(
         self, run_ids: list[str]
@@ -566,7 +668,9 @@ class PrefectOrchestrator:
         }
         body = {"flow_runs": self._run_filter(filters), "sort": "START_TIME_DESC", "limit": limit}
         runs = [_flow_run(raw, ui_url=self._ui_url) for raw in await self._owned_runs(body)]
-        return await self._fill_attempts(runs)
+        filled = await self._fill_attempts(runs)
+        self._forget_changed(filled)
+        return filled
 
     async def get_run(self, run_id: str) -> RunDetail:
         entry = await self._resolve(run_id)
@@ -757,9 +861,17 @@ class PrefectOrchestrator:
             if run.deployment_id:
                 deployment_name = await self._deployment_name(run.deployment_id)
             flow_name = await self._flow_name(run.flow_id)
+            triggered_by_run, triggered_runs = await self._chain.resolve(
+                entry.chain, run, deployment_name, flow_name
+            )
             entry.run = run
             entry.detail = _run_detail(
-                run, deployment_name=deployment_name, flow_name=flow_name, ui_url=self._ui_url
+                run,
+                deployment_name=deployment_name,
+                flow_name=flow_name,
+                ui_url=self._ui_url,
+                triggered_by_run=triggered_by_run,
+                triggered_runs=triggered_runs,
             )
             entry.tasks = None
             entry.fetched_at = self._clock()
@@ -780,6 +892,16 @@ class PrefectOrchestrator:
             entry.tasks = tasks
             return tasks
 
+    def _forget_changed(self, runs: Iterable[FlowRun]) -> None:
+        """Drop the cached detail of any of these runs (as a list just read them) that has
+        changed since: a finished run, cached for long, can leave its terminal state when
+        retried from Prefect's UI, and its page must never disagree with the list."""
+        for run in runs:
+            entry = self._run_cache.get(run.id)
+            cached = entry.detail if entry is not None else None
+            if cached is not None and _differs(cached, run):
+                del self._run_cache[run.id]
+
     def _entry_for(self, run_id: str) -> _RunEntry:
         entry = self._run_cache.get(run_id)
         if entry is not None:
@@ -794,7 +916,8 @@ class PrefectOrchestrator:
     def _fresh(self, entry: _RunEntry) -> bool:
         if entry.detail is None:
             return False
-        ttl = _RUN_CACHE_TTL_TERMINAL if entry.detail.terminal else _RUN_CACHE_TTL_ACTIVE
+        settled = entry.detail.terminal and entry.chain.settled
+        ttl = _RUN_CACHE_TTL_TERMINAL if settled else _RUN_CACHE_TTL_ACTIVE
         return self._clock() - entry.fetched_at < ttl
 
     async def _all_task_runs(self, run_id: str) -> list[TaskRunIn]:
@@ -845,7 +968,7 @@ class PrefectOrchestrator:
                 _log.warning("etl.attempts_unavailable", run_id=run.id)
                 result.append(run)
                 continue
-            result.append(msgspec.structs.replace(run, attempts=attempts))
+            result.append(_with_attempts(run, attempts))
         return result
 
     async def _fill_attempts_grouped(self, groups: list[list[FlowRun]]) -> list[list[FlowRun]]:
@@ -875,7 +998,7 @@ class PrefectOrchestrator:
                 return cached
             states = await self._flow_states(run.id)
             attempts = build_run_attempts(states)
-            self._attempt_cache[run.id] = (self._clock(), attempts)
+            self._attempt_cache[run.id] = (self._clock(), run.run_count, attempts)
             self._attempt_cache.move_to_end(run.id)
             if len(self._attempt_cache) > _ATTEMPT_CACHE_SIZE:
                 evicted_id, _ = self._attempt_cache.popitem(last=False)
@@ -888,7 +1011,10 @@ class PrefectOrchestrator:
         cached = self._attempt_cache.get(run.id)
         if cached is None:
             return None
-        fetched_at, attempts = cached
+        fetched_at, run_count, attempts = cached
+        # A finished run retried since (from Prefect's UI) has run again: its history grew.
+        if run_count != run.run_count:
+            return None
         if run.state in TERMINAL_STATES:
             self._attempt_cache.move_to_end(run.id)
             return attempts
@@ -930,8 +1056,14 @@ class PrefectOrchestrator:
         # The next list must show the run just created: never left to its TTL.
         self._invalidate_lists()
         flow_name = await self._flow_name(target.flow_id)
+        # A run just created has started nothing and was started by no other run.
         return _run_detail(
-            run, deployment_name=target.name, flow_name=flow_name, ui_url=self._ui_url
+            run,
+            deployment_name=target.name,
+            flow_name=flow_name,
+            ui_url=self._ui_url,
+            triggered_by_run=None,
+            triggered_runs=[],
         )
 
     async def set_schedule(self, name: str, active: bool) -> Deployment:
@@ -956,6 +1088,54 @@ class PrefectOrchestrator:
         deployment = _deployment(refreshed, flow_name, recent, now=self._now, ui_url=self._ui_url)
         _log.info("etl.schedule_changed", deployment=name, active=active)
         return deployment
+
+    async def cancel_run(self, run_id: str, *, force: bool, by: str | None) -> RunDetail:
+        """See :mod:`periplo.etl.run_control` for the state proposed and why."""
+        run = await self._resolve_run(run_id)
+        proposal = cancel_proposal(_run_facts(run), now=self._now(), force=force)
+        await self._propose(
+            run,
+            proposal,
+            message=_signed("Cancelled from Periplo", by),
+            refused=NotCancellable("The orchestrator refused to cancel this run"),
+        )
+        return await self._reread(run_id)
+
+    async def retry_run(self, run_id: str, *, by: str | None) -> RunDetail:
+        """See :mod:`periplo.etl.run_control`: the same run, scheduled again."""
+        run = await self._resolve_run(run_id)
+        proposal = retry_proposal(_run_facts(run))
+        await self._propose(
+            run,
+            proposal,
+            message=_signed("Retried from Periplo", by),
+            refused=NotRetryable("The orchestrator refused to retry this run"),
+        )
+        return await self._reread(run_id)
+
+    async def _propose(
+        self, run: _PrefectRun, proposal: StateProposal, *, message: str, refused: EtlError
+    ) -> None:
+        run_id = run.id
+        state = {"type": proposal.type, "name": proposal.name, "message": message}
+        result = await self._post(
+            f"/flow_runs/{run_id}/set_state",
+            {"state": state, "force": proposal.force},
+            _PrefectSetStateResult,
+            not_found=Unknown(RUN_NOT_KNOWN.format(run_id=run_id)),
+        )
+        if not _changed_by(result, run.state_type):
+            _log.warning(
+                "etl.state_refused", run_id=run_id, proposed=proposal.type, status=result.status
+            )
+            raise refused
+        _log.info("etl.state_proposed", run_id=run_id, proposed=proposal.type, force=proposal.force)
+
+    async def _reread(self, run_id: str) -> RunDetail:
+        """The run read afresh, and the lists dropped: both must show the change at once."""
+        self._run_cache.pop(run_id, None)
+        self._invalidate_lists()
+        return await self.get_run(run_id)
 
     async def _resolve_deployment(self, name: str) -> _PrefectDeployment:
         filters: dict[str, Any] = {"name": {"any_": [name]}}
@@ -1007,6 +1187,31 @@ class PrefectOrchestrator:
 
     async def _flow_name(self, flow_id: str) -> str:
         return (await self._get(f"/flows/{flow_id}", _PrefectFlow)).name
+
+    async def _chain_links(self) -> list[ChainLink]:
+        """The workspace's "when X completes, run Y" automations, read again past
+        ``_LIST_TTL``. Raises the ``EtlError`` Prefect answered when they cannot be read,
+        then ``Upstream`` without asking until ``CHAIN_RETRY_AFTER`` has passed: unread is
+        not "none"."""
+        now = self._clock()
+        if self._chains is not None and now - self._chains[0] < _LIST_TTL:
+            return self._chains[1]
+        if self._chains_failed_at is not None and now - self._chains_failed_at < CHAIN_RETRY_AFTER:
+            raise Upstream(_DID_NOT_ANSWER)
+        body = {"sort": "NAME_ASC", "limit": _PAGE}
+        try:
+            automations = await self._post("/automations/filter", body, list[msgspec.Raw])
+        except EtlError as error:
+            _log.warning("etl.automations_unavailable", status=error.status)
+            self._chains_failed_at = now
+            raise
+        self._chains_failed_at = None
+        if len(automations) == _PAGE:
+            # Past one page the rest is not read: a chain they make is not shown.
+            _log.warning("etl.automations_truncated", limit=_PAGE)
+        links = chain_links(automations)
+        self._chains = (self._clock(), links)
+        return links
 
     async def _deployment_name(self, deployment_id: str) -> str | None:
         try:
@@ -1183,7 +1388,9 @@ class PrefectOrchestrator:
             raise Upstream("The ETL orchestrator is rate limiting requests")
         if 400 <= status < 500 and status != 404:
             _log.warning("etl.upstream_error", status=status, path=path)
-            raise Rejected(_detail(response) if pass_through_detail else _REJECTED)
+            raise Rejected(
+                _detail(response) if pass_through_detail else _REJECTED, upstream_status=status
+            )
         if not 200 <= status < 300:
             _log.warning("etl.upstream_error", status=status, path=path)
             raise Upstream(_DID_NOT_ANSWER)
@@ -1209,6 +1416,7 @@ class PrefectOrchestrator:
                 status=response.status_code,
                 path=path,
                 cause=type(error).__name__,
+                field=decode_field(error),
             )
             raise Upstream(_DID_NOT_ANSWER) from None
 
@@ -1221,6 +1429,30 @@ class PrefectOrchestrator:
                 transport=self._transport,
             )
         return self._client
+
+
+def _changed_by(result: _PrefectSetStateResult, before: RunState) -> bool:
+    """Whether ``set_state`` changed the run: accepted, or rejected for another state than
+    the one it was in (a rejection that leaves it as it was is a refusal)."""
+    if result.status == "ACCEPT":
+        return True
+    return result.status == "REJECT" and result.state is not None and result.state.type != before
+
+
+def _run_facts(raw: _PrefectRun) -> RunFacts:
+    return RunFacts(
+        state=raw.state_type,
+        # Its current attempt's start: a retried run keeps its first attempt's start_time.
+        started=_attempt_start(raw) is not None,
+        has_infrastructure=bool(raw.infrastructure_pid),
+        state_since=raw.state.timestamp if raw.state is not None else None,
+        has_deployment=raw.deployment_id is not None,
+    )
+
+
+def _signed(what: str, by: str | None) -> str:
+    """The message left on the run's new state in Prefect: what, and who when known."""
+    return what if by is None else f"{what} by {by}"
 
 
 def _auth_headers(api_key: str | None, auth_string: str | None) -> dict[str, str]:
@@ -1317,6 +1549,27 @@ def _median_seconds(
     return statistics.median(durations) if durations else None
 
 
+_NOT_STARTED_STATES = frozenset({"SCHEDULED", "PENDING"})
+
+
+def _is_going(state: RunState, start_at: datetime | None) -> bool:
+    """Whether a run is going: RUNNING, or a not-started state that already has a start
+    time (the orchestrator flips the state a moment after the work begins). A run without
+    a start is waiting, however long it has waited: the console's own reading."""
+    return state == "RUNNING" or (state in _NOT_STARTED_STATES and start_at is not None)
+
+
+def _running_count(deployments: list[Deployment], running: list[RunningRun]) -> int:
+    """ETLs with a run going, as the console counts them: one going in ``running``, or a
+    newest ``recent`` run that is going; an attempt that has started is what counts."""
+    going = {run.etl for run in running if _is_going(run.state, run.attempt_started_at)}
+    for deployment in deployments:
+        newest = deployment.recent[-1] if deployment.recent else None
+        if newest is not None and _is_going(newest.state, newest.attempt_started_at):
+            going.add(deployment.name)
+    return len(going)
+
+
 def _running_run(
     raw: _PrefectRun,
     *,
@@ -1342,11 +1595,63 @@ def _running_run(
         etl=etl,
         state=raw.state_type,
         start_at=raw.start_time,
-        created_by=raw.created_by.display_value if raw.created_by else None,
-        trigger="scheduled" if _AUTO_SCHEDULED_TAG in raw.tags else "manual",
+        attempt_started_at=_attempt_start(raw),
+        expected_start_at=raw.expected_start_time,
+        waiting_since=_waiting_since(raw),
+        created_by=_creator(raw),
+        trigger=_trigger_kind(raw),
         current=current_field,
         typical_seconds=typical_seconds,
     )
+
+
+def _differs(cached: FlowRun, seen: FlowRun) -> bool:
+    return (cached.state, cached.run_count, cached.end_at) != (
+        seen.state,
+        seen.run_count,
+        seen.end_at,
+    )
+
+
+def _with_attempts(run: FlowRun, attempts: list[RunAttempt]) -> FlowRun:
+    """``run`` with its attempts read: a finished one's last attempt is the one it ran."""
+    last = attempts[-1] if attempts else None
+    finished_start = last.start_at if last is not None and run.state in TERMINAL_STATES else None
+    return msgspec.structs.replace(
+        run,
+        attempts=attempts,
+        attempt_started_at=finished_start or run.attempt_started_at,
+    )
+
+
+def _waiting_again(raw: _PrefectRun) -> bool:
+    """A retried run waiting for its next attempt: not started, with attempts behind it."""
+    return raw.state_type in _NOT_STARTED_STATES and raw.run_count > 0
+
+
+def _waiting_since(raw: _PrefectRun) -> datetime | None:
+    """See ``FlowRun.waiting_since``. A retry is due no sooner than its state's
+    ``scheduled_time``: ``RetryFailedFlows`` schedules AwaitingRetry at ``now +
+    retry_delay``, and the run is not late before that."""
+    state = raw.state
+    if not _waiting_again(raw) or state is None or state.timestamp is None:
+        return raw.expected_start_time
+    due = state.state_details.scheduled_time if state.state_details is not None else None
+    return state.timestamp if due is None else max(state.timestamp, due)
+
+
+def _attempt_start(raw: _PrefectRun) -> datetime | None:
+    """When the run's current attempt started, from what one flow run says (see
+    ``FlowRun.attempt_started_at``). Prefect keeps ``start_time`` at the first attempt's
+    start across retries (a UI "Retry" included), but a ``RUNNING`` run's state was
+    entered when this attempt started. A run waiting again after a retry (``run_count``
+    already counts its earlier attempts) has not started this one. Anything else: its
+    start, until ``_fill_attempts`` reads a retried run's last attempt."""
+    if raw.state_type == "RUNNING" and raw.state is not None and raw.state.timestamp is not None:
+        return raw.state.timestamp
+    if _waiting_again(raw):
+        return None
+    return raw.start_time
 
 
 def _recent_or_empty(deployment: str, result: list[FlowRun] | BaseException) -> list[FlowRun]:
@@ -1391,26 +1696,41 @@ def _flow_run(raw: _PrefectRun, *, ui_url: str | None) -> FlowRun:
         state_message=raw.state.message if raw.state else None,
         expected_start_at=raw.expected_start_time,
         start_at=raw.start_time,
+        attempt_started_at=_attempt_start(raw),
+        waiting_since=_waiting_since(raw),
         end_at=raw.end_time,
         # Prefect always sends ``total_run_time`` (0 before a start); guard the None anyway.
         duration_seconds=raw.total_run_time or 0.0,
-        created_by=raw.created_by.display_value if raw.created_by else None,
+        created_by=_creator(raw),
         run_count=raw.run_count,
         retries=raw.empirical_policy.retries if raw.empirical_policy else 0,
         retry_delay_seconds=_retry_delay_seconds(raw.empirical_policy),
-        trigger="scheduled" if _AUTO_SCHEDULED_TAG in raw.tags else "manual",
+        trigger=_trigger_kind(raw),
         external_url=_run_url(ui_url, raw.id),
     )
 
 
 def _recent_run(raw: FlowRun) -> RecentRun:
     return RecentRun(
-        id=raw.id, state=raw.state, start_at=raw.start_at, end_at=raw.end_at, attempts=raw.attempts
+        id=raw.id,
+        state=raw.state,
+        run_count=raw.run_count,
+        expected_start_at=raw.expected_start_at,
+        start_at=raw.start_at,
+        attempt_started_at=raw.attempt_started_at,
+        end_at=raw.end_at,
+        attempts=raw.attempts,
     )
 
 
 def _run_detail(
-    raw: _PrefectRun, *, deployment_name: str | None, flow_name: str, ui_url: str | None
+    raw: _PrefectRun,
+    *,
+    deployment_name: str | None,
+    flow_name: str,
+    ui_url: str | None,
+    triggered_by_run: RunLink | None,
+    triggered_runs: list[RunLink],
 ) -> RunDetail:
     return RunDetail(
         **msgspec.structs.asdict(_flow_run(raw, ui_url=ui_url)),
@@ -1419,7 +1739,25 @@ def _run_detail(
         deployment_name=deployment_name,
         flow_name=flow_name,
         terminal=raw.state_type in TERMINAL_STATES,
+        state_since=raw.state.timestamp if raw.state is not None else None,
+        triggered_by_run=triggered_by_run,
+        triggered_runs=triggered_runs,
     )
+
+
+def _creator(raw: _PrefectRun) -> str | None:
+    """Who created the run, as Prefect names them. Never an automation's name, which can
+    carry the name of an upstream ETL the caller may not see: the web says "Triggered by X ›
+    run" for such a run instead, from ``triggered_by_run``."""
+    if raw.created_by is None or automation_of(raw) is not None:
+        return None
+    return raw.created_by.display_value
+
+
+def _trigger_kind(raw: _PrefectRun) -> TriggerKind:
+    if automation_of(raw) is not None:
+        return "automation"
+    return "scheduled" if _AUTO_SCHEDULED_TAG in raw.tags else "manual"
 
 
 def _deployment(
@@ -1444,9 +1782,10 @@ def _deployment(
         recent=[_recent_run(run) for run in recent_runs],
         next_run_at=_next_run_at(schedule, paused=raw.paused, now=now, deployment=raw.name),
         schedule_inactive=schedule is not None and not schedule.active and not raw.paused,
-        cadence=_tag_value(raw.tags, _CADENCE_PREFIX),
-        mode=_tag_value(raw.tags, _MODE_PREFIX),
         accepts_processes=_accepts_processes(raw.parameter_openapi_schema),
+        triggered_by=None,
+        triggers=[],
+        archived=None,
         external_url=_deployment_url(ui_url, raw.id),
     )
 
@@ -1475,13 +1814,6 @@ def _next_run_at(
         _log.warning("etl.schedule_unparseable", deployment=deployment)
         return None
     return next_fire.astimezone(UTC)
-
-
-def _tag_value(tags: list[str], prefix: str) -> str | None:
-    for tag in tags:
-        if tag.startswith(prefix):
-            return tag[len(prefix) :]
-    return None
 
 
 def _schedule(entry: _PrefectSchedule) -> Schedule:

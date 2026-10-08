@@ -7,8 +7,7 @@ import styles from "./Logo.module.css";
 export type LogoProps = { readonly size?: "sm"; readonly className?: string } | { readonly size: "lg"; readonly busy?: boolean; readonly className?: string };
 
 /**
- * The product mark (provisional, until the designer's final drawing): the periscope drawn as the l of the
- * wordmark, with the brand dot as its lens. At `lg` the tube crosses a waterline: what is under the surface
+ * The product mark: the periscope drawn as the l of the wordmark, with the brand dot as its lens. At `lg` the tube crosses a waterline: what is under the surface
  * stays faint, what looks out is in full ink. Decorative: the link or heading around it carries the name.
  * The `sm` drawing is also the favicon and the docs logo (apps/web/public/favicon.svg, docs/_static/logo.svg).
  */

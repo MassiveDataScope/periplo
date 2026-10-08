@@ -59,20 +59,70 @@ describe("design tokens", () => {
     return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
   };
 
-  it.each(["--nt-color-state-ok", "--nt-color-brand"])("keeps %s readable (>= 3:1) against the page background and chrome surface, in both themes", (name) => {
-    const colour = lightDark(name);
-    const bg = lightDark("--nt-color-bg");
-    const surface = lightDark("--nt-color-surface");
+  const themes = ["light", "dark"] as const;
 
-    expect(contrastRatio(colour.light, bg.light)).toBeGreaterThanOrEqual(3);
-    expect(contrastRatio(colour.light, surface.light)).toBeGreaterThanOrEqual(3);
-    expect(contrastRatio(colour.dark, bg.dark)).toBeGreaterThanOrEqual(3);
-    expect(contrastRatio(colour.dark, surface.dark)).toBeGreaterThanOrEqual(3);
+  /** Every pair of `foreground` on each of `grounds`, in both themes, at `minimum`:1 or more. */
+  const expectContrast = (foreground: string, grounds: readonly string[], minimum: number): void => {
+    const colour = lightDark(foreground);
+    for (const groundName of grounds) {
+      const ground = lightDark(groundName);
+      for (const theme of themes) {
+        expect(contrastRatio(colour[theme], ground[theme]), `${foreground} on ${groundName}, ${theme}`).toBeGreaterThanOrEqual(minimum);
+      }
+    }
+  };
+
+  /** Whether a #rrggbb colour reads as blue: a hue between cyan and violet, saturated enough not to pass for a grey
+   * (the nested family's slate sits at a blue hue but reads grey). */
+  const isBlue = (hex: string): boolean => {
+    const [r, g, b] = toRgb(hex).map((channel) => channel / 255);
+    if (r === undefined || g === undefined || b === undefined) throw new Error(`${hex} is not #rrggbb`);
+    const max = Math.max(r, g, b);
+    const delta = max - Math.min(r, g, b);
+    if (delta === 0 || delta / max < 0.35) return false;
+    const sector = max === r ? ((g - b) / delta + 6) % 6 : max === g ? (b - r) / delta + 2 : (r - g) / delta + 4;
+    const hue = sector * 60;
+    return hue > 190 && hue < 250;
+  };
+
+  const STATE_COLOURS = ["--nt-color-state-completed", "--nt-color-state-failed", "--nt-color-state-running", "--nt-color-state-scheduled"];
+  const TYPE_FAMILIES = ["integer", "decimal", "text", "temporal", "boolean", "nested"];
+
+  it.each(STATE_COLOURS)("keeps %s visible (>= 3:1) on the page background, the chrome surface and the sunken bar tracks", (name) => {
+    expectContrast(name, ["--nt-color-bg", "--nt-color-surface", "--nt-color-surface-sunken"], 3);
+  });
+
+  it("keeps the brand signature visible (>= 3:1) on the page background and the chrome surface", () => {
+    expectContrast("--nt-color-brand", ["--nt-color-bg", "--nt-color-surface"], 3);
+  });
+
+  it("keeps the slow label readable as text (>= 4.5:1) on the page background and the chrome surface", () => {
+    expectContrast("--nt-color-state-slow", ["--nt-color-bg", "--nt-color-surface"], 4.5);
+  });
+
+  it("draws the failed state's cross in the page background, visible (>= 3:1) on the failed fill", () => {
+    expectContrast("--nt-color-bg", ["--nt-color-state-failed"], 3);
+  });
+
+  it("keeps the running stripes visible as stripes (>= 3:1) on the running fill", () => {
+    expectContrast("--nt-color-state-running-stripe", ["--nt-color-state-running"], 3);
+  });
+
+  it.each(TYPE_FAMILIES)("keeps the %s type glyph readable (>= 4.5:1) on its badge surface and on the page background", (family) => {
+    expectContrast(`--nt-color-type-${family}`, [`--nt-color-type-${family}-surface`, "--nt-color-bg"], 4.5);
+  });
+
+  it("reserves blue for the running state: no data-type family is blue", () => {
+    for (const family of TYPE_FAMILIES) {
+      const colour = lightDark(`--nt-color-type-${family}`);
+      for (const theme of themes) expect(isBlue(colour[theme]), `${family}, ${theme}`).toBe(false);
+    }
+    const running = lightDark("--nt-color-state-running");
+    for (const theme of themes) expect(isBlue(running[theme]), `running, ${theme}`).toBe(true);
   });
 
   it("defines the running-state tokens, with the marching stripe stopped under reduced motion", () => {
-    expect(tokens).toContain("--nt-color-state-run:");
-    expect(tokens).toContain("--nt-color-state-run-stripe:");
+    expect(tokens).toContain("--nt-color-state-running-stripe:");
     expect(tokens).toContain("--nt-size-stripe:");
     expect(tokens).toContain("--nt-size-step-bar:");
     expect(tokens).toContain("--nt-size-log-line:");

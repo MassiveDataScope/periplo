@@ -1,5 +1,5 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nextProvider } from "react-i18next";
 import { createPreferences } from "../../app/preferences";
 import type { Route } from "../../app/routes";
@@ -80,5 +80,18 @@ describe("NavRail", () => {
   it("never marks the ETL entry under construction as the current section", () => {
     const rail = renderRail({ kind: "etl" }, true, true);
     expect(rail.getByRole("link", { name: "ETL (under construction)" }).getAttribute("aria-current")).toBeNull();
+  });
+});
+
+describe("NavRail on a narrow screen", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("stays collapsed whatever the wide-mode preference, with no toggle that could not show anything", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: true, media: query, addEventListener() {}, removeEventListener() {} }));
+    const preferences = createPreferences(undefined);
+    expect(preferences.get().railCollapsed).toBe(false);
+    renderRail({ kind: "home" }, false, false, preferences);
+    expect(screen.getByRole("navigation", { name: "Sections" }).parentElement?.getAttribute("data-collapsed")).toBe("true");
+    expect(screen.queryByRole("button", { name: "Collapse menu" })).toBeNull();
   });
 });

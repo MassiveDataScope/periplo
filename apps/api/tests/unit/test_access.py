@@ -173,12 +173,16 @@ def test_target_helpers_follow_the_convention() -> None:
         (False, Action.VIEW_ETL, False),
         (False, Action.OPERATE_ETL, True),
         (True, Action.OPERATE_ETL, False),
+        (False, Action.CANCEL_RUN, True),
+        (True, Action.CANCEL_RUN, False),
+        (False, Action.RETRY_RUN, True),
+        (True, Action.RETRY_RUN, False),
         (True, Action.VIEW_ETL, False),
     ],
 )
 @pytest.mark.asyncio
 async def test_switch_authorizer_matrix(allow_operate: bool, action: Action, denied: bool) -> None:
-    authorizer = SwitchAuthorizer(allow_operate=allow_operate)
+    authorizer = SwitchAuthorizer(allow_operate=allow_operate, allow_archive=allow_operate)
     with running_as():
         context = current_context()
         if denied:
@@ -189,9 +193,25 @@ async def test_switch_authorizer_matrix(allow_operate: bool, action: Action, den
             await authorizer.authorize(context, action, ())
 
 
+@pytest.mark.parametrize(("allow_archive", "denied"), [(False, True), (True, False)])
+@pytest.mark.asyncio
+async def test_switch_authorizer_archives_by_its_own_switch(
+    allow_archive: bool, denied: bool
+) -> None:
+    authorizer = SwitchAuthorizer(allow_operate=False, allow_archive=allow_archive)
+    with running_as():
+        context = current_context()
+        if denied:
+            with pytest.raises(Denied) as excinfo:
+                await authorizer.authorize(context, Action.ARCHIVE_ETL, ())
+            assert excinfo.value.code == "etl_archive_disabled"
+        else:
+            await authorizer.authorize(context, Action.ARCHIVE_ETL, ())
+
+
 @pytest.mark.asyncio
 async def test_switch_authorizer_refuses_other_tenants() -> None:
-    authorizer = SwitchAuthorizer(allow_operate=True)
+    authorizer = SwitchAuthorizer(allow_operate=True, allow_archive=True)
     with running_as(tenant=Tenant("globex")), pytest.raises(tenancy.ForeignTenant):
         await authorizer.authorize(current_context(), Action.VIEW_ETL, ())
 
@@ -536,6 +556,12 @@ class _StubOrchestrator:
     async def set_schedule(self, name: str, active: bool) -> Deployment:
         raise AssertionError("not reached")
 
+    async def cancel_run(self, run_id: str, *, force: bool, by: str | None) -> RunDetail:
+        raise AssertionError("not reached")
+
+    async def retry_run(self, run_id: str, *, by: str | None) -> RunDetail:
+        raise AssertionError("not reached")
+
     async def aclose(self) -> None:
         return None
 
@@ -609,7 +635,9 @@ class _FilteringAuthorizer(_RecordingAuthorizer):
 def test_filtering_capability_is_detected() -> None:
     assert isinstance(_FilteringAuthorizer(), FilteringAuthorizer)
     assert not isinstance(_RecordingAuthorizer(), FilteringAuthorizer)
-    assert not isinstance(SwitchAuthorizer(allow_operate=False), FilteringAuthorizer)
+    assert not isinstance(
+        SwitchAuthorizer(allow_operate=False, allow_archive=False), FilteringAuthorizer
+    )
 
 
 @pytest.mark.asyncio
@@ -874,7 +902,7 @@ def test_admin_catalog_value_is_admin_catalog() -> None:
 @pytest.mark.asyncio
 async def test_switch_authorizer_allows_admin_catalog() -> None:
     with running_as():
-        await SwitchAuthorizer(allow_operate=False).authorize(
+        await SwitchAuthorizer(allow_operate=False, allow_archive=False).authorize(
             current_context(), Action.ADMIN_CATALOG, ()
         )
 

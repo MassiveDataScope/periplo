@@ -833,6 +833,150 @@
         }
       }
     },
+    "/etl/{name}/archive": {
+      "post": {
+        "operationId": "archiveEtl",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Archived in Periplo; nothing changes in the orchestrator. One already archived keeps its first mark",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveState"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Archiving is not allowed to this caller (etl_archive_disabled by default)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Integration off (etl_not_configured) or unknown deployment (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A reason longer than 500 characters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The orchestrator is unreachable or rejected the credential (etl_upstream)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/etl/{name}/restore": {
+      "post": {
+        "operationId": "restoreEtl",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Restored; one that was not archived is left as it is. The orchestrator is not asked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveState"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Archiving is not allowed to this caller (etl_archive_disabled by default)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Integration off (etl_not_configured), or a deployment hidden from the caller (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/etl/runs/{id}": {
       "get": {
         "operationId": "getEtlRun",
@@ -859,6 +1003,170 @@
           },
           "404": {
             "description": "Integration off (etl_not_configured) or unknown deployment/run (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The orchestrator is unreachable or rejected the credential (etl_upstream)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/etl/runs/{id}/cancel": {
+      "post": {
+        "operationId": "cancelEtlRun",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The run read back: CANCELLING while its infrastructure is stopped, or CANCELLED for a run that never started (or one forced)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Operating ETLs is disabled (etl_operate_disabled)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Integration off (etl_not_configured) or unknown run (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Finished, already cancelling, or not stuck cancelling long enough to force (etl_run_not_cancellable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The orchestrator is unreachable or rejected the credential (etl_upstream)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/etl/runs/{id}/retry": {
+      "post": {
+        "operationId": "retryEtlRun",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "The same run, scheduled again (AwaitingRetry); its run_count grows when it starts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Operating ETLs is disabled (etl_operate_disabled)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Integration off (etl_not_configured) or unknown run (not_found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not failed or crashed, or without a deployment (etl_run_not_retryable)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1679,7 +1987,10 @@
         "type": "object",
         "required": [
           "configured",
-          "operate_enabled"
+          "operate_enabled",
+          "archive_enabled",
+          "archive_mode",
+          "facets"
         ],
         "properties": {
           "configured": {
@@ -1687,6 +1998,146 @@
           },
           "operate_enabled": {
             "type": "boolean"
+          },
+          "archive_enabled": {
+            "type": "boolean",
+            "description": "Whether the caller may archive and restore ETLs (kept by Periplo; nothing changes in the orchestrator). The open-core default follows PERIPLO_ETL_ALLOW_ARCHIVE, else PERIPLO_ETL_ALLOW_OPERATE."
+          },
+          "archive_mode": {
+            "type": "string",
+            "enum": [
+              "process",
+              "durable"
+            ],
+            "description": "process: archives are kept in this API process, lost on restart and not shared between API workers (the open-core store); durable: a store that outlives it."
+          },
+          "facets": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FacetConfig"
+            },
+            "description": "How the installation names the facets its tags form, by tag prefix (PERIPLO_ETL_FACETS); empty when it configures none. Nothing in the console names a prefix: every prefix:value tag forms a facet, and tags without a colon one Labels facet."
+          }
+        }
+      },
+      "FacetConfig": {
+        "type": "object",
+        "required": [
+          "label",
+          "order",
+          "hidden",
+          "role",
+          "values"
+        ],
+        "properties": {
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Its name; the prefix, humanised, when null."
+          },
+          "order": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Its place among the facets, lowest first; unset ones follow by how many ETLs carry the prefix."
+          },
+          "hidden": {
+            "type": "boolean",
+            "description": "Never offered as a filter, a grouping or on an ETL's page."
+          },
+          "role": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "reads",
+                  "writes",
+                  "expects_schedule"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "reads/writes: lineage. expects_schedule: an ETL carrying one of values should be scheduled."
+          },
+          "values": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required by, and only allowed with, role expects_schedule."
+          }
+        }
+      },
+      "ArchiveMark": {
+        "type": "object",
+        "required": [
+          "at",
+          "by",
+          "reason"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The caller's subject; null without a login."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ArchiveState": {
+        "type": "object",
+        "required": [
+          "name",
+          "archived"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "archived": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ArchiveMark"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "ArchiveRequest": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
           }
         }
       },
@@ -1731,6 +2182,40 @@
           }
         }
       },
+      "EtlTrigger": {
+        "type": "object",
+        "required": [
+          "etl",
+          "on",
+          "passes",
+          "sets"
+        ],
+        "properties": {
+          "etl": {
+            "type": "string",
+            "description": "The ETL whose completed run starts this one."
+          },
+          "on": {
+            "type": "string",
+            "enum": [
+              "completed"
+            ]
+          },
+          "passes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The parameters the trigger copies from the upstream run onto the run it starts, by name, sorted."
+          },
+          "sets": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "The parameters the trigger sets to a constant on the run it starts, with their value. One set by any other template is in neither."
+          }
+        },
+        "description": "What starts a chained ETL: another ETL's run completing."
+      },
       "FlowRun": {
         "type": "object",
         "required": [
@@ -1740,6 +2225,8 @@
           "state_message",
           "expected_start_at",
           "start_at",
+          "attempt_started_at",
+          "waiting_since",
           "end_at",
           "duration_seconds",
           "created_by",
@@ -1791,6 +2278,22 @@
             ],
             "format": "date-time"
           },
+          "attempt_started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When its current (or, once finished, its last) attempt started. start_at is the orchestrator's own start, which a retry from its UI keeps at the first attempt's: elapsed time, slowness and a live bar run from this one. null while the run waits to start, a retried run waiting for its next attempt included. For a finished retried run whose attempts were not read, the first start."
+          },
+          "waiting_since": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Since when it has waited for its current attempt to start: when it was due, or, for a retried run waiting for its next attempt, when it entered its current state or, if later, when that state is due (a retry delay); the orchestrator keeps the first attempt's expected start. The console calls a run stuck from this."
+          },
           "end_at": {
             "type": [
               "string",
@@ -1805,7 +2308,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Who created the run, as the orchestrator names them. null for a run an automation created: its name can carry a hidden upstream ETL's name, so the console says \"Triggered by X › run\" from triggered_by_run instead."
           },
           "run_count": {
             "type": "integer"
@@ -1820,9 +2324,10 @@
             "type": "string",
             "enum": [
               "scheduled",
-              "manual"
+              "manual",
+              "automation"
             ],
-            "description": "scheduled when the run carries the orchestrator's own auto-scheduled marker"
+            "description": "automation when an orchestrator automation created the run (a chained ETL), scheduled when it carries the orchestrator's own auto-scheduled marker, else manual"
           },
           "external_url": {
             "type": [
@@ -1894,7 +2399,10 @@
         "required": [
           "id",
           "state",
+          "run_count",
+          "expected_start_at",
           "start_at",
+          "attempt_started_at",
           "end_at",
           "attempts"
         ],
@@ -1916,12 +2424,32 @@
               "CANCELLING"
             ]
           },
+          "run_count": {
+            "type": "integer",
+            "description": "How many attempts the run took (FlowRun.run_count): known even when attempts is not, so a retried run is always marked as such."
+          },
+          "expected_start_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When it was due: dates a run that never started (cancelled before it did)."
+          },
           "start_at": {
             "type": [
               "string",
               "null"
             ],
             "format": "date-time"
+          },
+          "attempt_started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "As FlowRun.attempt_started_at."
           },
           "end_at": {
             "type": [
@@ -1957,10 +2485,11 @@
           "recent",
           "next_run_at",
           "schedule_inactive",
-          "cadence",
-          "mode",
           "accepts_processes",
-          "external_url"
+          "external_url",
+          "triggered_by",
+          "triggers",
+          "archived"
         ],
         "properties": {
           "id": {
@@ -2027,18 +2556,6 @@
           "schedule_inactive": {
             "type": "boolean"
           },
-          "cadence": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "mode": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "accepts_processes": {
             "type": "boolean",
             "description": "processes appears in parameter_openapi_schema.properties; gates \"Re-run from failed process\""
@@ -2049,6 +2566,35 @@
               "null"
             ],
             "description": "A deep link into the orchestrator's own UI, or null when none is configured."
+          },
+          "triggered_by": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EtlTrigger"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The ETL whose completed run starts this one, when an orchestrator automation chains them; only ETLs in the same list are named."
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The ETLs this one's completed run starts, sorted; only ETLs in the same list."
+          },
+          "archived": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ArchiveMark"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the ETL was archived in Periplo, by whom and why; null for an active one. An archived ETL is left out of the list's summary and history; its live runs stay in running."
           }
         }
       },
@@ -2090,6 +2636,9 @@
           "etl",
           "state",
           "start_at",
+          "attempt_started_at",
+          "expected_start_at",
+          "waiting_since",
           "created_by",
           "trigger",
           "current",
@@ -2126,6 +2675,30 @@
             ],
             "format": "date-time"
           },
+          "attempt_started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "As FlowRun.attempt_started_at."
+          },
+          "expected_start_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When it was due to start. For a run that has not started (no start time; PENDING here), it says how long the run has waited: the console calls it stuck once it is more than an hour past it."
+          },
+          "waiting_since": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "As FlowRun.waiting_since."
+          },
           "created_by": {
             "type": [
               "string",
@@ -2136,7 +2709,8 @@
             "type": "string",
             "enum": [
               "scheduled",
-              "manual"
+              "manual",
+              "automation"
             ]
           },
           "current": {
@@ -2247,7 +2821,8 @@
         ],
         "properties": {
           "running": {
-            "type": "integer"
+            "type": "integer",
+            "description": "ETLs with a run going: one that has started (RUNNING, or PENDING with a start time) in running, or a newest recent run that has. A run that has not started is waiting, never running."
           },
           "failed_24h": {
             "type": "integer"
@@ -2289,7 +2864,7 @@
           },
           "running_truncated": {
             "type": "boolean",
-            "description": "running was capped at 20 entries."
+            "description": "running was capped at 20 entries. The runs waiting to start appended after the cap (at most 5) do not count, so running can hold up to 25 entries."
           }
         }
       },
@@ -2319,7 +2894,10 @@
               "deployment_id",
               "deployment_name",
               "flow_name",
-              "terminal"
+              "terminal",
+              "state_since",
+              "triggered_by_run",
+              "triggered_runs"
             ],
             "properties": {
               "parameters": {
@@ -2344,10 +2922,56 @@
               "terminal": {
                 "type": "boolean",
                 "description": "state in COMPLETED, FAILED, CANCELLED, CRASHED"
+              },
+              "state_since": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time",
+                "description": "When the run entered its current state: how long it has been cancelling, before a force."
+              },
+              "triggered_by_run": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/RunLink"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "For a run an automation created: the upstream ETL's run that started it, read as that ETL's newest run completed before this one was created, preferring one whose passed parameters match this run's."
+              },
+              "triggered_runs": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RunLink"
+                },
+                "description": "For a completed run: each downstream ETL's run its automations created after it ended, the first per downstream ETL. A downstream ETL with none did not run."
               }
             }
           }
         ]
+      },
+      "RunLink": {
+        "type": "object",
+        "required": [
+          "etl",
+          "run_id",
+          "run_name"
+        ],
+        "properties": {
+          "etl": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "run_name": {
+            "type": "string"
+          }
+        },
+        "description": "A run of another ETL a run is chained to."
       },
       "LogEntry": {
         "type": "object",
@@ -2404,6 +3028,50 @@
           "INTERRUPTED"
         ]
       },
+      "StepTry": {
+        "type": "object",
+        "required": [
+          "index",
+          "task_run_id",
+          "state",
+          "start_at",
+          "end_at",
+          "duration_seconds"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "description": "1 for the first try."
+          },
+          "task_run_id": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/StepState"
+          },
+          "start_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "end_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "duration_seconds": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "description": "One try of a step that failed and was started again in the same attempt: loom makes a task run each time a step starts, so each try is its own task run."
+      },
       "Step": {
         "type": "object",
         "required": [
@@ -2412,7 +3080,8 @@
           "state",
           "start_at",
           "end_at",
-          "duration_seconds"
+          "duration_seconds",
+          "tries"
         ],
         "properties": {
           "name": {
@@ -2443,8 +3112,22 @@
               "number",
               "null"
             ]
+          },
+          "tries": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/StepTry"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
-        }
+        },
+        "description": "One step of a process. A step started again after failing is one step: its state and task_run_id are its last try's, its span from its first try's start to its last try's end, and tries lists each; null for a step that ran once."
       },
       "Process": {
         "type": "object",
@@ -2776,6 +3459,16 @@
             ],
             "additionalProperties": true,
             "description": "null runs with the deployment's own parameters."
+          }
+        }
+      },
+      "CancelRequest": {
+        "type": "object",
+        "properties": {
+          "force": {
+            "type": "boolean",
+            "default": false,
+            "description": "Force a run stuck cancelling for 10 minutes to cancelled; it stops nothing still running."
           }
         }
       }

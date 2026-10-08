@@ -15,7 +15,7 @@ open-source default.
 |-------|------|---------------------|---------|
 | `authenticator` | loom's `Authenticator` | Who is calling? | `AnonymousAuthenticator`: everyone is anonymous. |
 | `tenants` | `periplo.tenancy.TenantResolver` | Which tenant owns this request? | `SingleTenant`: every request belongs to the `default` tenant. |
-| `authorizer` | `periplo.access.Authorizer` | May this action happen? | `SwitchAuthorizer`: only operating ETLs is gated, by `PERIPLO_ETL_ALLOW_OPERATE`. |
+| `authorizer` | `periplo.access.Authorizer` | May this action happen? | `SwitchAuthorizer`: only operating and archiving ETLs are gated, by `PERIPLO_ETL_ALLOW_OPERATE` and `PERIPLO_ETL_ALLOW_ARCHIVE`. |
 | `audit` | `periplo.access.AuditSink` | Who should know it happened? | `LogAuditSink`: one structured log line per event. |
 | `orchestrators` | `periplo.etl.provider.OrchestratorProvider` | Which ETL orchestrator serves this tenant? | `SingleOrchestrator`: the Prefect workspace configured by the environment, or none. |
 | `credentials` | `periplo.credentials.CredentialsProvider` | Which storage credentials does this tenant read with? | `ProcessCredentials`: the process's own credential chain. |
@@ -151,10 +151,12 @@ uvicorn --factory shop_console.app:create_shop_app
 | `admin_catalog` | The sources, their discovery reports, and starting a discovery, in addition to `read_catalog`. |
 | `query` | Running a query, in addition to `read_catalog`; reading its status and cancelling it. |
 | `view_etl` | The deployment list, a deployment's runs and grid, and a run with its tasks, steps and logs. |
-| `operate_etl` | Launching a run and pausing or resuming a schedule. |
+| `operate_etl` | Launching, cancelling or retrying a run, and pausing or resuming a schedule. |
+| `archive_etl` | Archiving or restoring an ETL in Periplo. |
 
 `SwitchAuthorizer` allows all of them but `operate_etl`, which follows
-`PERIPLO_ETL_ALLOW_OPERATE`.
+`PERIPLO_ETL_ALLOW_OPERATE`, and `archive_etl`, which follows `PERIPLO_ETL_ALLOW_ARCHIVE`
+(`PERIPLO_ETL_ALLOW_OPERATE` when unset).
 
 ## Filtering collections
 

@@ -1,8 +1,14 @@
+import { StatusSwatch } from "@periplo/core/ui";
 import { useTranslation } from "react-i18next";
 import { href } from "../../app/routes";
+import { formatMoment } from "../../i18n/format";
+import { retried } from "./retries";
+import { RetryDot, withAttempts } from "./RetryMark";
 import { RunBarTooltip } from "./RunBarTooltip";
-import { formatDuration, toneOf } from "./run-state";
+import { formatDuration, statusOf } from "./run-state";
+import { useInSection } from "./SectionLinks";
 import { useNow } from "./useNow";
+import { usualDuration } from "./usual-duration";
 import type { RecentRun, RunningRun } from "./useEtl";
 import { STATE_LABELS } from "./parts";
 import styles from "./Last12Bars.module.css";
@@ -16,13 +22,13 @@ export interface Last12BarsProps {
 }
 
 const SLOTS = 12;
-/** A run still going counts as slow past this multiple of its typical duration (same threshold as the running stack). */
-const SLOW_RATIO = 1.5;
 const MIN_HEIGHT = 3;
 const MAX_HEIGHT = 16;
 
 const RUNNING_STATES = new Set<RecentRun["state"]>(["RUNNING", "PENDING", "SCHEDULED", "CANCELLING"]);
 
+/** How long a run took; a run still going, its current attempt so far (a retry from Prefect's UI keeps the first
+ * start, hours before). */
 function durationOf(run: RecentRun, now: number): number | null {
   if (run.start_at === null) return null;
   const start = Date.parse(run.start_at);
@@ -31,14 +37,8 @@ function durationOf(run: RecentRun, now: number): number | null {
     const end = Date.parse(run.end_at);
     return Number.isNaN(end) ? null : Math.max(0, (end - start) / 1000);
   }
-  return RUNNING_STATES.has(run.state) ? Math.max(0, (now - start) / 1000) : null;
-}
-
-function median(values: readonly number[]): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 1 ? (sorted[mid] as number) : ((sorted[mid - 1] as number) + (sorted[mid] as number)) / 2;
+  if (!RUNNING_STATES.has(run.state) || run.attempt_started_at === null) return null;
+  return Math.max(0, (now - Date.parse(run.attempt_started_at)) / 1000);
 }
 
 /** How tall a bar is (px, floored at `MIN_HEIGHT`) and whether it had to be clipped to get there. Scaled against
@@ -55,12 +55,17 @@ function scaledHeight(duration: number | null, scaleMax: number): { heightPx: nu
  * attempt, bottom to top, separated by a thin gap standing for the wait between attempts. */
 export function Last12Bars({ etlName, recent, runningById }: Last12BarsProps) {
   const { t, i18n } = useTranslation();
+  const inSection = useInSection();
   const now = useNow();
   const padded: Array<RecentRun | null> = [...Array(Math.max(0, SLOTS - recent.length)).fill(null), ...recent.slice(-SLOTS)];
   const durations = padded.map((run) => (run ? durationOf(run, now) : null));
   const known = durations.filter((value): value is number => value !== null);
   const maxDuration = Math.max(1, ...known);
-  const typical = median(padded.flatMap((run, index) => (run?.state === "COMPLETED" ? [durations[index]] : [])).filter((value): value is number => value != null));
+  const measured = padded.flatMap((run, index) => {
+    const duration = durations[index];
+    return run !== null && duration != null ? [{ state: run.state, duration_seconds: duration }] : [];
+  });
+  const typical = usualDuration(measured)?.median ?? null;
   const scaleMax = Math.max(1, typical !== null ? Math.min(maxDuration, typical * 2) : maxDuration);
 
   return (
@@ -70,30 +75,23 @@ export function Last12Bars({ etlName, recent, runningById }: Last12BarsProps) {
         const duration = durations[index] ?? null;
         const { heightPx, clipped } = scaledHeight(duration, scaleMax);
         const running = runningById.get(run.id) ?? null;
-        const label = formatMoment(run, i18n.language, t(STATE_LABELS[run.state]));
-        if (run.attempts !== null && run.attempts.length > 0) {
-          return (
-            <RetrySegmentBar key={run.id} etlName={etlName} run={run} attempts={run.attempts} heightPx={heightPx} clipped={clipped} label={label} />
-          );
-        }
+        const label = withAttempts(t, runMoment(run, i18n.language, t(STATE_LABELS[run.state])), run.run_count);
         if (running !== null) {
           return <RunningBar key={run.id} etlName={etlName} run={run} running={running} now={now} heightPx={heightPx} clipped={clipped} />;
         }
         return (
-          <li key={run.id}>
+          <li key={run.id} className={styles.slot}>
             <a
               className={styles.bar}
-              data-tone={toneOf(run.state)}
-              // Stripes read as "actually in motion right now" — true for RUNNING and PENDING (about to be), but
-              // not SCHEDULED/CANCELLING, which `toneOf` also folds into the same "info" colour without meaning
-              // the same thing.
-              data-stripe={run.state === "RUNNING" || run.state === "PENDING" || undefined}
               data-clipped={clipped || undefined}
               style={{ height: `${heightPx}px` }}
-              href={href({ kind: "etl-run", id: run.id })}
+              href={href(inSection({ kind: "etl-run", id: run.id }))}
               title={label}
               aria-label={label}
-            />
+            >
+              <StatusSwatch status={statusOf(run.state, run.attempt_started_at)} shape="bar" className={styles.fill} />
+            </a>
+            {retried(run.run_count) ? <RetryDot className={styles.retryDot} /> : null}
           </li>
         );
       })}
@@ -101,11 +99,10 @@ export function Last12Bars({ etlName, recent, runningById }: Last12BarsProps) {
   );
 }
 
-function formatMoment(run: RecentRun, language: string, stateLabel: string): string {
+function runMoment(run: RecentRun, language: string, stateLabel: string): string {
   const at = run.end_at ?? run.start_at;
   if (!at) return stateLabel;
-  const date = new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(at));
-  return `${stateLabel} · ${date}`;
+  return `${stateLabel} · ${formatMoment(new Date(at), language)}`;
 }
 
 function RunningBar({
@@ -124,11 +121,10 @@ function RunningBar({
   readonly clipped: boolean;
 }) {
   const { t } = useTranslation();
-  const startMs = run.start_at ? Date.parse(run.start_at) : NaN;
+  const inSection = useInSection();
+  const startMs = run.attempt_started_at ? Date.parse(run.attempt_started_at) : NaN;
   const elapsedSeconds = Number.isNaN(startMs) ? null : Math.max(0, (now - startMs) / 1000);
   const typical = running.typical_seconds;
-  const ratio = elapsedSeconds !== null && typical !== null && typical > 0 ? elapsedSeconds / typical : null;
-  const slow = ratio !== null && ratio > SLOW_RATIO;
   const elapsedText = formatDuration(elapsedSeconds) ?? "—";
   const typicalText = typical !== null ? formatDuration(typical) : null;
   const tooltipText = t("etl.dashboard.running.tooltip", {
@@ -147,65 +143,13 @@ function RunningBar({
           <a
             {...anchorProps}
             className={styles.bar}
-            data-tone={slow ? "warning" : "info"}
-            data-stripe
             data-clipped={clipped || undefined}
             style={{ height: `${heightPx}px` }}
-            href={href({ kind: "etl-run", id: run.id })}
+            href={href(inSection({ kind: "etl-run", id: run.id }))}
             aria-label={tooltipText}
-          />
-        </li>
-      )}
-    </RunBarTooltip>
-  );
-}
-
-function RetrySegmentBar({
-  etlName,
-  run,
-  attempts,
-  heightPx,
-  clipped,
-  label,
-}: {
-  readonly etlName: string;
-  readonly run: RecentRun;
-  readonly attempts: NonNullable<RecentRun["attempts"]>;
-  readonly heightPx: number;
-  readonly clipped: boolean;
-  readonly label: string;
-}) {
-  const { t } = useTranslation();
-  const ordered = [...attempts].sort((a, b) => a.index - b.index);
-  const last = ordered[ordered.length - 1];
-  const ok = last ? toneOf(last.state) === "success" : false;
-  const totalSeconds = ordered.reduce((sum, attempt) => sum + (attempt.duration_seconds ?? 0), 0) || 1;
-  const gap = Math.max(0, ordered.length - 1);
-  const usable = Math.max(0, heightPx - gap);
-  const content = () => (
-    <>
-      <p>{t("etl.dashboard.retryTooltipTitle", { etl: etlName, outcome: t(ok ? "etl.dashboard.outcomeCompleted" : "etl.dashboard.outcomeFailed"), count: ordered.length })}</p>
-      {ordered.map((attempt) => (
-        <span key={attempt.index}>
-          {t("etl.dashboard.retryAttempt", {
-            index: attempt.index + 1,
-            outcome: t(toneOf(attempt.state) === "success" ? "etl.dashboard.outcomeCompleted" : "etl.dashboard.outcomeFailed"),
-            duration: formatDuration(attempt.duration_seconds) ?? "—",
-          })}
-        </span>
-      ))}
-    </>
-  );
-  return (
-    <RunBarTooltip id={`retry-${run.id}`} content={content}>
-      {(anchorProps) => (
-        <li className={styles.segmented} data-clipped={clipped || undefined} style={{ height: `${heightPx}px` }}>
-          <a {...anchorProps} className={styles.segmentLink} href={href({ kind: "etl-run", id: run.id })} aria-label={label}>
-            {ordered.map((attempt) => {
-              const share = (attempt.duration_seconds ?? totalSeconds / ordered.length) / totalSeconds;
-              const segmentHeight = Math.max(2, Math.round(share * usable));
-              return <i key={attempt.index} data-tone={toneOf(attempt.state)} style={{ height: `${segmentHeight}px` }} />;
-            })}
+          >
+            {/* Running, however long: slow is said in words where there is room for them (the running stack). */}
+            <StatusSwatch status="running" shape="bar" className={styles.fill} />
           </a>
         </li>
       )}

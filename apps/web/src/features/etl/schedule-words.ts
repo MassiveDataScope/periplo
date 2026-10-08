@@ -1,17 +1,12 @@
+import { pad, plainInt } from "./two-digits";
+
 /**
  * Plain-English words for a cron schedule and a future instant — shared by the ETL page's own header summary and
  * (per the dashboard's own schedule sub-lines) `EtlDashboard`. Kept in its own module, independent of `run-state.ts`,
  * so both pages import the same thing rather than two near-identical copies.
  */
 
-const pad = (value: number): string => String(value).padStart(2, "0");
-
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
-
-/** `"03"` → `3`; null for anything that is not a plain non-negative integer (a range, a list, a step, `*`). */
-function plainInt(field: string): number | null {
-  return /^\d+$/.test(field) ? Number(field) : null;
-}
 
 /**
  * A standard 5-field cron expression (`minute hour dom month dow`) in plain English for the handful of shapes an
@@ -56,19 +51,4 @@ export function describeCron(cron: string): string | null {
   const day = plainInt(dow === "7" ? "0" : dow);
   if (day !== null && day >= 0 && day <= 6) return `Weekly on ${DAY_NAMES[day]} ${time}`;
   return null;
-}
-
-const SECONDS_PER_UNIT: ReadonlyArray<[string, number]> = [
-  ["d", 86_400],
-  ["h", 3_600],
-  ["min", 60],
-];
-
-/** "in 8 h", "in 45 min", "in 2 d" — one unit, rounded, never prefixed twice by a caller that already says "next".
- * `seconds` must be ≥ 0 (a past instant is the caller's own business, e.g. "overdue"). */
-export function formatRelativeFuture(seconds: number): string {
-  if (seconds <= 0) return "now";
-  const [unit, size] = SECONDS_PER_UNIT.find(([, step]) => seconds >= step) ?? ["s", 1];
-  const value = Math.max(1, Math.round(seconds / size));
-  return `in ${value} ${unit}`;
 }

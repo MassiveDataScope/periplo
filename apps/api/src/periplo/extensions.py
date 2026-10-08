@@ -14,6 +14,7 @@ from loom.rest.auth.abc import Authenticator
 from periplo.access import AuditSink, Authorizer
 from periplo.credentials import CredentialsProvider
 from periplo.data_plane import DataPlanes
+from periplo.etl.archive import ArchiveStore
 from periplo.etl.provider import OrchestratorProvider
 from periplo.tenancy import TenantResolver
 
@@ -31,6 +32,8 @@ class Extensions:
         credentials: Storage credentials port. Default: ``ProcessCredentials``.
         data_planes: Data plane port. Default: ``SinglePlane``, over the sources and
             storage the settings describe.
+        archives: Where archived ETLs are kept. Default: ``InMemoryArchiveStore``, lost
+            when the API restarts (the console says so).
     """
 
     authenticator: Authenticator | None = None
@@ -40,3 +43,4 @@ class Extensions:
     orchestrators: OrchestratorProvider | None = None
     credentials: CredentialsProvider | None = None
     data_planes: DataPlanes | None = None
+    archives: ArchiveStore | None = None

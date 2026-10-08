@@ -2,7 +2,19 @@ import { ApiError } from "@periplo/core/api";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Dependencies } from "../../app/dependencies";
-import { POLL_MS, useEtlList, useEtlRuns, useRun, useRunLogs, useSchedule, type Etl, type FlowRun, type LogEntry, type RunDetail } from "./useEtl";
+import {
+  POLL_MS,
+  useArchive,
+  useCancelRuns,
+  useEtlList,
+  useEtlRuns,
+  useRun,
+  useRunControl,
+  useSchedule,
+  type Etl,
+  type FlowRun,
+  type RunDetail,
+} from "./useEtl";
 
 type Get = ReturnType<typeof vi.fn>;
 
@@ -16,7 +28,9 @@ const run: FlowRun = {
   state: "RUNNING",
   state_message: null,
   expected_start_at: "2026-09-23T06:00:00Z",
+  waiting_since: "2026-09-23T06:00:00Z",
   start_at: "2026-09-23T06:00:01Z",
+  attempt_started_at: "2026-09-23T06:00:01Z",
   end_at: null,
   duration_seconds: 12.5,
   created_by: "prefect-scheduler",
@@ -41,10 +55,11 @@ const etl: Etl = {
   recent: [run],
   next_run_at: null,
   schedule_inactive: false,
-  cadence: null,
-  mode: null,
   accepts_processes: false,
   external_url: null,
+  triggered_by: null,
+  triggers: [],
+  archived: null,
 };
 
 const detail = (state: RunDetail["state"]): RunDetail => ({
@@ -55,35 +70,10 @@ const detail = (state: RunDetail["state"]): RunDetail => ({
   deployment_name: "daily-orders",
   flow_name: "daily-orders",
   terminal: state === "COMPLETED",
+  state_since: null,
+  triggered_by_run: null,
+  triggered_runs: [],
 });
-
-const line = (n: number): LogEntry => ({
-  id: `log-${String(n).padStart(5, "0")}`,
-  timestamp: new Date(Date.UTC(2026, 8, 23, 6, 0, 0) + n).toISOString(),
-  level: 20,
-  level_name: "INFO",
-  message: `line ${n}`,
-  noise: false,
-});
-
-const lines = (from: number, to: number): LogEntry[] => Array.from({ length: to - from + 1 }, (_, i) => line(from + i));
-
-const page = (entries: LogEntry[], after?: string) => ({
-  data: { entries, next: entries.at(-1)?.timestamp ?? after ?? null, truncated: entries.length === 200 },
-});
-
-type LogQuery = { after?: string; limit: number };
-
-/** A log server that answers each page from the lines it holds, honouring `after` (inclusive) and `limit` like the API does. */
-function logServer(initial: LogEntry[]) {
-  let held = initial;
-  const GET = vi.fn((_path: string, init: { params: { query: LogQuery } }) => {
-    const { after, limit } = init.params.query;
-    if (after === undefined) return Promise.resolve(page(held.slice(-limit)));
-    return Promise.resolve(page(held.filter((entry) => entry.timestamp >= after).slice(0, limit), after));
-  });
-  return { GET, append: (more: LogEntry[]) => (held = [...held, ...more]) };
-}
 
 async function tick(ms = POLL_MS): Promise<void> {
   await act(async () => {
@@ -115,12 +105,12 @@ const summary = { running: 0, failed_24h: 0, completed_24h: 0 };
 
 describe("useEtlList", () => {
   it("loads the whole list — deployments and summary — then polls every POLL_MS", async () => {
-    const GET = vi.fn().mockResolvedValue({ data: { etls: [etl], summary } });
+    const GET = vi.fn().mockResolvedValue({ data: { etls: [etl], summary, running: [], running_truncated: false } });
     const dependencies = fakeDependencies(GET);
     const { result } = renderHook(() => useEtlList(dependencies));
     expect(result.current.list).toEqual({ kind: "loading" });
     await settle();
-    expect(result.current.list).toEqual({ kind: "ready", value: { etls: [etl], summary } });
+    expect(result.current.list).toEqual({ kind: "ready", value: { etls: [etl], summary, running: [], running_truncated: false } });
     expect(GET).toHaveBeenCalledTimes(1);
     await tick();
     expect(GET).toHaveBeenCalledTimes(2);
@@ -130,7 +120,7 @@ describe("useEtlList", () => {
   });
 
   it("does not poll while the tab is hidden, and resumes immediately once it is visible again", async () => {
-    const GET = vi.fn().mockResolvedValue({ data: { etls: [etl], summary } });
+    const GET = vi.fn().mockResolvedValue({ data: { etls: [etl], summary, running: [], running_truncated: false } });
     const dependencies = fakeDependencies(GET);
     renderHook(() => useEtlList(dependencies));
     await settle();
@@ -144,7 +134,7 @@ describe("useEtlList", () => {
   });
 
   it("never flashes back to loading on a poll or a reload once the first list has landed", async () => {
-    const GET = vi.fn().mockResolvedValue({ data: { etls: [etl], summary } });
+    const GET = vi.fn().mockResolvedValue({ data: { etls: [etl], summary, running: [], running_truncated: false } });
     const dependencies = fakeDependencies(GET);
     const { result } = renderHook(() => useEtlList(dependencies));
     await settle();
@@ -166,7 +156,7 @@ describe("useEtlList", () => {
   });
 
   it("reloads on demand, for after a Resume or a Pause", async () => {
-    const GET = vi.fn().mockResolvedValue({ data: { etls: [etl], summary } });
+    const GET = vi.fn().mockResolvedValue({ data: { etls: [etl], summary, running: [], running_truncated: false } });
     const dependencies = fakeDependencies(GET);
     const { result } = renderHook(() => useEtlList(dependencies));
     await settle();
@@ -175,49 +165,174 @@ describe("useEtlList", () => {
     await settle();
     expect(GET).toHaveBeenCalledTimes(2);
   });
+
+  it("asks nothing while disabled, outside the ETL section, and starts as soon as it is enabled", async () => {
+    const GET = vi.fn().mockResolvedValue({ data: { etls: [etl], summary } });
+    const dependencies = fakeDependencies(GET);
+    const { result, rerender } = renderHook(({ enabled }) => useEtlList(dependencies, { enabled }), { initialProps: { enabled: false } });
+    await tick(POLL_MS * 3);
+    expect(GET).not.toHaveBeenCalled();
+    expect(result.current.list).toEqual({ kind: "loading" });
+    rerender({ enabled: true });
+    await settle();
+    expect(GET).toHaveBeenCalledTimes(1);
+    expect(result.current.list.kind).toBe("ready");
+  });
 });
 
 describe("useSchedule", () => {
-  it("resumes a schedule with a POST to the resume route and returns the updated Etl", async () => {
-    const updated = { ...etl, schedule_inactive: false };
-    const POST = vi.fn().mockResolvedValue({ data: updated });
+  it("resumes a schedule with a POST to the resume route, then says the ETL changed", async () => {
+    const POST = vi.fn().mockResolvedValue({ data: { ...etl, schedule_inactive: false } });
     const dependencies = { client: { POST } } as unknown as Dependencies;
-    const { result } = renderHook(() => useSchedule(dependencies, "daily-orders"));
-    let returned: Etl | null = null;
+    const onChanged = vi.fn();
+    const { result } = renderHook(() => useSchedule(dependencies, "daily-orders", onChanged));
     await act(async () => {
-      returned = await result.current.resume();
+      await result.current.resume();
     });
     expect(POST).toHaveBeenCalledWith("/etl/{name}/schedule/resume", { params: { path: { name: "daily-orders" } } });
-    expect(returned).toEqual(updated);
+    expect(onChanged).toHaveBeenCalledTimes(1);
     expect(result.current.error).toBeNull();
     expect(result.current.pending).toBe(false);
   });
 
-  it("pauses a schedule with a POST to the pause route", async () => {
+  it("pauses a schedule with a POST to the pause route, then says the ETL changed", async () => {
     const POST = vi.fn().mockResolvedValue({ data: etl });
     const dependencies = { client: { POST } } as unknown as Dependencies;
-    const { result } = renderHook(() => useSchedule(dependencies, "daily-orders"));
+    const onChanged = vi.fn();
+    const { result } = renderHook(() => useSchedule(dependencies, "daily-orders", onChanged));
     await act(async () => {
       await result.current.pause();
     });
     expect(POST).toHaveBeenCalledWith("/etl/{name}/schedule/pause", { params: { path: { name: "daily-orders" } } });
+    expect(onChanged).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the API's error instead of the updated Etl when the request fails", async () => {
+  it("keeps the API's error, and says nothing changed, when the request fails", async () => {
     const error = new ApiError({ status: 403, code: "etl_operate_disabled", message: "Operating ETLs is disabled" });
     const POST = vi.fn().mockRejectedValue(error);
     const dependencies = { client: { POST } } as unknown as Dependencies;
-    const { result } = renderHook(() => useSchedule(dependencies, "daily-orders"));
-    let returned: Etl | null = null;
+    const onChanged = vi.fn();
+    const { result } = renderHook(() => useSchedule(dependencies, "daily-orders", onChanged));
     await act(async () => {
-      returned = await result.current.resume();
+      await result.current.resume();
     });
-    expect(returned).toBeNull();
+    expect(onChanged).not.toHaveBeenCalled();
     expect(result.current.error).toEqual(error);
   });
 });
 
+describe("useArchive", () => {
+  const mark = { at: "2026-10-07T09:00:00Z", by: null, reason: null };
+
+  it("archives with a POST to the archive route, then says the ETL changed and that it was archived", async () => {
+    const POST = vi.fn().mockResolvedValue({ data: { name: "daily-orders", archived: mark } });
+    const dependencies = { client: { POST } } as unknown as Dependencies;
+    const onChanged = vi.fn();
+    const { result } = renderHook(() => useArchive(dependencies, "daily-orders", onChanged));
+    let done = false;
+    await act(async () => {
+      done = await result.current.archive();
+    });
+    expect(POST).toHaveBeenCalledWith("/etl/{name}/archive", { params: { path: { name: "daily-orders" } }, body: {} });
+    expect(done).toBe(true);
+    expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it("restores with a POST to the restore route", async () => {
+    const POST = vi.fn().mockResolvedValue({ data: { name: "daily-orders", archived: null } });
+    const dependencies = { client: { POST } } as unknown as Dependencies;
+    const onChanged = vi.fn();
+    const { result } = renderHook(() => useArchive(dependencies, "daily-orders", onChanged));
+    await act(async () => {
+      await result.current.restore();
+    });
+    expect(POST).toHaveBeenCalledWith("/etl/{name}/restore", { params: { path: { name: "daily-orders" } } });
+    expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the API's error, says nothing changed and that it was not archived, when the request fails", async () => {
+    const error = new ApiError({ status: 403, code: "forbidden", message: "Not allowed" });
+    const POST = vi.fn().mockRejectedValue(error);
+    const dependencies = { client: { POST } } as unknown as Dependencies;
+    const onChanged = vi.fn();
+    const { result } = renderHook(() => useArchive(dependencies, "daily-orders", onChanged));
+    let done = true;
+    await act(async () => {
+      done = await result.current.archive();
+    });
+    expect(done).toBe(false);
+    expect(onChanged).not.toHaveBeenCalled();
+    expect(result.current.error).toEqual(error);
+    expect(result.current.pending).toBe(false);
+  });
+});
+
+describe("useRunControl", () => {
+  it("cancels a run with a POST to its cancel route, forced when asked, then says it changed", async () => {
+    const POST = vi.fn().mockResolvedValue({ data: detail("CANCELLING") });
+    const dependencies = { client: { POST } } as unknown as Dependencies;
+    const onChanged = vi.fn();
+    const { result } = renderHook(() => useRunControl(dependencies, "run-1", onChanged));
+    await act(async () => {
+      await result.current.cancel(false);
+      await result.current.cancel(true);
+    });
+    expect(POST.mock.calls).toEqual([
+      ["/etl/runs/{id}/cancel", { params: { path: { id: "run-1" } }, body: { force: false } }],
+      ["/etl/runs/{id}/cancel", { params: { path: { id: "run-1" } }, body: { force: true } }],
+    ]);
+    expect(onChanged).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries a run with a POST to its retry route, and keeps the API's refusal", async () => {
+    const refusal = new ApiError({ status: 409, code: "etl_run_not_retryable", message: "Only a failed or crashed run can be retried" });
+    const POST = vi.fn().mockRejectedValue(refusal);
+    const dependencies = { client: { POST } } as unknown as Dependencies;
+    const { result } = renderHook(() => useRunControl(dependencies, "run-1", vi.fn()));
+    let done = true;
+    await act(async () => {
+      done = await result.current.retry();
+    });
+    expect(POST).toHaveBeenCalledWith("/etl/runs/{id}/retry", { params: { path: { id: "run-1" } } });
+    expect(done).toBe(false);
+    expect(result.current.error).toEqual(refusal);
+  });
+});
+
+describe("useCancelRuns", () => {
+  it("cancels every run at once, then says which could not be cancelled and that the list changed", async () => {
+    const refusal = new ApiError({ status: 409, code: "etl_run_not_cancellable", message: "finished" });
+    const POST = vi.fn((_path: string, { params }: { params: { path: { id: string } } }) =>
+      params.path.id === "b" ? Promise.reject(refusal) : Promise.resolve({ data: detail("CANCELLED") }),
+    );
+    const dependencies = { client: { POST } } as unknown as Dependencies;
+    const onChanged = vi.fn();
+    const { result } = renderHook(() => useCancelRuns(dependencies, onChanged));
+    let failed: readonly string[] = [];
+    await act(async () => {
+      failed = await result.current.cancelAll(["a", "b", "c"]);
+    });
+    expect(POST).toHaveBeenCalledTimes(3);
+    expect(failed).toEqual(["b"]);
+    expect(result.current.failed).toEqual(["b"]);
+    expect(onChanged).toHaveBeenCalledTimes(1);
+    expect(result.current.pending).toBe(false);
+  });
+});
+
 describe("useEtlRuns", () => {
+  it("polls at the interval asked for", async () => {
+    const live = { ...run, state: "RUNNING" as const };
+    const GET = vi.fn().mockResolvedValue({ data: { runs: [live] } });
+    const dependencies = fakeDependencies(GET);
+    renderHook(() => useEtlRuns(dependencies, "daily", 100, { pollMs: POLL_MS * 10 }));
+    await settle();
+    await tick(POLL_MS * 9);
+    expect(GET).toHaveBeenCalledTimes(1);
+    await tick(POLL_MS);
+    expect(GET).toHaveBeenCalledTimes(2);
+  });
+
   it("refetches when the name changes and on reload", async () => {
     const GET = vi.fn().mockResolvedValue({ data: { runs: [run] } });
     const dependencies = fakeDependencies(GET);
@@ -236,6 +351,19 @@ describe("useEtlRuns", () => {
     act(() => result.current.reload());
     await settle();
     expect(GET).toHaveBeenCalledTimes(3);
+  });
+
+  it("never flashes back to loading on a reload once the runs have landed", async () => {
+    const GET = vi.fn().mockResolvedValue({ data: { runs: [{ ...run, state: "COMPLETED" }] } });
+    const { result } = renderHook(() => useEtlRuns(fakeDependencies(GET), "daily-orders"));
+    await settle();
+    act(() => result.current.reload());
+    expect(result.current.runs.kind).toBe("ready");
+    await settle();
+    expect(GET).toHaveBeenCalledTimes(2);
+    // Every run settled: the reload's own answer ends it, no polling picks up again.
+    await tick(POLL_MS * 3);
+    expect(GET).toHaveBeenCalledTimes(2);
   });
 
   it("polls every 3 s while any run is non-terminal, then stops once every run is", async () => {
@@ -315,6 +443,35 @@ describe("useRun", () => {
     expect(GET).toHaveBeenCalledTimes(3);
   });
 
+  it("asks again at once on reload, a run going or settled alike, keeping the run on screen meanwhile", async () => {
+    const GET = vi
+      .fn()
+      .mockResolvedValueOnce({ data: detail("RUNNING") })
+      .mockResolvedValueOnce({ data: detail("CANCELLING") })
+      .mockResolvedValueOnce({ data: detail("FAILED") })
+      .mockResolvedValue({ data: detail("SCHEDULED") });
+    const dependencies = fakeDependencies(GET);
+    const { result } = renderHook(() => useRun(dependencies, "run-1"));
+    await settle();
+    act(() => result.current.reload());
+    expect(result.current.run).toEqual({ kind: "ready", value: detail("RUNNING") });
+    await settle();
+    expect(result.current.run).toEqual({ kind: "ready", value: detail("CANCELLING") });
+    expect(GET).toHaveBeenCalledTimes(2);
+
+    await tick();
+    expect(result.current.run).toEqual({ kind: "ready", value: detail("FAILED") });
+    await tick(POLL_MS * 3);
+    expect(GET).toHaveBeenCalledTimes(3);
+    // A settled run is asked again on reload too (it was retried), and polled while it is not settled.
+    act(() => result.current.reload());
+    await settle();
+    expect(result.current.run).toEqual({ kind: "ready", value: detail("SCHEDULED") });
+    const asked = GET.mock.calls.length;
+    await tick();
+    expect(GET.mock.calls.length).toBeGreaterThan(asked);
+  });
+
   it("stops after a failed poll and resumes from a fresh request on reload", async () => {
     const error = new ApiError({ status: 502, code: "etl_upstream", message: "Prefect did not answer" });
     const GET = vi.fn().mockRejectedValueOnce(error).mockResolvedValue({ data: detail("RUNNING") });
@@ -332,140 +489,5 @@ describe("useRun", () => {
     expect(GET).toHaveBeenCalledTimes(2);
     await tick();
     expect(GET).toHaveBeenCalledTimes(3);
-  });
-});
-
-describe("useRunLogs", () => {
-  it("asks for the last 200 lines without a cursor and reports a full first page as truncated", async () => {
-    const server = logServer(lines(1, 250));
-    const dependencies = fakeDependencies(server.GET);
-    const { result } = renderHook(() => useRunLogs(dependencies, "run-1", true));
-    await settle();
-    expect(result.current.status).toBe("ready");
-    expect(server.GET).toHaveBeenCalledTimes(1);
-    expect(server.GET).toHaveBeenCalledWith("/etl/runs/{id}/logs", { params: { path: { id: "run-1" }, query: { limit: 200 } }, signal: expect.any(AbortSignal) });
-    expect(result.current.entries).toEqual(lines(51, 250));
-    expect(result.current.truncated).toBe(true);
-    expect(result.current.trimmed).toBe(false);
-  });
-
-  it("a line that appears between ticks shows up after the next 3 s tick", async () => {
-    const server = logServer(lines(1, 3));
-    const dependencies = fakeDependencies(server.GET);
-    const { result } = renderHook(() => useRunLogs(dependencies, "run-1", false));
-    await settle();
-    expect(result.current.status).toBe("ready");
-    expect(result.current.truncated).toBe(false);
-
-    server.append([line(4)]);
-    await tick(POLL_MS - 1);
-    expect(result.current.entries).toEqual(lines(1, 3));
-    await tick(1);
-    expect(result.current.entries).toEqual(lines(1, 4));
-    expect(server.GET).toHaveBeenLastCalledWith("/etl/runs/{id}/logs", expect.objectContaining({ params: { path: { id: "run-1" }, query: { after: line(3).timestamp, limit: 200 } } }));
-  });
-
-  it("does not duplicate the boundary line the server repeats", async () => {
-    const server = logServer(lines(1, 3));
-    const dependencies = fakeDependencies(server.GET);
-    const { result } = renderHook(() => useRunLogs(dependencies, "run-1", false));
-    await settle();
-    expect(result.current.status).toBe("ready");
-
-    await tick();
-    expect(result.current.entries).toEqual(lines(1, 3));
-    server.append([line(4)]);
-    await tick();
-    expect(result.current.entries.map((entry) => entry.id)).toEqual(lines(1, 4).map((entry) => entry.id));
-  });
-
-  it("keeps requesting within one tick while pages come full with new ids", async () => {
-    const server = logServer(lines(1, 10));
-    const dependencies = fakeDependencies(server.GET);
-    const { result } = renderHook(() => useRunLogs(dependencies, "run-1", false));
-    await settle();
-    expect(result.current.status).toBe("ready");
-
-    server.append(lines(11, 460));
-    await tick();
-    // 10 -> [10..209] -> [209..408] -> [408..460]: three pages in the same tick, the last one short.
-    expect(server.GET).toHaveBeenCalledTimes(4);
-    expect(result.current.entries).toEqual(lines(1, 460));
-    expect(result.current.truncated).toBe(false);
-  });
-
-  it("stops the in-tick loop when a full page brings only known ids", async () => {
-    const full = lines(1, 200);
-    const GET = vi.fn().mockResolvedValue(page(full));
-    const dependencies = fakeDependencies(GET);
-    const { result } = renderHook(() => useRunLogs(dependencies, "run-1", false));
-    await settle();
-    expect(result.current.status).toBe("ready");
-    expect(GET).toHaveBeenCalledTimes(1);
-
-    await tick();
-    expect(GET).toHaveBeenCalledTimes(2);
-    expect(result.current.entries).toEqual(full);
-  });
-
-  it("pauses the poll while the tab is hidden", async () => {
-    const server = logServer(lines(1, 3));
-    const dependencies = fakeDependencies(server.GET);
-    const { result } = renderHook(() => useRunLogs(dependencies, "run-1", false));
-    await settle();
-    expect(result.current.status).toBe("ready");
-
-    setVisibility("hidden");
-    server.append([line(4)]);
-    await tick(POLL_MS * 3);
-    expect(server.GET).toHaveBeenCalledTimes(1);
-    expect(result.current.entries).toEqual(lines(1, 3));
-
-    setVisibility("visible");
-    await tick();
-    expect(result.current.entries).toEqual(lines(1, 4));
-  });
-
-  it("makes exactly one more pass when the run turns terminal, then stops", async () => {
-    const server = logServer(lines(1, 3));
-    const dependencies = fakeDependencies(server.GET);
-    const { result, rerender } = renderHook(({ terminal }) => useRunLogs(dependencies, "run-1", terminal), { initialProps: { terminal: false } });
-    await settle();
-    expect(result.current.status).toBe("ready");
-    await tick();
-    expect(server.GET).toHaveBeenCalledTimes(2);
-
-    server.append([line(4)]);
-    rerender({ terminal: true });
-    await settle();
-    expect(result.current.entries).toEqual(lines(1, 4));
-    expect(server.GET).toHaveBeenCalledTimes(3);
-
-    await tick(POLL_MS * 5);
-    expect(server.GET).toHaveBeenCalledTimes(3);
-  });
-
-  it("drops the oldest lines past 5 000 and says so", async () => {
-    const server = logServer(lines(1, 100));
-    const dependencies = fakeDependencies(server.GET);
-    const { result } = renderHook(() => useRunLogs(dependencies, "run-1", false));
-    await settle();
-    expect(result.current.status).toBe("ready");
-
-    server.append(lines(101, 5_150));
-    await tick();
-    expect(result.current.entries).toHaveLength(5_000);
-    expect(result.current.entries[0]).toEqual(line(151));
-    expect(result.current.entries.at(-1)).toEqual(line(5_150));
-    expect(result.current.trimmed).toBe(true);
-  });
-
-  it("fails when the first page cannot be loaded", async () => {
-    const error = new ApiError({ status: 404, code: "not_found", message: "Unknown run" });
-    const dependencies = fakeDependencies(vi.fn().mockRejectedValue(error));
-    const { result } = renderHook(() => useRunLogs(dependencies, "run-1", false));
-    await settle();
-    expect(result.current.status).toBe("failed");
-    expect(result.current.error).toBe(error);
   });
 });

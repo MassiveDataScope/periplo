@@ -10,7 +10,9 @@ import sourcesFixture from "../../dev/fixtures/sources.json";
 import etlFixture from "../../dev/fixtures/etl.json";
 import { App } from "./App";
 import { createDependencies } from "./dependencies";
+import { appHistory } from "./history";
 import { createPreferences, type PreferencesStore } from "./preferences";
+import { navigate } from "./routes";
 import { createI18n } from "../i18n";
 
 const release = vi.hoisted(() => ({ etlUnderConstruction: false }));
@@ -59,25 +61,25 @@ beforeAll(() => {
     },
   );
   HTMLElement.prototype.scrollTo = () => undefined;
-  // jsdom has no modal machinery for `<dialog>`: a real browser promotes it to the top layer and
-  // traps focus by itself; here the peek only needs the `open` attribute (which jsdom does reflect).
-  if (typeof HTMLDialogElement.prototype.showModal !== "function") {
-    HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
-      this.setAttribute("open", "");
-    };
-  }
-  if (typeof HTMLDialogElement.prototype.close !== "function") {
-    HTMLDialogElement.prototype.close = function (this: HTMLDialogElement) {
-      this.removeAttribute("open");
-    };
-  }
 });
 
+/** Opens the console in a fresh browser tab on `hash`: `main` installs the trail once, before the console renders. */
+function openTab(hash = ""): void {
+  appHistory.dispose();
+  sessionStorage.clear();
+  window.history.replaceState(null, "", `${window.location.pathname}${hash}`);
+  appHistory.install();
+}
+
 beforeEach(() => {
-  window.location.hash = "";
   release.etlUnderConstruction = false;
+  openTab();
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  appHistory.dispose();
+  vi.restoreAllMocks();
+});
 
 const QUERY_ID = "0b9f6a3e-4a53-4c1e-9d0b-0d3f6f1c2a11";
 const FIELDS = [{ name: "order_id", type: "int64", nullable: false }];
@@ -89,7 +91,7 @@ function fakeApi(overrides: Record<string, (request: Request) => Response | Prom
   const requests: string[] = [];
   const routes: Record<string, (request: Request) => Response | Promise<Response>> = {
     "GET /api/v1/catalog": () => Response.json(catalog),
-    "GET /api/v1/etl/status": () => Response.json({ configured: false, operate_enabled: false, ui_url: null }),
+    "GET /api/v1/etl/status": () => Response.json({ configured: false, operate_enabled: false, ui_url: null, facets: {} }),
     "GET /api/v1/sources": () =>
       Response.json({
         ...sourcesFixture,
@@ -234,6 +236,14 @@ function renderApp(api = fakeApi(), preferences: PreferencesStore = createPrefer
   );
   return { ...api, preferences };
 }
+
+const EMPTY_ETL_SUMMARY = {
+  running: 0,
+  failed_24h: 0,
+  completed_24h: 0,
+  history: { interval: "1h", buckets: [], upcoming: [], median_seconds: null },
+  history_7d: { interval: "1d", buckets: [], upcoming: [], median_seconds: null },
+};
 
 const goTo = (hash: string) => act(() => void ((window.location.hash = hash), window.dispatchEvent(new HashChangeEvent("hashchange"))));
 
@@ -474,12 +484,54 @@ describe("App", () => {
     await waitFor(() => expect(api.sql.at(-1)).toContain("o.region = o2.region"));
   });
 
+  it("changes a table's tab in place, so Back leaves the table instead of walking its tabs", async () => {
+    openTab("#/d/landing_shop");
+    renderApp();
+    act(() => navigate({ kind: "table", database: "landing_shop", table: "order", tab: "data" }));
+    await screen.findByText("9007199254740993");
+    const length = window.history.length;
+    fireEvent.click(screen.getByRole("tab", { name: "Details" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/t/landing_shop/order/details"));
+    expect(window.history.length).toBe(length);
+    act(() => window.history.back());
+    await waitFor(() => expect(window.location.hash).toBe("#/d/landing_shop"));
+  });
+
+  it("steps back for real from 'Back to …' when that is where the table was opened from", async () => {
+    openTab("#/d/landing_shop");
+    renderApp();
+    act(() => navigate({ kind: "table", database: "landing_shop", table: "order", tab: "data" }));
+    const back = await screen.findByRole("link", { name: "Back to landing_shop" });
+    const length = window.history.length;
+    fireEvent.click(back);
+    // A real step back: the browser is on the first entry again, and no entry was added.
+    await waitFor(() => expect(window.location.hash).toBe("#/d/landing_shop"));
+    expect(window.history.length).toBe(length);
+    act(() => window.history.forward());
+    await waitFor(() => expect(window.location.hash).toBe("#/t/landing_shop/order"));
+  });
+
+  it("leaves a table opened from a direct link for its database in place, so Back does not return to it", async () => {
+    // The page the user followed the link from, outside the console's trail.
+    window.history.replaceState(null, "", "#/elsewhere");
+    window.history.pushState(null, "", "#/t/landing_shop/order");
+    openTab("#/t/landing_shop/order");
+    renderApp();
+    const back = await screen.findByRole("link", { name: "Back to landing_shop" });
+    const length = window.history.length;
+    fireEvent.click(back);
+    await waitFor(() => expect(window.location.hash).toBe("#/d/landing_shop"));
+    expect(window.history.length).toBe(length);
+    act(() => window.history.back());
+    await waitFor(() => expect(window.location.hash).toBe("#/elsewhere"));
+  });
+
   it("shows a shareable hash the moment 'Join with…' is clicked", async () => {
-    window.location.hash = "#/t/landing_shop/order";
+    openTab("#/t/landing_shop/order");
     renderApp();
     await screen.findByText("9007199254740993");
-    fireEvent.click(screen.getByRole("button", { name: "Join with…" }));
-    expect(window.location.hash).toBe("#/join/landing_shop/order");
+    // A real link: Cmd+click opens the join in a new tab, and the address can be copied before clicking.
+    expect(screen.getByRole("link", { name: "Join with…" }).getAttribute("href")).toBe("#/join/landing_shop/order");
   });
 
   it("charts how a column is spread, only when asked, sizing it up before grouping by it", async () => {
@@ -812,10 +864,185 @@ describe("App", () => {
     await waitFor(() => expect(window.location.hash).toBe("#/"));
   });
 
+  it("keeps the side list's filter on every link within the ETL section: dashboard, an ETL's page and a run's page", async () => {
+    const deployment = etlFixture.deployments.find((candidate) => candidate.schedule !== null);
+    if (!deployment) throw new Error("fixture must have a scheduled deployment");
+    const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString();
+    const flowRun = (id: string, state: string, startHoursAgo: number) => ({
+      id,
+      name: `run-${id}`,
+      state,
+      state_message: state === "FAILED" ? "boom" : null,
+      expected_start_at: hoursAgo(startHoursAgo),
+      start_at: hoursAgo(startHoursAgo),
+      end_at: hoursAgo(startHoursAgo - 0.1),
+      duration_seconds: 360,
+      created_by: null,
+      run_count: 1,
+      retries: 0,
+      retry_delay_seconds: 0,
+      trigger: "scheduled",
+      external_url: null,
+      attempts: null,
+    });
+    const runs = [flowRun("r2", "FAILED", 2), flowRun("r1", "COMPLETED", 5)];
+    const recent = [...runs].reverse().map(({ id, state, start_at, end_at }) => ({ id, state, start_at, end_at, attempts: null }));
+    const etl = {
+      ...deployment,
+      last_run: runs[0],
+      recent,
+      next_run_at: null,
+      schedule_inactive: false,
+      triggered_by: null,
+      triggers: [],
+      archived: null,
+    };
+    const detail = {
+      ...runs[0],
+      parameters: deployment.parameters,
+      deployment_id: deployment.id,
+      deployment_name: deployment.name,
+      flow_name: deployment.flow_name,
+      terminal: true,
+      state_since: null,
+      triggered_by_run: null,
+      triggered_runs: [],
+    };
+    renderApp(
+      fakeApi({
+        "GET /api/v1/etl/status": () => Response.json({ configured: true, operate_enabled: true, ui_url: null, facets: {} }),
+        "GET /api/v1/etl": () => Response.json({ etls: [etl], summary: EMPTY_ETL_SUMMARY, running: [], running_truncated: false }),
+        [`GET /api/v1/etl/${deployment.name}/runs`]: () => Response.json({ runs }),
+        "GET /api/v1/etl/runs/r2": () => Response.json(detail),
+        "GET /api/v1/etl/runs/r2/tasks": () => Response.json({ attempts: [], expected_steps_known: true }),
+      }),
+    );
+    await screen.findByRole("tree", { name: "Tables" });
+    const q = encodeURIComponent(deployment.name);
+    /** Every link of the work area within the ETL section, which must all carry the filter. */
+    const sectionLinks = () =>
+      Array.from(
+        screen.getByRole("main", { name: "Work area" }).querySelectorAll<HTMLAnchorElement>("a[href^='#/etl']"),
+        (link) => link.getAttribute("href") ?? "",
+      );
+    const expectEvery = (links: readonly string[], least: number) => {
+      expect(links.length).toBeGreaterThanOrEqual(least);
+      for (const link of links) expect(link).toMatch(new RegExp(`[?&]q=${q}(&|$)`));
+    };
+
+    goTo(`#/etl?q=${q}`);
+    await screen.findByRole("heading", { name: "ETL", level: 2 });
+    await waitFor(() => expect(sectionLinks().filter((link) => link.startsWith("#/etl/runs/")).length).toBeGreaterThanOrEqual(4));
+    expectEvery(sectionLinks(), 6);
+
+    goTo(`#/etl/${q}?q=${q}`);
+    await screen.findByRole("table", { name: "Runs" });
+    expectEvery(sectionLinks(), 5);
+
+    goTo(`#/etl/runs/r2?q=${q}`);
+    await screen.findByRole("link", { name: "Run again with these…" });
+    await screen.findByRole("navigation", { name: `Other runs of ${deployment.name}` });
+    expectEvery(sectionLinks(), 4);
+  });
+
+  it("runs a run again with its own values: its page links to the ETL's Run-once dialog, opened with them", async () => {
+    const deployment = etlFixture.deployments.find((candidate) => candidate.schedule !== null);
+    if (!deployment) throw new Error("fixture must have a scheduled deployment");
+    const etl = {
+      ...deployment,
+      last_run: null,
+      recent: [],
+      next_run_at: null,
+      schedule_inactive: false,
+      triggered_by: null,
+      triggers: [],
+      archived: null,
+    };
+    const run = {
+      id: "run-1",
+      name: "quiet-otter",
+      state: "COMPLETED",
+      state_message: null,
+      expected_start_at: null,
+      start_at: "2026-10-06T10:00:00Z",
+      end_at: "2026-10-06T10:01:00Z",
+      duration_seconds: 60,
+      created_by: "alice",
+      run_count: 1,
+      retries: 0,
+      retry_delay_seconds: 0,
+      trigger: "manual",
+      external_url: null,
+      attempts: null,
+      parameters: { ...deployment.parameters, day: "2026-10-05" },
+      deployment_id: deployment.id,
+      deployment_name: deployment.name,
+      flow_name: deployment.flow_name,
+      terminal: true,
+      state_since: null,
+      triggered_by_run: null,
+      triggered_runs: [],
+    };
+    renderApp(
+      fakeApi({
+        "GET /api/v1/etl/status": () => Response.json({ configured: true, operate_enabled: true, ui_url: null, facets: {} }),
+        "GET /api/v1/etl": () => Response.json({ etls: [etl], summary: EMPTY_ETL_SUMMARY, running: [], running_truncated: false }),
+        "GET /api/v1/etl/runs/run-1": () => Response.json(run),
+        "GET /api/v1/etl/runs/run-1/tasks": () => Response.json({ attempts: [], expected_steps_known: true }),
+        [`GET /api/v1/etl/${deployment.name}/runs`]: () => Response.json({ runs: [] }),
+        [`GET /api/v1/etl/${deployment.name}/grid`]: () => Response.json({ runs: [], processes: [], truncated: false }),
+      }),
+    );
+    await screen.findByRole("tree", { name: "Tables" });
+    const q = encodeURIComponent(deployment.name);
+    goTo(`#/etl/runs/run-1?q=${q}`);
+    const again = await screen.findByRole("link", { name: "Run again with these…" });
+    // The run is not among the list's recent runs: the side list still marks its ETL, from the run page itself.
+    const side = within(screen.getByRole("complementary", { name: "ETLs" }));
+    await waitFor(() => expect(side.getByRole("link", { name: new RegExp(deployment.name) }).getAttribute("aria-current")).toBe("page"));
+    const crumbs = within(screen.getByRole("navigation", { name: "Breadcrumb" }));
+    expect(crumbs.getByRole("link", { name: deployment.name }).getAttribute("href")).toBe(`#/etl/${q}?run=run-1&q=${q}`);
+    goTo(again.getAttribute("href") ?? "");
+    const dialog = await screen.findByRole("dialog", { name: `Run ${deployment.name} once` });
+    const day = within(dialog).getByRole("textbox", { name: "day" }) as HTMLInputElement;
+    expect(day.value).toBe("2026-10-05");
+    expect(day.closest("[data-changed]")).not.toBeNull();
+    // Consumed once, with a replace: the values leave the URL, the side list's filter stays.
+    await waitFor(() => expect(window.location.hash).toBe(`#/etl/${q}?q=${q}`));
+  });
+
+  it("drops Run-once values from the URL where the console may not run ETLs, and says so", async () => {
+    const deployment = etlFixture.deployments[0];
+    if (!deployment) throw new Error("fixture must have a deployment");
+    const etl = {
+      ...deployment,
+      last_run: null,
+      recent: [],
+      next_run_at: null,
+      schedule_inactive: false,
+      triggered_by: null,
+      triggers: [],
+      archived: null,
+    };
+    renderApp(
+      fakeApi({
+        "GET /api/v1/etl/status": () => Response.json({ configured: true, operate_enabled: false, ui_url: null, facets: {} }),
+        "GET /api/v1/etl": () => Response.json({ etls: [etl], summary: EMPTY_ETL_SUMMARY, running: [], running_truncated: false }),
+        [`GET /api/v1/etl/${deployment.name}/runs`]: () => Response.json({ runs: [] }),
+        [`GET /api/v1/etl/${deployment.name}/grid`]: () => Response.json({ runs: [], processes: [], truncated: false }),
+      }),
+    );
+    await screen.findByRole("tree", { name: "Tables" });
+    goTo(`#/etl/${encodeURIComponent(deployment.name)}?runOnce=${encodeURIComponent('{"day":"x"}')}`);
+    await waitFor(() => expect(window.location.hash).toBe(`#/etl/${encodeURIComponent(deployment.name)}`));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByText("This console cannot run ETLs: the values the link carried were not used.")).not.toBeNull();
+  });
+
   it("lists the ETLs from its own section when Prefect is configured", async () => {
     renderApp(
       fakeApi({
-        "GET /api/v1/etl/status": () => Response.json({ configured: true, operate_enabled: true, ui_url: null }),
+        "GET /api/v1/etl/status": () => Response.json({ configured: true, operate_enabled: true, ui_url: null, facets: {} }),
         "GET /api/v1/etl": () =>
           Response.json({
             etls: etlFixture.deployments.map((deployment) => ({
@@ -824,8 +1051,9 @@ describe("App", () => {
               recent: [],
               next_run_at: null,
               schedule_inactive: false,
-              cadence: null,
-              mode: null,
+              triggered_by: null,
+              triggers: [],
+              archived: null,
             })),
             summary: {
               running: 0,
@@ -851,17 +1079,169 @@ describe("App", () => {
 
     goTo("#/etl");
     await screen.findByRole("heading", { name: "ETL", level: 2 });
+    expect(screen.getAllByRole("searchbox", { name: "Filter ETLs" })).toHaveLength(1);
+    fireEvent.keyDown(window, { key: "F", ctrlKey: true, shiftKey: true });
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("searchbox", { name: "Filter ETLs" })));
     expect((await screen.findByRole("link", { name: cronDeployment.name })).getAttribute("href")).toBe(`#/etl/${cronDeployment.name}`);
     fireEvent.click(screen.getByRole("tab", { name: /On demand/ }));
     expect((await screen.findByRole("row", { name: new RegExp(manualDeployment.name) })).textContent).toContain("manual");
     expect(link.getAttribute("aria-current")).toBe("page");
   });
 
+  it("keeps the ETLs in the side column across the section, the one on screen marked, each a link to the next", async () => {
+    // A run the list knows: on its page the side list marks its ETL.
+    const knownRun = { id: "run-known", state: "COMPLETED", start_at: null, end_at: null, attempts: null };
+    const etls = etlFixture.deployments.map((deployment, index) => ({
+      ...deployment,
+      last_run: null,
+      recent: index === 0 ? [knownRun] : [],
+      next_run_at: null,
+      schedule_inactive: false,
+      triggered_by: null,
+      triggers: [],
+      archived: null,
+    }));
+    const quiet = { buckets: [], upcoming: [], median_seconds: null };
+    const [first, second] = etls;
+    if (!first || !second) throw new Error("fixture must have two deployments");
+    renderApp(
+      fakeApi({
+        "GET /api/v1/etl/status": () => Response.json({ configured: true, operate_enabled: false, ui_url: null, facets: {} }),
+        "GET /api/v1/etl": () =>
+          Response.json({
+            etls,
+            summary: { running: 0, failed_24h: 0, completed_24h: 0, history: { interval: "1h", ...quiet }, history_7d: { interval: "1d", ...quiet } },
+            running: [],
+            running_truncated: false,
+          }),
+        [`GET /api/v1/etl/${first.name}/runs`]: () => Response.json({ runs: [] }),
+        [`GET /api/v1/etl/${second.name}/runs`]: () => Response.json({ runs: [] }),
+      }),
+    );
+    await screen.findByRole("tree", { name: "Tables" });
+
+    goTo(`#/etl/${first.name}`);
+    const column = within(await screen.findByRole("complementary", { name: "ETLs" }));
+    expect(screen.queryByRole("tree", { name: "Tables" })).toBeNull();
+    const current = await column.findByRole("link", { current: "page" });
+    expect(current.getAttribute("href")).toBe(`#/etl/${first.name}`);
+    const next = column.getByRole("link", { name: new RegExp(`^${second.name}`) });
+    expect(next.getAttribute("href")).toBe(`#/etl/${second.name}`);
+
+    goTo(`#/etl/${second.name}`);
+    await waitFor(() => expect(column.getByRole("link", { current: "page" }).getAttribute("href")).toBe(`#/etl/${second.name}`));
+
+    // The filter lives in the URL, replacing the entry: no new Back step, and it survives a reload.
+    const entries = window.history.length;
+    fireEvent.change(column.getByRole("searchbox", { name: "Filter ETLs" }), { target: { value: second.name } });
+    await waitFor(() => expect(window.location.hash).toBe(`#/etl/${second.name}?q=${encodeURIComponent(second.name)}`));
+    expect(window.history.length).toBe(entries);
+    expect(column.queryByRole("link", { name: new RegExp(`^${first.name}`) })).toBeNull();
+    fireEvent.change(column.getByRole("searchbox", { name: "Filter ETLs" }), { target: { value: "" } });
+    await waitFor(() => expect(window.location.hash).toBe(`#/etl/${second.name}`));
+    const crumbs = within(screen.getByRole("navigation", { name: "Breadcrumb" }));
+    expect(crumbs.getByRole("link", { name: "ETLs" }).getAttribute("href")).toBe("#/etl");
+
+    goTo("#/etl/runs/run-known");
+    await waitFor(() => expect(column.getByRole("link", { current: "page" }).getAttribute("href")).toBe(`#/etl/${first.name}`));
+
+    goTo("#/");
+    expect(await screen.findByRole("tree", { name: "Tables" })).toBeTruthy();
+  });
+
+  it("keeps the work area usable when the side column fails to render", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const quiet = { buckets: [], upcoming: [], median_seconds: null };
+    const etls = etlFixture.deployments.map((deployment) => ({
+      ...deployment,
+      last_run: null,
+      recent: [],
+      next_run_at: null,
+      schedule_inactive: false,
+      triggered_by: null,
+      triggers: [],
+      archived: null,
+    }));
+    const [first] = etls;
+    if (!first) throw new Error("fixture must have a deployment");
+    // An entry the side list cannot sort (no name) breaks only the list: the ETL page finds its own ETL by name.
+    const broken = { ...first, name: null };
+    renderApp(
+      fakeApi({
+        "GET /api/v1/etl/status": () => Response.json({ configured: true, operate_enabled: false, ui_url: null, facets: {} }),
+        "GET /api/v1/etl": () =>
+          Response.json({
+            etls: [...etls, broken],
+            summary: { running: 0, failed_24h: 0, completed_24h: 0, history: { interval: "1h", ...quiet }, history_7d: { interval: "1d", ...quiet } },
+            running: [],
+            running_truncated: false,
+          }),
+        [`GET /api/v1/etl/${first.name}/runs`]: () => Response.json({ runs: [] }),
+      }),
+    );
+    goTo(`#/etl/${first.name}`);
+    const column = within(await screen.findByRole("complementary", { name: "ETLs" }));
+    expect(await column.findByRole("region", { name: "The ETL list could not be shown" })).toBeTruthy();
+    expect(column.queryByRole("link", { name: "Go to Home" })).toBeNull();
+    const work = within(screen.getByRole("main", { name: "Work area" }));
+    expect(await work.findByRole("heading", { level: 2, name: new RegExp(first.name) })).toBeTruthy();
+    expect(work.getByRole("table", { name: "Runs" })).toBeTruthy();
+  });
+
+  it("keeps the narrow ETL overlay open while its filter is typed in", async () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 800 });
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: true, media: query, addEventListener() {}, removeEventListener() {} }));
+    try {
+      const quiet = { buckets: [], upcoming: [], median_seconds: null };
+      const etls = etlFixture.deployments.map((deployment) => ({
+        ...deployment,
+        last_run: null,
+        recent: [],
+        next_run_at: null,
+        schedule_inactive: false,
+        triggered_by: null,
+        triggers: [],
+        archived: null,
+      }));
+      const [first] = etls;
+      if (!first) throw new Error("fixture must have a deployment");
+      renderApp(
+        fakeApi({
+          "GET /api/v1/etl/status": () => Response.json({ configured: true, operate_enabled: false, ui_url: null, facets: {} }),
+          "GET /api/v1/etl": () =>
+            Response.json({
+              etls,
+              summary: { running: 0, failed_24h: 0, completed_24h: 0, history: { interval: "1h", ...quiet }, history_7d: { interval: "1d", ...quiet } },
+              running: [],
+              running_truncated: false,
+            }),
+          [`GET /api/v1/etl/${first.name}/runs`]: () => Response.json({ runs: [] }),
+        }),
+      );
+      goTo(`#/etl/${first.name}`);
+      fireEvent.click(await screen.findByRole("button", { name: "Expand the ETL list" }));
+      const filter = await screen.findByRole("searchbox", { name: "Filter ETLs" });
+      fireEvent.change(filter, { target: { value: first.name.slice(0, 4) } });
+      await waitFor(() => expect(window.location.hash).toContain("?q="));
+      expect(screen.getByRole("searchbox", { name: "Filter ETLs" })).toBeTruthy();
+
+      // On the dashboard the section's search is the dashboard's own: the shortcut lands in it, with no overlay over it.
+      goTo("#/etl");
+      await screen.findByRole("heading", { name: "ETL", level: 2 });
+      fireEvent.keyDown(window, { key: "F", ctrlKey: true, shiftKey: true });
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("searchbox", { name: "Filter ETLs" })));
+      expect(screen.getByRole("button", { name: "Expand the ETL list" })).toBeTruthy();
+    } finally {
+      vi.unstubAllGlobals();
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 });
+    }
+  });
+
   it("shows ETL under construction, in the rail, the palette and every ETL route, and never asks the ETL API", async () => {
     release.etlUnderConstruction = true;
     const api = renderApp(
       fakeApi({
-        "GET /api/v1/etl/status": () => Response.json({ configured: true, operate_enabled: true, ui_url: null }),
+        "GET /api/v1/etl/status": () => Response.json({ configured: true, operate_enabled: true, ui_url: null, facets: {} }),
       }),
     );
     await screen.findByRole("tree", { name: "Tables" });

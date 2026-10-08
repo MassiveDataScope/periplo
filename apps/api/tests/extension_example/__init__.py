@@ -145,13 +145,20 @@ _VIEWER_ACTIONS: frozenset[StrEnum] = frozenset(
     {Action.READ_CATALOG, Action.QUERY, Action.VIEW_ETL}
 )
 _OPERATOR_ACTIONS: frozenset[StrEnum] = _VIEWER_ACTIONS | frozenset(
-    {Action.OPERATE_ETL, Action.ADMIN_CATALOG, ExampleAction.MANAGE_MEMBERS}
+    {
+        Action.OPERATE_ETL,
+        Action.CANCEL_RUN,
+        Action.RETRY_RUN,
+        Action.ARCHIVE_ETL,
+        Action.ADMIN_CATALOG,
+        ExampleAction.MANAGE_MEMBERS,
+    }
 )
 
 
 class RoleAuthorizer:
-    """``viewer`` reads the catalog, queries and views ETLs; ``operator`` also operates,
-    administers the catalog and manages members.
+    """``viewer`` reads the catalog, queries and views ETLs; ``operator`` also operates and
+    archives them, administers the catalog and manages members.
 
     Any tenant :class:`AttributeTenants` resolves is known to this authorizer: unlike
     the open-core ``SwitchAuthorizer`` it is not itself a tenant boundary. It also
@@ -244,6 +251,7 @@ class _TenantOrchestrator(FakeOrchestrator):
             start_at=run.start_at,
             end_at=run.end_at,
             duration_seconds=1.0,
+            tries=None,
         )
         process = Process(
             name=deployment_name,
@@ -353,6 +361,9 @@ class _TenantOrchestrator(FakeOrchestrator):
             deployment_name=deployment.name,
             flow_name=deployment.flow_name,
             terminal=True,
+            state_since=None,
+            triggered_by_run=None,
+            triggered_runs=[],
         )
 
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatAge, formatBytes, formatClock, formatCount } from "./format";
+import { formatAge, formatBytes, formatClock, formatCount, formatMoment } from "./format";
 
 describe("format", () => {
   it("formats sizes in binary units with the language's separators", () => {
@@ -28,5 +28,13 @@ describe("format", () => {
     const now = new Date(2026, 8, 21, 12, 0, 0);
     expect(formatClock(new Date(2026, 8, 21, 4, 0, 0), now, "en")).toBe("04:00");
     expect(formatClock(new Date(2026, 8, 19, 4, 0, 0), now, "en")).toBe("Sep 19, 04:00");
+  });
+
+  it("names a moment by its date and time of day, for a run's full name", () => {
+    expect(formatMoment(new Date(2026, 8, 19, 4, 5, 0), "en")).toBe("Sep 19, 2026, 4:05 AM");
+  });
+
+  it("names a moment to the second where seconds matter, as a run's start and end", () => {
+    expect(formatMoment(new Date(2026, 8, 19, 4, 5, 9), "en", "second")).toBe("Sep 19, 2026, 4:05:09 AM");
   });
 });

@@ -1,13 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type MutableRefObject } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type MutableRefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { ErrorNotice, Progress } from "@periplo/core/ui";
+import { pad } from "./two-digits";
 import type { LogEntry, LogsState } from "./useLogs";
 import styles from "./LogViewer.module.css";
 
 /** `0` reads as "All" (no floor); the other two mirror the server's `min_level`. */
 export type MinLevel = 0 | 30 | 40;
-
-const pad = (value: number, width = 2): string => String(value).padStart(width, "0");
 
 /** The clock time in the browser's zone with milliseconds: the date is the run's, and a log is read for what happened when. */
 export function formatLogTime(iso: string): string {
@@ -41,48 +40,39 @@ export interface LogViewerProps {
   /** True while the scope can still receive new lines: drives the pinned-to-bottom follow-tail, its "jump" cue,
    * the live indicator, and the waiting-for-more-lines tail row. */
   readonly live: boolean;
-  /** Scrolls the first ERROR-level (or above) line into view once, the first time the logs come ready — the
-   * opening state of a failed run's window, which starts on its first error. */
-  readonly initialLevelFocus?: "error";
-  /** A source separator ("── StepName · attempt 2 of 2") reads between two entries whose `task_run_id` differs —
-   * only for a caller that resolves it to a label (Process/Run scope, where more than one task run's lines can
-   * interleave); with none given, or an entry with no `task_run_id` (run-level lines), nothing renders. */
-  resolveSource?(taskRunId: string): string | null;
+  /** The step a line came from, written on the line itself — for a log that interleaves every step's lines. */
+  sourceOf?(entry: LogEntry): string;
+  /** The task runs whose lines stand out (the others dimmed), their first line brought into view whenever they
+   * change; null or absent for none. */
+  readonly highlight?: readonly string[] | null;
 }
 
-const ERROR_LEVEL = 40;
+/** How a line stands against the highlighted task run: in it, out of it, or undefined with none highlighted. */
+type Focus = "in" | "out" | undefined;
+
+function focusOf(entry: LogEntry, highlight: readonly string[] | null): Focus {
+  if (highlight === null) return undefined;
+  const taskRunId = entry.task_run_id;
+  return taskRunId != null && highlight.includes(taskRunId) ? "in" : "out";
+}
 
 const SEARCH_DEBOUNCE_MS = 300;
 const PINNED_SLACK_PX = 4;
 /** A trailing `{'…': …}` this long or longer folds behind a toggle; shorter ones read fine inline. */
 const DICT_FOLD_THRESHOLD = 40;
 
-type Row =
-  | { readonly kind: "entry"; readonly entry: LogEntry }
-  | { readonly kind: "noise"; readonly key: string; readonly entries: LogEntry[] }
-  | { readonly kind: "source"; readonly key: string; readonly label: string };
+type Row = { readonly kind: "entry"; readonly entry: LogEntry } | { readonly kind: "noise"; readonly key: string; readonly entries: LogEntry[] };
 
-/** Consecutive noise lines fold into one row (even a run of one); everything else keeps its own row. A source
- * separator (`resolveSource(entry.task_run_id)`) reads immediately before the first line — noise or not — of
- * a new task run, so a run of noise that starts a new step still gets its own separator instead of silently
- * joining the previous one's fold. */
-function groupRows(entries: readonly LogEntry[], resolveSource?: (taskRunId: string) => string | null): Row[] {
+/** Consecutive noise lines fold into one row (even a run of one); everything else keeps its own row. */
+function groupRows(entries: readonly LogEntry[]): Row[] {
   const rows: Row[] = [];
   let run: LogEntry[] = [];
-  let lastTaskRunId: string | undefined;
   const flushNoise = () => {
     if (run.length === 0) return;
     rows.push({ kind: "noise", key: run[0]!.id, entries: run });
     run = [];
   };
   for (const entry of entries) {
-    const taskRunId = entry.task_run_id ?? undefined;
-    if (taskRunId !== undefined && taskRunId !== lastTaskRunId) {
-      flushNoise();
-      const label = resolveSource?.(taskRunId) ?? null;
-      lastTaskRunId = taskRunId;
-      if (label !== null) rows.push({ kind: "source", key: `src-${entry.id}`, label });
-    }
     if (entry.noise) {
       run.push(entry);
       continue;
@@ -166,14 +156,14 @@ function Highlighted({ text, query, current }: { readonly text: string; readonly
   );
 }
 
-export function LogViewer({ logs, q, onQueryChange, minLevel, onMinLevelChange, wrap, onWrapChange, live, initialLevelFocus, resolveSource }: LogViewerProps) {
+export function LogViewer({ logs, q, onQueryChange, minLevel, onMinLevelChange, wrap, onWrapChange, live, sourceOf, highlight = null }: LogViewerProps) {
   const { t } = useTranslation();
   const scroller = useRef<HTMLDivElement>(null);
+  const selectedNote = useId();
   const pinned = useRef(true);
   /** Mirrors `pinned.current` in state: the ref alone drives the scroll math without a re-render on every pixel,
    * but the "Live · paused" text and the jump pill both need an actual re-render once it flips. */
   const [pinnedView, setPinnedView] = useState(true);
-  const initialFocusDone = useRef(false);
   const [draft, setDraft] = useState(q);
   const [matchIndex, setMatchIndex] = useState(0);
   const [expandedNoise, setExpandedNoise] = useState<ReadonlySet<string>>(new Set());
@@ -195,7 +185,7 @@ export function LogViewer({ logs, q, onQueryChange, minLevel, onMinLevelChange, 
   // A query committed elsewhere (e.g. the window resets it) is reflected back into the draft.
   useEffect(() => setDraft(q), [q]);
 
-  const rows = useMemo(() => groupRows(logs.entries, resolveSource), [logs.entries, resolveSource]);
+  const rows = useMemo(() => groupRows(logs.entries), [logs.entries]);
 
   const matches = useMemo(() => {
     if (!q) return [];
@@ -235,13 +225,18 @@ export function LogViewer({ logs, q, onQueryChange, minLevel, onMinLevelChange, 
     }
   }, [logs.entries]);
 
+  // Once per highlight, as soon as one of its lines is there: a poll must not pull the reader back to it.
+  const shownHighlight = useRef<string | null>(null);
+  const highlightKey = highlight === null ? null : highlight.join(" ");
   useEffect(() => {
-    if (initialFocusDone.current || initialLevelFocus !== "error" || logs.status !== "ready") return;
-    const target = logs.entries.find((entry) => entry.level >= ERROR_LEVEL);
-    if (target === undefined) return;
-    initialFocusDone.current = true;
-    rowRefs.current.get(target.id)?.scrollIntoView?.({ block: "center" });
-  }, [initialLevelFocus, logs.status, logs.entries]);
+    if (highlight === null || highlightKey === shownHighlight.current) return;
+    const first = logs.entries.find((entry) => focusOf(entry, highlight) === "in");
+    if (first === undefined) return;
+    shownHighlight.current = highlightKey;
+    rowRefs.current.get(first.id)?.scrollIntoView?.({ block: "center" });
+    // `highlightKey` stands for `highlight` by value: a new array with the same task runs is the same highlight.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightKey, logs.entries]);
 
   const jumpToLatest = () => {
     const element = scroller.current;
@@ -358,16 +353,20 @@ export function LogViewer({ logs, q, onQueryChange, minLevel, onMinLevelChange, 
       </div>
 
       <div ref={scroller} className={styles.scroller} tabIndex={0} role="log" aria-live="off" aria-label={t("etl.logs.scroller")} onScroll={rememberPosition} onKeyDown={onScrollerKeyDown}>
+        {logs.pollError !== undefined ? (
+          <p className={styles.notice} role="status">
+            {t("etl.logs.pollFailed")}
+          </p>
+        ) : null}
         {logs.truncated ? <p className={styles.notice}>{t("etl.logs.truncated")}</p> : null}
         {logs.capped ? <p className={styles.notice}>{t("etl.logs.capped")}</p> : null}
         {logs.entries.length === 0 ? <p className={styles.notice}>{t("etl.logs.empty")}</p> : null}
+        <span id={selectedNote} hidden>
+          {t("etl.logs.inSelectedStep")}
+        </span>
         <ol className={styles.lines} data-wrap={wrap ? "true" : "false"}>
           {rows.map((row) =>
-            row.kind === "source" ? (
-              <li key={row.key} className={styles.source}>
-                {t("etl.logs.sourceMarker")} <b>{row.label}</b>
-              </li>
-            ) : row.kind === "noise" ? (
+            row.kind === "noise" ? (
               <NoiseRow
                 key={row.key}
                 row={row}
@@ -379,6 +378,9 @@ export function LogViewer({ logs, q, onQueryChange, minLevel, onMinLevelChange, 
                 rowRefs={rowRefs}
                 expandedDicts={expandedDicts}
                 onToggleDict={toggleDict}
+                sourceOf={sourceOf}
+                highlight={highlight}
+                selectedNote={selectedNote}
               />
             ) : (
               <LogRow
@@ -389,6 +391,9 @@ export function LogViewer({ logs, q, onQueryChange, minLevel, onMinLevelChange, 
                 current={row.entry.id === currentMatchId}
                 dictExpanded={expandedDicts.has(row.entry.id)}
                 onToggleDict={() => toggleDict(row.entry.id)}
+                source={sourceOf?.(row.entry)}
+                focus={focusOf(row.entry, highlight)}
+                selectedNote={selectedNote}
                 itemRef={(el) => {
                   if (el) rowRefs.current.set(row.entry.id, el);
                   else rowRefs.current.delete(row.entry.id);
@@ -396,9 +401,7 @@ export function LogViewer({ logs, q, onQueryChange, minLevel, onMinLevelChange, 
               />
             ),
           )}
-          {live ? (
-            <li className={styles.tail}>{t("etl.logs.waitingForLines")}</li>
-          ) : null}
+          {live ? <li className={styles.tail}>{t("etl.logs.waitingForLines")}</li> : null}
         </ol>
         <div className={styles.jump} hidden={!showJump}>
           <button type="button" className={styles.jumpButton} onClick={jumpToLatest}>
@@ -429,9 +432,12 @@ interface NoiseRowProps {
   readonly rowRefs: MutableRefObject<Map<string, HTMLLIElement>>;
   readonly expandedDicts: ReadonlySet<string>;
   onToggleDict(id: string): void;
+  sourceOf?(entry: LogEntry): string;
+  readonly highlight: readonly string[] | null;
+  readonly selectedNote: string;
 }
 
-function NoiseRow({ row, expanded, onToggle, q, matches, currentMatchId, rowRefs, expandedDicts, onToggleDict }: NoiseRowProps) {
+function NoiseRow({ row, expanded, onToggle, q, matches, currentMatchId, rowRefs, expandedDicts, onToggleDict, sourceOf, highlight, selectedNote }: NoiseRowProps) {
   const { t } = useTranslation();
   if (expanded) {
     return (
@@ -445,6 +451,9 @@ function NoiseRow({ row, expanded, onToggle, q, matches, currentMatchId, rowRefs
             current={entry.id === currentMatchId}
             dictExpanded={expandedDicts.has(entry.id)}
             onToggleDict={() => onToggleDict(entry.id)}
+            source={sourceOf?.(entry)}
+            focus={focusOf(entry, highlight)}
+            selectedNote={selectedNote}
             itemRef={(el) => {
               if (el) rowRefs.current.set(entry.id, el);
               else rowRefs.current.delete(entry.id);
@@ -476,12 +485,16 @@ interface LogRowProps {
   readonly dictExpanded: boolean;
   onToggleDict(): void;
   itemRef(el: HTMLLIElement | null): void;
+  /** The step it came from, when the log interleaves several. */
+  readonly source?: string;
+  readonly focus?: Focus;
+  /** The id of the words a screen reader hears for a line of the highlighted step (its look says it to the eye). */
+  readonly selectedNote: string;
 }
 
-/** One line as a block of plain inline text — selecting and copying it by hand yields "15:02:53.819 INFO
- * message" exactly, the same shape `plainLine` builds for the Copy button. The source separator that precedes a
- * new task run's first line is its own row in `groupRows`, not part of this one. */
-function LogRow({ entry, q, current, dictExpanded, onToggleDict, itemRef }: LogRowProps) {
+/** One line as a block of plain inline text: selecting and copying it by hand yields "15:02:53.819 INFO message", the
+ * shape `plainLine` builds for the Copy button. */
+function LogRow({ entry, q, current, dictExpanded, onToggleDict, itemRef, source, focus, selectedNote }: LogRowProps) {
   const { t } = useTranslation();
   const split = trailingDict(entry.message);
   const foldable = split !== null && split.dict.length >= DICT_FOLD_THRESHOLD;
@@ -489,13 +502,27 @@ function LogRow({ entry, q, current, dictExpanded, onToggleDict, itemRef }: LogR
 
   return (
     <>
-      <li ref={itemRef} className={styles.line} data-level={entry.level_name} aria-current={current ? "true" : undefined}>
+      <li
+        ref={itemRef}
+        className={styles.line}
+        data-level={entry.level_name}
+        data-focus={focus}
+        aria-current={current ? "true" : undefined}
+        aria-describedby={focus === "in" ? selectedNote : undefined}
+      >
         <time dateTime={entry.timestamp} className={styles.t}>
           {formatLogTime(entry.timestamp)}
         </time>{" "}
         <span className={styles.lv} data-level={entry.level_name}>
           {tag}
         </span>{" "}
+        {source !== undefined ? (
+          <>
+            <span className={styles.lineSource} data-source="">
+              {source}
+            </span>{" "}
+          </>
+        ) : null}
         <span className={styles.msg}>
           {foldable && split ? (
             <>

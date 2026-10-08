@@ -1,42 +1,35 @@
+import { ApiError } from "@periplo/core/api";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nextProvider } from "react-i18next";
 import type { Dependencies } from "../../app/dependencies";
+import type { RunView } from "../../app/etl-routes";
+import { useHashRoute } from "../../app/routes";
 import { createI18n } from "../../i18n";
-import type { Catalog } from "../catalog-tree/catalog-model";
-import type { Attempt } from "./PipelineGraph";
-import { RunPage, timelineStyle } from "./RunPage";
-import { POLL_MS, type RunDetail } from "./useEtl";
+import { RunPage } from "./RunPage";
+import { SectionLinks } from "./SectionLinks";
+import { apiProcess, apiStep, apiStepWithTries, at, attemptOf } from "./timeline/fixtures.test-utils";
+import { POLL_MS, useEtlList, type Etl, type FlowRun, type LogEntry, type RecentRun, type RunDetail } from "./useEtl";
+import { MINUTE_MS } from "./useNow";
 
 const i18n = await createI18n();
 
 const RUN_PATH = "/etl/runs/{id}";
 const TASKS_PATH = "/etl/runs/{id}/tasks";
-const STEP_PATH = "/etl/runs/{id}/steps/{task_run}";
 const LOGS_PATH = "/etl/runs/{id}/logs";
-
-// jsdom has no modal machinery for `<dialog>`; the `open` attribute standing in for it is enough here.
-beforeAll(() => {
-  if (typeof HTMLDialogElement.prototype.showModal !== "function") {
-    HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
-      this.setAttribute("open", "");
-    };
-  }
-  if (typeof HTMLDialogElement.prototype.close !== "function") {
-    HTMLDialogElement.prototype.close = function (this: HTMLDialogElement) {
-      this.removeAttribute("open");
-    };
-  }
-});
+const LIST_PATH = "/etl";
+const RUNS_PATH = "/etl/{name}/runs";
 
 const base: RunDetail = {
   id: "run-1",
   name: "quiet-otter",
   state: "COMPLETED",
   state_message: null,
-  expected_start_at: "2026-09-23T06:00:00Z",
-  start_at: "2026-09-23T06:00:01Z",
-  end_at: "2026-09-23T06:01:25Z",
+  expected_start_at: at(0),
+  waiting_since: at(0),
+  start_at: at(0),
+  attempt_started_at: at(0),
+  end_at: at(84),
   duration_seconds: 84,
   created_by: "prefect-scheduler",
   run_count: 1,
@@ -50,74 +43,120 @@ const base: RunDetail = {
   external_url: "https://prefect.example/runs/flow-run/run-1",
   attempts: null,
   terminal: true,
+  state_since: null,
+  triggered_by_run: null,
+  triggered_runs: [],
 };
 
-const emptyLogs = { entries: [], next: null, truncated: false };
-const emptyTasks = { attempts: [], expected_steps_known: true };
+const pipeline = { attempts: [attemptOf([apiProcess("Load", [apiStep("orders", 0, 40), apiStep("check", 40, 84)])], 84)], expected_steps_known: true };
 
-function step(name: string, taskRunId: string, overrides: Partial<Record<string, unknown>> = {}) {
-  return {
-    name,
-    task_run_id: taskRunId,
-    state: "COMPLETED",
-    start_at: "2026-09-23T06:00:01Z",
-    end_at: "2026-09-23T06:00:31Z",
-    duration_seconds: 30,
-    ...overrides,
-  };
-}
+const flowRun = (id: string, start: number): FlowRun => ({
+  ...base,
+  id,
+  name: id,
+  start_at: at(start),
+  expected_start_at: at(start),
+  waiting_since: at(start),
+});
 
-function process(name: string | null, taskRunId: string | null, steps: ReturnType<typeof step>[], overrides: Partial<Record<string, unknown>> = {}) {
-  return {
-    name,
-    task_run_id: taskRunId,
-    state: "COMPLETED",
-    start_at: steps[0]?.start_at ?? null,
-    end_at: steps.at(-1)?.end_at ?? null,
-    duration_seconds: 30,
-    expected_steps: null,
-    steps,
-    ...overrides,
-  };
-}
-
-function stepDetail(taskRunId: string, name: string, processName: string | null) {
-  return {
-    step: step(name, taskRunId),
-    process: processName,
-    facts: { reads: ["lake.raw"], writes: ["lake.staging"], rows: 42, delta_version: 3 },
-    logs: emptyLogs,
-  };
-}
+const logLine = (n: number, taskRunId: string | null): LogEntry => ({
+  id: `log-${n}`,
+  timestamp: at(n),
+  level: 20,
+  level_name: "INFO",
+  message: `line ${n}`,
+  noise: false,
+  task_run_id: taskRunId,
+});
 
 interface Answers {
-  readonly run?: RunDetail;
+  /** The run, or what each poll answers with. */
+  readonly run?: RunDetail | (() => RunDetail);
   readonly tasks?: unknown;
-  readonly stepDetails?: Record<string, unknown>;
-  readonly logs?: unknown;
+  readonly usual?: Record<string, unknown>;
+  readonly runs?: readonly FlowRun[];
+  /** The lines of each task run, by its id; the run's own lines are one line. */
+  readonly taskLogs?: Readonly<Record<string, readonly LogEntry[]>>;
+  /** What the list says of the run's ETL besides its schedule's values: the chain it is in. */
+  readonly chain?: Pick<Etl, "triggered_by" | "triggers">;
+  /** The ETL's recent runs as the list shows them, or what each poll of the list answers with. */
+  readonly recent?: readonly RecentRun[] | (() => readonly RecentRun[]);
 }
 
-/** Routes every endpoint the run page can call, keyed by path template — as the real client sends it. */
-function fakeClient({ run = base, tasks = emptyTasks, stepDetails = {}, logs = emptyLogs }: Answers = {}) {
-  const GET = vi.fn((path: string, init?: { params?: { path?: Record<string, string>; query?: Record<string, unknown> } }) => {
-    if (path === RUN_PATH) return Promise.resolve({ data: run });
+type Init = { params?: { query?: { task_run?: string[]; limit?: number } } };
+
+const DEFAULT_TASK_LOGS: Readonly<Record<string, readonly LogEntry[]>> = { "tr-check": [logLine(50, "tr-check")] };
+
+/** Routes every endpoint the run page calls, keyed by path template — as the real client sends it. */
+const NO_CHAIN: Pick<Etl, "triggered_by" | "triggers"> = { triggered_by: null, triggers: [] };
+
+function fakeClient({
+  run = base,
+  tasks = pipeline,
+  usual = { day: "2026-09-22" },
+  runs = [],
+  taskLogs = DEFAULT_TASK_LOGS,
+  chain = NO_CHAIN,
+  recent = [],
+}: Answers = {}) {
+  const GET = vi.fn((path: string, init?: Init) => {
+    if (path === RUN_PATH) return Promise.resolve({ data: typeof run === "function" ? run() : run });
     if (path === TASKS_PATH) return Promise.resolve({ data: tasks });
-    if (path === STEP_PATH) {
-      const taskRun = init?.params?.path?.task_run ?? "";
-      return Promise.resolve({ data: stepDetails[taskRun] });
+    if (path === LIST_PATH) {
+      const listed = typeof recent === "function" ? recent() : recent;
+      return Promise.resolve({ data: { etls: [{ name: "daily-orders", parameters: usual, ...chain, recent: listed }], running: [] } });
     }
-    if (path === LOGS_PATH) return Promise.resolve({ data: logs });
+    if (path === RUNS_PATH) return Promise.resolve({ data: { runs } });
+    if (path === LOGS_PATH) {
+      const ids = init?.params?.query?.task_run;
+      const limit = init?.params?.query?.limit ?? 200;
+      const held = ids === undefined ? [logLine(1, null)] : ids.flatMap((id) => taskLogs[id] ?? []).sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+      const entries = held.slice(-limit);
+      return Promise.resolve({ data: { entries, next: entries.at(-1)?.timestamp ?? null, truncated: entries.length === limit } });
+    }
     return Promise.reject(new Error(`unexpected GET ${path}`));
   });
-  const dependencies = { client: { GET } } as unknown as Dependencies;
+  const POST = vi.fn(() => Promise.resolve({ data: typeof run === "function" ? run() : run }));
+  const dependencies = { client: { GET, POST } } as unknown as Dependencies;
   const callsTo = (target: string) => GET.mock.calls.filter(([path]) => path === target).length;
-  return { GET, dependencies, callsTo };
+  return { dependencies, callsTo, POST };
 }
 
-function renderPage(dependencies: Dependencies, catalog: Catalog | null = null) {
+/** The run page as the console gives it the section's one ETL list. */
+function ListedRunPage({
+  dependencies,
+  view,
+  onEtlKnown = () => undefined,
+  canOperate = false,
+  onListChanged = () => undefined,
+}: {
+  readonly dependencies: Dependencies;
+  readonly view?: RunView;
+  onEtlKnown?(runId: string, etl: string): void;
+  readonly canOperate?: boolean;
+  onListChanged?(): void;
+}) {
+  const { list } = useEtlList(dependencies);
+  return (
+    <SectionLinks route={useHashRoute()}>
+      <RunPage dependencies={dependencies} id="run-1" view={view} list={list} onEtlKnown={onEtlKnown} canOperate={canOperate} onListChanged={onListChanged} />
+    </SectionLinks>
+  );
+}
+
+function renderPage(dependencies: Dependencies, view?: RunView, onEtlKnown?: (runId: string, etl: string) => void) {
   render(
     <I18nextProvider i18n={i18n}>
-      <RunPage dependencies={dependencies} id="run-1" catalog={catalog} />
+      <ListedRunPage dependencies={dependencies} view={view} onEtlKnown={onEtlKnown} />
+    </I18nextProvider>,
+  );
+}
+
+/** The run page for someone who may operate ETLs; `onListChanged` says when the console reloads its list. */
+function renderOperable(dependencies: Dependencies, onListChanged: () => void = () => undefined) {
+  render(
+    <I18nextProvider i18n={i18n}>
+      <ListedRunPage dependencies={dependencies} canOperate onListChanged={onListChanged} />
     </I18nextProvider>,
   );
 }
@@ -130,6 +169,7 @@ async function settle(ms = 0): Promise<void> {
 
 beforeEach(() => {
   vi.useFakeTimers();
+  window.history.replaceState(null, "", "#/etl/runs/run-1");
 });
 
 afterEach(() => {
@@ -138,33 +178,117 @@ afterEach(() => {
 });
 
 describe("RunPage", () => {
-  it("heads a completed run with its state, no message, its parameters and a way to open its full logs", async () => {
-    const { dependencies } = fakeClient();
-    renderPage(dependencies);
+  it("heads a run with its breadcrumbs, its state and its orchestrator link", async () => {
+    renderPage(fakeClient().dependencies);
     await settle();
-
+    const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(within(crumbs).getByRole("link", { name: "ETLs" }).getAttribute("href")).toBe("#/etl");
+    expect(within(crumbs).getByRole("link", { name: "daily-orders" }).getAttribute("href")).toBe("#/etl/daily-orders?run=run-1");
+    expect(within(crumbs).getByText("quiet-otter").getAttribute("aria-current")).toBe("page");
     expect(screen.getByRole("heading", { level: 2, name: "quiet-otter" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "daily-orders" }).getAttribute("href")).toBe("#/etl/daily-orders");
-    const status = screen.getByRole("status");
-    expect(status.dataset.tone).toBe("success");
-    expect(within(status).getByText("Completed")).toBeTruthy();
-    expect(within(status).getByText("1m 24s")).toBeTruthy();
-    expect(screen.queryByText(/failed because/)).toBeNull();
-    expect(within(screen.getByRole("region", { name: "Parameters" })).getByText(/"day": "2026-09-22"/)).toBeTruthy();
-    expect(screen.getByRole("region", { name: "Logs" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Open full run logs" })).toBeTruthy();
-    expect(screen.queryByRole("complementary")).toBeNull();
+    expect(screen.getByRole("status").dataset.tone).toBe("success");
+    expect(screen.getByRole("link", { name: /Open in orchestrator/ }).getAttribute("href")).toBe(base.external_url);
+  });
+
+  it("says under its state when a run with no start is stuck waiting to start, and nothing for one that started", async () => {
+    vi.setSystemTime(Date.parse("2026-10-06T10:00:00Z"));
+    const stuck: RunDetail = {
+      ...base,
+      state: "PENDING",
+      start_at: null,
+      attempt_started_at: null,
+      end_at: null,
+      duration_seconds: 0,
+      expected_start_at: "2026-08-16T12:00:00Z",
+      waiting_since: "2026-08-16T12:00:00Z",
+      terminal: false,
+      state_since: null,
+      triggered_by_run: null,
+      triggered_runs: [],
+    };
+    renderPage(fakeClient({ run: stuck }).dependencies);
+    await settle();
+    const notice = screen.getByRole("region", { name: "Run stuck waiting to start" });
+    expect(notice.textContent).toMatch(/^Stuck waiting to start since Aug 16, \d\d:00$/);
+    expect(within(notice).queryByRole("link")).toBeNull();
+    cleanup();
+    renderPage(fakeClient().dependencies);
+    await settle();
+    expect(screen.queryByRole("region", { name: "Run stuck waiting to start" })).toBeNull();
+  });
+
+  it("walks the chain run to run: the run that started this one, and the ones it started or that did not run", async () => {
+    const chained: RunDetail = {
+      ...base,
+      trigger: "automation",
+      triggered_by_run: { etl: "respondio_messages", run_id: "run-up", run_name: "brave-otter" },
+      triggered_runs: [{ etl: "orders_model", run_id: "run-down", run_name: "calm-heron" }],
+    };
+    const chain = {
+      triggered_by: { etl: "respondio_messages", on: "completed" as const, passes: ["day"], sets: {} },
+      triggers: ["orders_model", "orders_report"],
+    };
+    renderPage(fakeClient({ run: chained, chain }).dependencies);
+    await settle();
+    const called = screen.getByRole("region", { name: "Called with" });
+    expect(within(called).getByRole("link", { name: "brave-otter" }).getAttribute("href")).toBe("#/etl/runs/run-up");
+    expect(within(called).getByText("from upstream")).toBeTruthy();
+    const triggered = screen.getByRole("region", { name: "Triggered" });
+    expect(within(triggered).getByRole("link", { name: "calm-heron" }).getAttribute("href")).toBe("#/etl/runs/run-down");
+    expect(within(triggered).getByText(/didn't run$/).textContent).toBe("orders_report didn't run");
+  });
+
+  it("waits calmly for a downstream run a just-completed run may still start, asking again, then says it didn't run", async () => {
+    const ended = Date.parse(base.end_at ?? "");
+    vi.setSystemTime(ended + 29 * 60_000);
+    const chain = { triggered_by: null, triggers: ["orders_report"] };
+    const client = fakeClient({ chain });
+    renderPage(client.dependencies);
+    await settle();
+    const triggered = screen.getByRole("region", { name: "Triggered" });
+    expect(within(triggered).getByText(/not started yet$/).textContent).toBe("orders_report not started yet");
+    const asked = client.callsTo(RUN_PATH);
+    await settle(POLL_MS * 2);
+    expect(client.callsTo(RUN_PATH)).toBeGreaterThan(asked);
+    await settle(2 * 60_000);
+    expect(within(screen.getByRole("region", { name: "Triggered" })).getByText(/didn't run$/).textContent).toBe("orders_report didn't run");
+    const settledAt = client.callsTo(RUN_PATH);
+    await settle(POLL_MS * 3);
+    expect(client.callsTo(RUN_PATH)).toBe(settledAt);
+  });
+
+  it("says in its state bar how many attempts a retried run took", async () => {
+    renderPage(fakeClient({ run: { ...base, run_count: 3 } }).dependencies);
+    await settle();
+    expect(screen.getByRole("status").textContent).toContain("Completed after 3 attempts");
+  });
+
+  it("says which ETL the run belongs to once it has read the run, for the side list to mark", async () => {
+    const onEtlKnown = vi.fn();
+    renderPage(fakeClient().dependencies, undefined, onEtlKnown);
+    await settle();
+    expect(onEtlKnown).toHaveBeenCalledWith("run-1", "daily-orders");
+  });
+
+  it("says how the run was called, its changed values beside the schedule's, and runs it again with them", async () => {
+    renderPage(fakeClient({ usual: { day: "2026-09-21" } }).dependencies);
+    await settle();
+    const called = screen.getByRole("region", { name: "Called with" });
+    expect(within(called).queryByText("Manual · prefect-scheduler")).not.toBeNull();
+    expect(within(called).queryByText("1 value differs from the schedule")).not.toBeNull();
+    expect(within(called).queryByText("usually 2026-09-21")).not.toBeNull();
+    expect(within(called).getByRole("link", { name: "Run again with these…" }).getAttribute("href")).toBe(
+      `#/etl/daily-orders?runOnce=${encodeURIComponent('{"day":"2026-09-22"}')}`,
+    );
   });
 
   it("does not poll the run past its terminal state, and does poll the tasks while it is not terminal", async () => {
-    const terminalClient = fakeClient({ run: base });
+    const terminalClient = fakeClient();
     renderPage(terminalClient.dependencies);
     await settle();
     await settle(POLL_MS * 3);
     expect(terminalClient.callsTo(RUN_PATH)).toBe(1);
     const settledTaskCalls = terminalClient.callsTo(TASKS_PATH);
-    // Terminal from the very first render would fetch tasks once; terminal reached only once the run itself
-    // loads (as here) settles with one extra fetch for that flip, then never again — either way, it stops.
     await settle(POLL_MS * 3);
     expect(terminalClient.callsTo(TASKS_PATH)).toBe(settledTaskCalls);
     cleanup();
@@ -176,481 +300,342 @@ describe("RunPage", () => {
     await settle(POLL_MS * 2);
     expect(liveClient.callsTo(TASKS_PATH)).toBeGreaterThan(1);
   });
-});
 
-describe("RunPage CRASHED", () => {
-  it("reads a SIGKILL/OOM message as \"Killed · memory\", above the raw text, with a View logs action", async () => {
-    const crashed: RunDetail = {
+  it("runs no clock for a finished run, even for who may operate it, and counts a live one's duration on by the second", async () => {
+    const intervals = vi.spyOn(globalThis, "setInterval");
+    renderOperable(fakeClient().dependencies);
+    await settle();
+    const clocks = intervals.mock.calls.map(([, ms]) => ms).filter((ms) => ms === 1_000 || ms === MINUTE_MS);
+    expect(clocks).toEqual([]);
+    intervals.mockRestore();
+    cleanup();
+
+    vi.setSystemTime(Date.parse("2026-10-08T07:15:25Z"));
+    const going: RunDetail = { ...base, state: "RUNNING", attempt_started_at: "2026-10-08T07:13:25Z", end_at: null, terminal: false };
+    renderPage(fakeClient({ run: going }).dependencies);
+    await settle();
+    expect(screen.getByText("2m 00s")).toBeTruthy();
+    await settle(1_000);
+    expect(screen.getByText("2m 01s")).toBeTruthy();
+  });
+
+  it("times a run retried from Prefect's UI from its current attempt, its first start kept as Started", async () => {
+    vi.setSystemTime(Date.parse("2026-10-08T07:15:25Z"));
+    const retried: RunDetail = {
       ...base,
-      state: "CRASHED",
-      state_message: "Process exited with signal SIGKILL: process exceeded its memory limit",
+      state: "RUNNING",
+      start_at: "2026-10-08T01:00:33Z",
+      attempt_started_at: "2026-10-08T07:13:25Z",
+      end_at: null,
+      run_count: 2,
+      terminal: false,
     };
-    const { dependencies } = fakeClient({ run: crashed });
-    renderPage(dependencies);
+    renderPage(fakeClient({ run: retried }).dependencies);
     await settle();
-
-    expect(screen.getByText("Killed · memory")).toBeTruthy();
-    expect(screen.getByText("Process exited with signal SIGKILL: process exceeded its memory limit")).toBeTruthy();
-
-    const viewLogs = screen.getByRole("button", { name: "View logs" });
-    fireEvent.click(viewLogs, { detail: 1 });
-    await settle();
-    const aside = screen.getByRole("complementary");
-    // Run scope, no step of its own: the header reads just the run's name.
-    expect(aside.getAttribute("aria-label")).toBe("quiet-otter · CRASHED");
-    expect(screen.getByRole("button", { name: "Run" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("2m 00s")).toBeTruthy();
+    expect(screen.getByText("Running · attempt 2")).toBeTruthy();
   });
 
-  it("does not add the killed line for a message without SIGKILL or memory in it", async () => {
-    const failed: RunDetail = { ...base, state: "FAILED", state_message: "Flow run failed because the source was empty" };
-    const { dependencies } = fakeClient({ run: failed });
-    renderPage(dependencies);
+  it("says a finished retried run ended after its attempts", async () => {
+    renderPage(fakeClient({ run: { ...base, state: "FAILED", run_count: 3 } }).dependencies);
     await settle();
-    expect(screen.queryByText("Killed · memory")).toBeNull();
-  });
-});
-
-describe("RunPage attempts", () => {
-  const attempt1 = {
-    number: 1,
-    state: "FAILED",
-    started_at: "2026-09-23T06:00:00Z",
-    ended_at: "2026-09-23T06:00:40Z",
-    message: "Flow run encountered an exception; retrying",
-    processes: [process("Staging", "process-1a", [step("Load", "task-1a")], { state: "FAILED" })],
-  };
-  const attempt2 = {
-    number: 2,
-    state: "COMPLETED",
-    started_at: "2026-09-23T06:01:00Z",
-    ended_at: "2026-09-23T06:02:00Z",
-    message: "All states completed.",
-    processes: [process("Staging", "process-1b", [step("Load", "task-1b")])],
-  };
-  const attempts = { attempts: [attempt1, attempt2], expected_steps_known: true };
-
-  it("shows the attempt tabs, defaults to the last one, and switches the graph and the table on click", async () => {
-    const { dependencies } = fakeClient({ tasks: attempts });
-    renderPage(dependencies);
-    await settle();
-
-    const tabs = screen.getByRole("tablist", { name: "Attempts" });
-    const [first, second] = within(tabs).getAllByRole("tab");
-    expect(first?.textContent).toBe("Attempt 1");
-    expect(second?.textContent).toBe("final");
-    expect(second?.getAttribute("aria-selected")).toBe("true");
-    // The last attempt is shown by default: its own process, not the first attempt's.
-    expect(screen.getByRole("row", { name: /Staging/ })).toBeTruthy();
-    expect(screen.queryByText("Flow run encountered an exception; retrying")).toBeNull();
-
-    fireEvent.click(first!);
-    expect(first?.getAttribute("aria-selected")).toBe("true");
-    expect(screen.getByText("Flow run encountered an exception; retrying")).toBeTruthy();
+    expect(screen.getByText("Failed after 3 attempts")).toBeTruthy();
   });
 
-  it("tints each tab by its own attempt's state", async () => {
-    const { dependencies } = fakeClient({ tasks: attempts });
-    renderPage(dependencies);
+  it("keeps the side list's filter as the view changes in place", async () => {
+    window.history.replaceState(null, "", "#/etl/runs/run-1?q=orders");
+    const crashed: RunDetail = { ...base, state: "CRASHED", state_message: "boom" };
+    renderPage(fakeClient({ run: crashed }).dependencies);
     await settle();
-    const [first, second] = within(screen.getByRole("tablist")).getAllByRole("tab");
-    expect(first?.dataset.tone).toBe("danger");
-    expect(second?.dataset.tone).toBe("success");
+    const viewLogs = within(screen.getByRole("region", { name: "Why the run failed" })).getByRole("link", { name: "View logs" });
+    expect(viewLogs.getAttribute("href")).toBe("#/etl/runs/run-1?logs=1&q=orders");
+    fireEvent.click(viewLogs);
+    expect(window.location.hash).toBe("#/etl/runs/run-1?logs=1&q=orders");
   });
 
-  it("shows no tabs for a run with a single attempt", async () => {
-    const singleAttempt = { attempts: [attempt2], expected_steps_known: true };
-    const { dependencies } = fakeClient({ tasks: singleAttempt });
-    renderPage(dependencies);
+  it("says once why a crashed run failed, with its shape and a link to its log", async () => {
+    const message = "Crash detected! Process exited with SIGKILL (memory)";
+    const crashed: RunDetail = { ...base, state: "CRASHED", state_message: message };
+    const tasks = {
+      attempts: [{ ...attemptOf([apiProcess("Load", [apiStep("orders", 0, 40, "FAILED")])], 40, "FAILED"), message }],
+      expected_steps_known: true,
+    };
+    renderPage(fakeClient({ run: crashed, tasks }).dependencies);
     await settle();
-    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.getAllByText(message)).toHaveLength(1);
+    const failure = screen.getByRole("region", { name: "Why the run failed" });
+    expect(within(failure).queryByText("Killed · memory")).not.toBeNull();
+    const viewLogs = within(failure).getByRole("link", { name: "View logs" });
+    expect(viewLogs.getAttribute("href")).toBe("#/etl/runs/run-1?logs=1");
+    fireEvent.click(viewLogs);
+    expect(window.location.hash).toBe("#/etl/runs/run-1?logs=1");
   });
-});
 
-describe("RunPage table", () => {
-  it("shows \"k of N\" when a process has fewer steps than its expected count", async () => {
+  it("links to the runs of the same ETL before and after this one", async () => {
+    renderPage(fakeClient({ runs: [flowRun("later", 500), base, flowRun("earlier", -500)] }).dependencies);
+    await settle();
+    expect(screen.getByRole("link", { name: "‹ Previous run" }).getAttribute("href")).toBe("#/etl/runs/earlier");
+    expect(screen.getByRole("link", { name: "Next run ›" }).getAttribute("href")).toBe("#/etl/runs/later");
+  });
+
+  it("draws the attempt as a timeline, and selects a step in place, opening the log", async () => {
+    renderPage(fakeClient().dependencies);
+    await settle();
+    const grid = screen.getByRole("treegrid");
+    const entries = window.history.length;
+    fireEvent.click(within(grid).getByRole("link", { name: "orders" }));
+    expect(window.location.hash).toBe("#/etl/runs/run-1?step=Load/orders&logs=1");
+    expect(window.history.length).toBe(entries);
+  });
+
+  it("opens on a linked step, selected in the timeline and its lines picked out in the log", async () => {
+    renderPage(fakeClient().dependencies, { step: "Load/check", logs: true });
+    await settle();
+    expect(
+      within(screen.getByRole("treegrid"))
+        .getByRole("row", { name: /^check/ })
+        .getAttribute("aria-selected"),
+    ).toBe("true");
+    expect(screen.queryByText("Highlighting check · 1 of 2 lines")).not.toBeNull();
+  });
+
+  it("highlights one try's lines in the log, each line naming its try, and the selected try in the timeline", async () => {
+    const write = apiStepWithTries("write", [
+      [10, 20, "FAILED"],
+      [30, 84, "COMPLETED"],
+    ]);
+    const tasks = { attempts: [attemptOf([apiProcess("Load", [apiStep("orders", 0, 10), write])], 84)], expected_steps_known: true };
+    const taskLogs = { "tr-write-1": [logLine(15, "tr-write-1")], "tr-write-2": [logLine(40, "tr-write-2"), logLine(60, "tr-write-2")] };
+    renderPage(fakeClient({ tasks, taskLogs }).dependencies, { step: "Load/write", try: 2, logs: true });
+    await settle();
+    expect(screen.queryByText("Highlighting write · try 2 · 2 of 4 lines")).not.toBeNull();
+    expect(screen.getByRole("row", { name: /^Try 2/ }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getAllByText("write · try 1").length).toBeGreaterThan(0);
+  });
+
+  it("highlights every try's lines when the step itself is selected", async () => {
+    const write = apiStepWithTries("write", [
+      [10, 20, "FAILED"],
+      [30, 84, "COMPLETED"],
+    ]);
+    const tasks = { attempts: [attemptOf([apiProcess("Load", [apiStep("orders", 0, 10), write])], 84)], expected_steps_known: true };
+    const taskLogs = { "tr-write-1": [logLine(15, "tr-write-1")], "tr-write-2": [logLine(40, "tr-write-2")] };
+    renderPage(fakeClient({ tasks, taskLogs }).dependencies, { step: "Load/write", logs: true });
+    await settle();
+    expect(screen.queryByText("Highlighting write · 2 of 3 lines")).not.toBeNull();
+  });
+
+  it("folds the log to a bar, and opens it in place", async () => {
+    renderPage(fakeClient().dependencies);
+    await settle();
+    expect(screen.queryByRole("region", { name: "Run log" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show the log" }));
+    expect(window.location.hash).toBe("#/etl/runs/run-1?logs=1");
+  });
+
+  it("keeps the attempt tab in the URL, and shows an earlier attempt's own failure on it", async () => {
     const tasks = {
       attempts: [
-        {
-          number: 1,
-          state: "RUNNING",
-          started_at: "2026-09-23T06:00:00Z",
-          ended_at: null,
-          message: null,
-          processes: [process("Staging", "process-1", [step("Load", "task-1")], { expected_steps: 5 })],
-        },
+        { ...attemptOf([apiProcess("Load", [apiStep("orders", 0, 10, "FAILED")])], 10, "FAILED"), number: 1, message: "Attempt 1 timed out" },
+        { ...attemptOf([apiProcess("Load", [apiStep("orders", 20, 40)])], 40), number: 2 },
       ],
       expected_steps_known: true,
     };
-    const { dependencies } = fakeClient({ tasks });
-    renderPage(dependencies);
+    renderPage(fakeClient({ tasks }).dependencies);
     await settle();
-    expect(screen.getByRole("row", { name: /Staging/ }).textContent).toContain("1 of 5");
+    expect(screen.queryByText("Attempt 1 timed out")).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Attempt 1 · Failed" }));
+    expect(window.location.hash).toBe("#/etl/runs/run-1?attempt=1");
+    cleanup();
+    renderPage(fakeClient({ tasks }).dependencies, { attempt: 1 });
+    await settle();
+    expect(screen.queryByText("Attempt 1 timed out")).not.toBeNull();
   });
 
-  it("shows the state as its own column, separate from the process/step name", async () => {
-    const tasks = {
-      attempts: [
-        {
-          number: 1,
-          state: "COMPLETED",
-          started_at: "2026-09-23T06:00:00Z",
-          ended_at: "2026-09-23T06:01:00Z",
-          message: null,
-          processes: [process("Staging", "process-1", [step("Load", "task-1")])],
-        },
-      ],
-      expected_steps_known: true,
-    };
-    const { dependencies } = fakeClient({ tasks });
-    renderPage(dependencies);
+  it("picks out a linked early step's lines even when the whole log holds only every part's last lines", async () => {
+    const many = (taskRunId: string, from: number, count: number) => Array.from({ length: count }, (_, index) => logLine(from + index / 1_000, taskRunId));
+    const taskLogs = { "tr-orders": many("tr-orders", 1, 250), "tr-check": many("tr-check", 41, 300) };
+    renderPage(fakeClient({ taskLogs }).dependencies, { step: "Load/orders", logs: true });
     await settle();
-
-    expect(screen.getByRole("columnheader", { name: "State" })).toBeTruthy();
-    const processRow = screen.getByRole("row", { name: /Staging/ });
-    // The name column carries just the process name, not the state word glued to it.
-    expect(within(processRow).getByRole("button", { name: "Staging" })).toBeTruthy();
-    expect(within(processRow).getAllByText("Completed")).toHaveLength(1);
-
-    const stepRow = screen.getByRole("row", { name: /Load/ });
-    expect(within(stepRow).getByRole("button", { name: "Load" })).toBeTruthy();
-    expect(within(stepRow).getAllByText("Completed")).toHaveLength(1);
+    expect(screen.queryByText("Highlighting orders · 200 of 401 lines")).not.toBeNull();
+    expect(screen.queryByText("Showing the last 200 lines of each part")).not.toBeNull();
   });
 
-  it("collapses process rows by default past six processes, and expands them on click", async () => {
-    const processes = Array.from({ length: 8 }, (_, index) => process(`Process${index + 1}`, `process-${index + 1}`, [step(`Step${index + 1}`, `task-${index + 1}`)]));
-    const tasks = { attempts: [{ number: 1, state: "COMPLETED", started_at: "2026-09-23T06:00:00Z", ended_at: "2026-09-23T06:10:00Z", message: null, processes }], expected_steps_known: true };
-    const { dependencies } = fakeClient({ tasks });
-    renderPage(dependencies);
+  it("keeps the log's search when a small screen switches to the timeline and back", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: true, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    const { dependencies } = fakeClient();
+    const view = (logs: boolean) => (
+      <I18nextProvider i18n={i18n}>
+        <ListedRunPage dependencies={dependencies} view={{ logs }} />
+      </I18nextProvider>
+    );
+    const { rerender } = render(view(true));
     await settle();
-
-    expect(screen.getAllByRole("row", { name: /Process\d/ })).toHaveLength(8);
-    expect(screen.queryByRole("row", { name: /Step1\b/ })).toBeNull();
-
-    fireEvent.click(within(screen.getByRole("row", { name: /Process1/ })).getByRole("button", { name: "Expand" }));
-    expect(screen.getByRole("row", { name: /Step1/ })).toBeTruthy();
-  });
-});
-
-describe("RunPage log window", () => {
-  const tasks = {
-    attempts: [
-      {
-        number: 1,
-        state: "COMPLETED",
-        started_at: "2026-09-23T06:00:00Z",
-        ended_at: "2026-09-23T06:02:00Z",
-        message: null,
-        processes: [process("Staging", "process-1", [step("Load", "task-1")]), process(null, null, [step("Orphan", "task-2")])],
-      },
-    ],
-    expected_steps_known: true,
-  };
-  const stepDetails = { "task-1": stepDetail("task-1", "Load", "Staging"), "task-2": stepDetail("task-2", "Orphan", null) };
-
-  it("opens from a table row (mouse), shows the step's facts, and closes on ×", async () => {
-    const { dependencies, GET } = fakeClient({ tasks, stepDetails });
-    renderPage(dependencies);
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search logs" }), { target: { value: "line" } });
+    await settle(400);
+    rerender(view(false));
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    rerender(view(true));
     await settle();
-
-    const loadRow = screen.getByRole("row", { name: /Load/ });
-    const stagingButton = within(loadRow).getAllByRole("button").at(-1)!;
-    fireEvent.click(stagingButton, { detail: 1 });
-    await settle();
-
-    const aside = screen.getByRole("complementary");
-    expect(aside.getAttribute("aria-label")).toContain("Staging › Load");
-    expect(screen.getByRole("button", { name: "Step" }).getAttribute("aria-pressed")).toBe("true");
-    expect(GET).toHaveBeenCalledWith(STEP_PATH, expect.objectContaining({ params: { path: { id: "run-1", task_run: "task-1" } } }));
-    expect(screen.getByText("42")).toBeTruthy(); // rows
-
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
-    expect(screen.queryByRole("complementary")).toBeNull();
+    expect((screen.getByRole("searchbox", { name: "Search logs" }) as HTMLInputElement).value).toBe("line");
+    vi.unstubAllGlobals();
   });
 
-  it("opens a process row at Process scope, covering its own and every step's task run id", async () => {
-    const { dependencies, GET } = fakeClient({ tasks, stepDetails });
-    renderPage(dependencies);
+  it("says a run's new state out loud, at most once every 10 seconds", async () => {
+    const running: RunDetail = { ...base, state: "RUNNING", end_at: null, terminal: false };
+    let now = running;
+    renderPage(fakeClient({ run: () => now }).dependencies);
     await settle();
-
-    const stagingRow = screen.getByRole("row", { name: /Staging/ });
-    const processButton = within(stagingRow).getByRole("button", { name: "Staging" });
-    fireEvent.click(processButton, { detail: 1 });
-    await settle();
-
-    expect(screen.getByRole("button", { name: "Process" }).getAttribute("aria-pressed")).toBe("true");
-    expect(GET).toHaveBeenCalledWith(LOGS_PATH, expect.objectContaining({ params: expect.objectContaining({ query: expect.objectContaining({ task_run: ["process-1", "task-1"] }) }) }));
-  });
-
-  it("is non-modal: with it open, a click on another graph node changes its content without closing it", async () => {
-    const { dependencies } = fakeClient({ tasks, stepDetails });
-    renderPage(dependencies);
-    await settle();
-
-    const stagingRow = screen.getByRole("row", { name: /Staging/ });
-    fireEvent.click(within(stagingRow).getAllByRole("button").at(-1)!, { detail: 1 });
-    await settle();
-    expect(screen.getByRole("complementary").getAttribute("aria-label")).toContain("Staging › Load");
-
-    const node = screen.getByRole("button", { name: "Unlabelled steps › Orphan · Completed" });
-    fireEvent.click(node, { detail: 1 });
-    await settle();
-
-    expect(screen.getAllByRole("complementary")).toHaveLength(1);
-    expect(screen.getByRole("complementary").getAttribute("aria-label")).toContain("Unlabelled steps › Orphan");
-  });
-
-  it("↑/↓ move through the attempt's steps in table order", async () => {
-    const { dependencies } = fakeClient({ tasks, stepDetails });
-    renderPage(dependencies);
-    await settle();
-
-    const stagingRow = screen.getByRole("row", { name: /Staging/ });
-    fireEvent.click(within(stagingRow).getAllByRole("button").at(-1)!, { detail: 1 });
-    await settle();
-    const aside = screen.getByRole("complementary");
-    expect(aside.getAttribute("aria-label")).toContain("Staging › Load");
-
-    fireEvent.keyDown(aside, { key: "ArrowDown" });
-    await settle();
-    expect(aside.getAttribute("aria-label")).toContain("Unlabelled steps › Orphan");
-
-    fireEvent.keyDown(aside, { key: "ArrowUp" });
-    await settle();
-    expect(aside.getAttribute("aria-label")).toContain("Staging › Load");
-  });
-
-  it("returns focus to the row that opened it when Esc closes it", async () => {
-    const { dependencies } = fakeClient({ tasks, stepDetails });
-    renderPage(dependencies);
-    await settle();
-
-    const stagingRow = screen.getByRole("row", { name: /Staging/ });
-    const stagingButton = within(stagingRow).getAllByRole("button").at(-1)!;
-    fireEvent.click(stagingButton, { detail: 1 });
-    await settle();
-
-    const aside = screen.getByRole("complementary");
-    fireEvent.keyDown(aside, { key: "Escape" });
-    expect(screen.queryByRole("complementary")).toBeNull();
-    expect(document.activeElement).toBe(stagingButton);
-  });
-
-  it("does not steal focus on a mouse open, but does move it to the title on a keyboard one", async () => {
-    const { dependencies } = fakeClient({ tasks, stepDetails });
-    renderPage(dependencies);
-    await settle();
-
-    const stagingRow = screen.getByRole("row", { name: /Staging/ });
-    const stagingButton = within(stagingRow).getAllByRole("button").at(-1)!;
-    fireEvent.click(stagingButton, { detail: 1 });
-    await settle();
-    expect(document.activeElement).not.toBe(screen.getByRole("heading", { level: 2, name: /Load/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
-
-    // detail: 0 is how a keyboard-driven activation (Enter on the button) reaches the click handler.
-    fireEvent.click(stagingButton, { detail: 0 });
-    await settle();
-    expect(document.activeElement?.textContent).toContain("Load");
-  });
-
-  it("leaves reads/writes as plain text: no catalog data reaches this page yet", async () => {
-    const { dependencies } = fakeClient({ tasks, stepDetails });
-    renderPage(dependencies);
-    await settle();
-
-    fireEvent.click(within(screen.getByRole("row", { name: /Staging/ })).getAllByRole("button").at(-1)!, { detail: 1 });
-    await settle();
-    expect(screen.queryByRole("link", { name: "lake.raw" })).toBeNull();
-    expect(screen.getByText("lake.raw")).toBeTruthy();
-  });
-
-  it("links a reads/writes reference to the Catalog only when it is in the catalog data App.tsx passed down (item c)", async () => {
-    const { dependencies } = fakeClient({ tasks, stepDetails });
-    const catalog: Catalog = {
-      published_at: "2026-09-23T00:00:00Z",
-      group_by: [],
-      label_values: {},
-      conflicts: [],
-      tables: [{ database: "lake", name: "raw", source: "s3", path: "lake/raw", labels: {}, unlabeled: [] }],
-    };
-    renderPage(dependencies, catalog);
-    await settle();
-
-    fireEvent.click(within(screen.getByRole("row", { name: /Staging/ })).getAllByRole("button").at(-1)!, { detail: 1 });
-    await settle();
-    expect(screen.getByRole("link", { name: "lake.raw" }).getAttribute("href")).toBe("#/t/lake/raw");
-    expect(screen.queryByRole("link", { name: "lake.staging" })).toBeNull();
-    expect(screen.getByText("lake.staging")).toBeTruthy();
-  });
-
-  it("reserves scroll padding on the graph while the window is open", async () => {
-    const { dependencies } = fakeClient({ tasks, stepDetails });
-    renderPage(dependencies);
-    await settle();
-
-    const graph = screen.getByRole("group", { name: "Pipeline" });
-    const scroller = graph.parentElement as HTMLElement;
-    expect(scroller.style.getPropertyValue("--nt-etl-graph-scroll-padding-bottom")).toBe("");
-
-    fireEvent.click(within(screen.getByRole("row", { name: /Staging/ })).getAllByRole("button").at(-1)!, { detail: 1 });
-    await settle();
-    expect(scroller.style.getPropertyValue("--nt-etl-graph-scroll-padding-bottom")).not.toBe("");
-  });
-
-  it("uses the log window's own reported height for scroll-padding, not just the CSS-default estimate (item b)", async () => {
-    class FakeResizeObserver implements ResizeObserver {
-      static instances: FakeResizeObserver[] = [];
-      private readonly callback: ResizeObserverCallback;
-      constructor(callback: ResizeObserverCallback) {
-        this.callback = callback;
-        FakeResizeObserver.instances.push(this);
-      }
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-      fire(height: number) {
-        this.callback([{ contentRect: { height } } as ResizeObserverEntry], this);
-      }
-    }
-    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
-    try {
-      const { dependencies } = fakeClient({ tasks, stepDetails });
-      renderPage(dependencies);
-      await settle();
-
-      fireEvent.click(within(screen.getByRole("row", { name: /Staging/ })).getAllByRole("button").at(-1)!, { detail: 1 });
-      await settle();
-
-      const instance = FakeResizeObserver.instances.at(-1);
-      act(() => instance?.fire(777));
-      const graph = screen.getByRole("group", { name: "Pipeline" });
-      const scroller = graph.parentElement as HTMLElement;
-      expect(scroller.style.getPropertyValue("--nt-etl-graph-scroll-padding-bottom")).toBe("777px");
-    } finally {
-      vi.unstubAllGlobals();
-    }
-  });
-
-  it("opens at Run scope from \"Open full run logs\", with no process/step of its own", async () => {
-    const { dependencies } = fakeClient({ tasks, stepDetails });
-    renderPage(dependencies);
-    await settle();
-
-    fireEvent.click(screen.getByRole("button", { name: "Open full run logs" }), { detail: 1 });
-    await settle();
-    const aside = screen.getByRole("complementary");
-    expect(aside.getAttribute("aria-label")).toBe("quiet-otter · COMPLETED");
-    expect(screen.getByRole("button", { name: "Run" }).getAttribute("aria-pressed")).toBe("true");
-  });
-
-  it("keeps the same step by stepKey (not table position) when polling brings in a new attempt that reorders steps (item e)", async () => {
-    const running: RunDetail = { ...base, state: "RUNNING", end_at: null, duration_seconds: 0, terminal: false };
-    const attempt1 = {
-      number: 1,
-      state: "RUNNING",
-      started_at: "2026-09-23T06:00:00Z",
-      ended_at: null,
-      message: null,
-      processes: [process("Staging", "process-1", [step("Load", "task-1")])],
-    };
-    // The retry polled in puts a new "Prepare" step before "Load": the same table position (0) now names a
-    // different step. `stepKey` (process name + step name + occurrence) still resolves to the right one.
-    const attempt2 = {
-      number: 2,
-      state: "RUNNING",
-      started_at: "2026-09-23T06:05:00Z",
-      ended_at: null,
-      message: null,
-      processes: [process("Staging", "process-1b", [step("Prepare", "task-3"), step("Load", "task-4")])],
-    };
-    let tasksCalls = 0;
-    const GET = vi.fn((path: string, init?: { params?: { path?: Record<string, string> } }) => {
-      if (path === RUN_PATH) return Promise.resolve({ data: running });
-      if (path === TASKS_PATH) {
-        tasksCalls += 1;
-        return Promise.resolve({ data: { attempts: tasksCalls === 1 ? [attempt1] : [attempt1, attempt2], expected_steps_known: true } });
-      }
-      if (path === STEP_PATH) {
-        const taskRun = init?.params?.path?.task_run ?? "";
-        return Promise.resolve({ data: (stepDetails as Record<string, unknown>)[taskRun] ?? stepDetail(taskRun, "Load", "Staging") });
-      }
-      if (path === LOGS_PATH) return Promise.resolve({ data: emptyLogs });
-      return Promise.reject(new Error(`unexpected GET ${path}`));
-    });
-    renderPage({ client: { GET } } as unknown as Dependencies);
-    await settle();
-
-    const loadRow = screen.getByRole("row", { name: /Load/ });
-    fireEvent.click(within(loadRow).getAllByRole("button").at(-1)!, { detail: 1 });
-    await settle();
-    expect(screen.getByRole("complementary").getAttribute("aria-label")).toContain("Staging › Load");
-
-    await settle(POLL_MS); // attempt 2 arrives, reordering the steps.
-    expect(screen.getByRole("complementary").getAttribute("aria-label")).toContain("Staging › Load");
-    expect(screen.queryByText(/Not run in/)).toBeNull();
-  });
-
-  it("shows \"Not run in <attempt>\" when a polled-in attempt no longer has the pinned step (item e)", async () => {
-    const running: RunDetail = { ...base, state: "RUNNING", end_at: null, duration_seconds: 0, terminal: false };
-    const attempt1 = {
-      number: 1,
-      state: "RUNNING",
-      started_at: "2026-09-23T06:00:00Z",
-      ended_at: null,
-      message: null,
-      processes: [process("Staging", "process-1", [step("Load", "task-1")])],
-    };
-    const attempt2 = {
-      number: 2,
-      state: "RUNNING",
-      started_at: "2026-09-23T06:05:00Z",
-      ended_at: null,
-      message: null,
-      processes: [process("Other", "process-2", [step("Init", "task-5")])],
-    };
-    let tasksCalls = 0;
-    const GET = vi.fn((path: string, init?: { params?: { path?: Record<string, string> } }) => {
-      if (path === RUN_PATH) return Promise.resolve({ data: running });
-      if (path === TASKS_PATH) {
-        tasksCalls += 1;
-        return Promise.resolve({ data: { attempts: tasksCalls === 1 ? [attempt1] : [attempt1, attempt2], expected_steps_known: true } });
-      }
-      if (path === STEP_PATH) {
-        const taskRun = init?.params?.path?.task_run ?? "";
-        return Promise.resolve({ data: (stepDetails as Record<string, unknown>)[taskRun] ?? stepDetail(taskRun, "Load", "Staging") });
-      }
-      if (path === LOGS_PATH) return Promise.resolve({ data: emptyLogs });
-      return Promise.reject(new Error(`unexpected GET ${path}`));
-    });
-    renderPage({ client: { GET } } as unknown as Dependencies);
-    await settle();
-
-    const stagingRow = screen.getByRole("row", { name: /Staging/ });
-    fireEvent.click(within(stagingRow).getAllByRole("button").at(-1)!, { detail: 1 });
-    await settle();
-    expect(screen.getByRole("complementary").getAttribute("aria-label")).toContain("Staging › Load");
-
+    const live = document.querySelector('[aria-live="polite"][data-announces="run-state"]');
+    expect(live?.textContent).toBe("");
+    now = { ...running, state: "CANCELLING" };
     await settle(POLL_MS);
-    expect(screen.getByText(/Not run in/)).toBeTruthy();
+    // The announcement is scheduled with no delay once the poll's answer has rendered; that render lands on the same
+    // instant as the live timeline's tick, so the clock is moved on by a millisecond for the scheduled call to run.
+    await settle(1);
+    expect(live?.textContent).toBe("The run is now Cancelling");
+    now = { ...base, state: "CANCELLED" };
+    await settle(POLL_MS);
+    expect(live?.textContent).toBe("The run is now Cancelling");
+    await settle(10_000 - POLL_MS);
+    expect(live?.textContent).toBe("The run is now Cancelled");
   });
 });
 
-describe("timelineStyle", () => {
-  const attempt: Attempt = { number: 1, state: "COMPLETED", started_at: "2026-01-01T00:00:00Z", ended_at: "2026-01-01T00:10:00Z", message: null, processes: [] };
+describe("RunPage cancel and retry", () => {
+  const going: RunDetail = { ...base, state: "RUNNING", end_at: null, terminal: false };
+  const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
 
-  it("positions the bar at the start offset and sizes it by the duration, both relative to the attempt's span", () => {
-    const style = timelineStyle("2026-01-01T00:02:00Z", 60, attempt, Date.now());
-    expect(style).toEqual({ left: "20.00%", width: "10.00%" });
+  it("cancels a run going after a confirmation that names it, then reads it and the list again", async () => {
+    const { dependencies, POST, callsTo } = fakeClient({ run: going });
+    const onListChanged = vi.fn();
+    renderOperable(dependencies, onListChanged);
+    await settle();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel run" }));
+    const dialog = screen.getByRole("dialog", { name: "Cancel run quiet-otter?" });
+    expect(dialog.textContent).toContain("Prefect stops its job");
+    const reads = callsTo(RUN_PATH);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel run" }));
+    await settle();
+    expect(POST).toHaveBeenCalledWith("/etl/runs/{id}/cancel", { params: { path: { id: "run-1" } }, body: { force: false } });
+    expect(onListChanged).toHaveBeenCalled();
+    expect(callsTo(RUN_PATH)).toBeGreaterThan(reads);
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("is null without a start time", () => {
-    expect(timelineStyle(null, 60, attempt, Date.now())).toBeNull();
+  it("opens a confirmation afresh: a failure shown before is gone once it was closed", async () => {
+    const { dependencies, POST } = fakeClient({ run: going });
+    POST.mockRejectedValueOnce(new ApiError({ status: 409, code: "etl_run_state", message: "The run has already finished" }));
+    renderOperable(dependencies);
+    await settle();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel run" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Cancel run quiet-otter?" })).getByRole("button", { name: "Cancel run" }));
+    await settle();
+    expect(screen.getByRole("dialog", { name: "Cancel run quiet-otter?" }).textContent).toContain("The run has already finished");
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Cancel run quiet-otter?" })).getByRole("button", { name: "Keep it" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel run" }));
+    expect(screen.getByRole("dialog", { name: "Cancel run quiet-otter?" }).textContent).not.toContain("The run has already finished");
   });
 
-  it("runs to `now` when the attempt is still open and the step has no duration yet", () => {
-    // Open attempt: the span itself runs from `started_at` to `now` (00:00 to 00:07:30 here, not a fixed 10 minutes).
-    const open = { ...attempt, ended_at: null };
-    const style = timelineStyle("2026-01-01T00:05:00Z", null, open, Date.parse("2026-01-01T00:07:30Z"));
-    expect(style).toEqual({ left: "66.67%", width: "33.33%" });
+  it("warns that a retried attempt not started yet may stay cancelling", async () => {
+    const waitingAgain: RunDetail = { ...base, state: "PENDING", attempt_started_at: null, end_at: null, run_count: 1, terminal: false };
+    renderOperable(fakeClient({ run: waitingAgain }).dependencies);
+    await settle();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel run" }));
+    expect(screen.getByRole("dialog", { name: "Cancel run quiet-otter?" }).textContent).toContain("may stay cancelling");
+  });
+
+  it("says a run that never started is cancelled at once", async () => {
+    const waiting: RunDetail = { ...base, state: "PENDING", start_at: null, attempt_started_at: null, end_at: null, terminal: false };
+    renderOperable(fakeClient({ run: waiting }).dependencies);
+    await settle();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel run" }));
+    expect(screen.getByRole("dialog", { name: "Cancel run quiet-otter?" }).textContent).toContain("It never started");
+  });
+
+  it("offers Force cancel, with a warning, only once a run has been cancelling for ten minutes", async () => {
+    const stuck: RunDetail = { ...going, state: "CANCELLING", state_since: minutesAgo(11) };
+    const { dependencies, POST } = fakeClient({ run: stuck });
+    renderOperable(dependencies);
+    await settle();
+    expect(screen.queryByRole("button", { name: "Cancel run" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Force cancel" }));
+    const dialog = screen.getByRole("dialog", { name: "Force cancel quiet-otter?" });
+    expect(dialog.textContent).toContain("stops nothing");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Force cancel" }));
+    await settle();
+    expect(POST).toHaveBeenCalledWith("/etl/runs/{id}/cancel", { params: { path: { id: "run-1" } }, body: { force: true } });
+  });
+
+  it("opens Force cancel afresh: a failure shown before is gone once it was closed", async () => {
+    const { dependencies, POST } = fakeClient({ run: { ...going, state: "CANCELLING", state_since: minutesAgo(11) } });
+    POST.mockRejectedValueOnce(new ApiError({ status: 409, code: "etl_run_state", message: "The run has already finished" }));
+    renderOperable(dependencies);
+    await settle();
+    fireEvent.click(screen.getByRole("button", { name: "Force cancel" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Force cancel quiet-otter?" })).getByRole("button", { name: "Force cancel" }));
+    await settle();
+    expect(screen.getByRole("dialog", { name: "Force cancel quiet-otter?" }).textContent).toContain("The run has already finished");
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Force cancel quiet-otter?" })).getByRole("button", { name: "Keep it" }));
+    fireEvent.click(screen.getByRole("button", { name: "Force cancel" }));
+    expect(screen.getByRole("dialog", { name: "Force cancel quiet-otter?" }).textContent).not.toContain("The run has already finished");
+  });
+
+  it("offers nothing on a run cancelling for less than ten minutes", async () => {
+    renderOperable(fakeClient({ run: { ...going, state: "CANCELLING", state_since: minutesAgo(5) } }).dependencies);
+    await settle();
+    expect(screen.queryByRole("button", { name: /cancel/i })).toBeNull();
+  });
+
+  it("retries a failed run as the same run, after a confirmation that names it", async () => {
+    const failed: RunDetail = { ...base, state: "FAILED" };
+    const { dependencies, POST } = fakeClient({ run: failed });
+    renderOperable(dependencies);
+    await settle();
+    fireEvent.click(screen.getByRole("button", { name: "Retry this run" }));
+    const dialog = screen.getByRole("dialog", { name: "Retry quiet-otter?" });
+    expect(dialog.textContent).toContain("same run");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Retry" }));
+    await settle();
+    expect(POST).toHaveBeenCalledWith("/etl/runs/{id}/retry", { params: { path: { id: "run-1" } } });
+  });
+
+  it("offers neither to someone who may not operate ETLs, nor on a run that completed", async () => {
+    renderPage(fakeClient({ run: { ...base, state: "FAILED" } }).dependencies);
+    await settle();
+    expect(screen.queryByRole("button", { name: "Retry this run" })).toBeNull();
+    cleanup();
+    renderOperable(fakeClient({ run: base }).dependencies);
+    await settle();
+    expect(screen.queryByRole("button", { name: /Retry|Cancel/ })).toBeNull();
+  });
+});
+
+describe("RunPage of a finished run retried elsewhere", () => {
+  it("reads the run again once the section's list shows it changed (a retry from Prefect's UI), and only then", async () => {
+    const asListed = (state: RecentRun["state"], run_count: number): RecentRun => ({
+      id: "run-1",
+      state,
+      run_count,
+      expected_start_at: base.expected_start_at,
+      start_at: base.start_at,
+      attempt_started_at: base.start_at,
+      end_at: base.end_at,
+      attempts: null,
+    });
+    let listed = [asListed("FAILED", 1)];
+    let shown: RunDetail = { ...base, state: "FAILED" };
+    const client = fakeClient({ run: () => shown, recent: () => listed });
+    renderPage(client.dependencies);
+    await settle();
+    expect(screen.getByText("Failed")).toBeTruthy();
+    await settle(POLL_MS * 2);
+    const reads = client.callsTo(RUN_PATH);
+
+    shown = { ...base, state: "RUNNING", end_at: null, run_count: 2, terminal: false };
+    listed = [asListed("RUNNING", 2)];
+    await settle(POLL_MS);
+    expect(client.callsTo(RUN_PATH)).toBeGreaterThan(reads);
+    expect(screen.getByText("Running · attempt 2")).toBeTruthy();
   });
 });

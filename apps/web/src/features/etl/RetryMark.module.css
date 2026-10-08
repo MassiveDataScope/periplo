@@ -1,0 +1,18 @@
+/* "↻ N": small, muted and on one line; where it sits is its host's to say. */
+.mark {
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* The dense strips' dot: as muted as "↻ N", round, and as small as stays visible. */
+.dot {
+  display: block;
+  inline-size: 4px;
+  block-size: 4px;
+  border-radius: 50%;
+  background: var(--nt-color-text-muted);
+}

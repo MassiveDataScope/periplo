@@ -29,6 +29,7 @@ from periplo.etl.ports import (
     RunTasks,
     Step,
     StepState,
+    StepTry,
 )
 
 __all__ = [
@@ -49,6 +50,8 @@ _MARKER_SUFFIX_RE = re.compile(r"^(?P<canonical>.+Process)-[0-9a-f]{3}$")
 # Sort key for an orphan cluster with no timestamped step at all (defensive; should
 # not happen with real data, where every task run has a start time).
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+# A step task run in one of these states may be tried again: the next one of its name is a try.
+_FAILED_STATES: frozenset[RunState] = frozenset({"FAILED", "CRASHED"})
 
 
 class TaskRunIn(msgspec.Struct, frozen=True, kw_only=True):
@@ -381,6 +384,8 @@ def _process_state(
         derived: RunState = raw
     elif "FAILED" in steps_raw or "CRASHED" in steps_raw:
         derived = "FAILED"
+    elif "CANCELLED" in steps_raw:
+        derived = "CANCELLED"
     elif any(s not in TERMINAL_STATES for s in steps_raw):
         derived = "RUNNING"
     else:
@@ -392,19 +397,69 @@ def _interrupted_or(raw: RunState, *, interrupt: bool) -> StepState:
     return "INTERRUPTED" if interrupt and raw not in TERMINAL_STATES else raw
 
 
-def _steps_for(task_runs: list[TaskRunIn], *, interrupt: bool) -> list[Step]:
-    ordered = sorted(task_runs, key=lambda t: _step_time(t) or _EPOCH)
-    return [
-        Step(
-            name=t.name,
-            task_run_id=t.id,
-            state=_interrupted_or(t.state_type, interrupt=interrupt),
-            start_at=t.start_time,
-            end_at=t.end_time,
-            duration_seconds=_duration(t.total_run_time, t.start_time, t.end_time),
-        )
-        for t in ordered
-    ]
+def _step_tries(task_runs: list[TaskRunIn]) -> list[list[TaskRunIn]]:
+    """A process's step task runs in time order, as steps: loom makes a task run each time
+    a step starts, so the same step started again after its last try failed is one more
+    try of it. One run again after completing is a step of its own (it ran twice), and so
+    is one that started before the failed try ended (it ran alongside it)."""
+    steps: list[list[TaskRunIn]] = []
+    latest: dict[str, list[TaskRunIn]] = {}
+    for task_run in sorted(task_runs, key=lambda t: _step_time(t) or _EPOCH):
+        tries = latest.get(task_run.name)
+        if tries is not None and _retries(task_run, tries[-1]):
+            tries.append(task_run)
+        else:
+            tries = [task_run]
+            steps.append(tries)
+            latest[task_run.name] = tries
+    return steps
+
+
+def _retries(task_run: TaskRunIn, previous: TaskRunIn) -> bool:
+    """Whether ``task_run`` is one more try of ``previous``: that one failed, and this one
+    started once it had ended."""
+    return (
+        previous.state_type in _FAILED_STATES
+        and previous.end_time is not None
+        and task_run.start_time is not None
+        and task_run.start_time >= previous.end_time
+    )
+
+
+def _steps_for(steps: list[list[TaskRunIn]], *, interrupt: bool) -> list[Step]:
+    return [_step(tries, interrupt=interrupt) for tries in steps]
+
+
+def _step(tries: list[TaskRunIn], *, interrupt: bool) -> Step:
+    """A step from its tries, oldest first: the last try's state and task run, the span of
+    them all, and each try when there are several."""
+    first, last = tries[0], tries[-1]
+    several = len(tries) > 1
+    return Step(
+        name=last.name,
+        task_run_id=last.id,
+        state=_interrupted_or(last.state_type, interrupt=interrupt),
+        start_at=first.start_time,
+        end_at=last.end_time,
+        duration_seconds=(
+            _duration(None, first.start_time, last.end_time)
+            if several
+            else _duration(last.total_run_time, last.start_time, last.end_time)
+        ),
+        tries=[
+            StepTry(
+                index=index,
+                task_run_id=t.id,
+                state=_interrupted_or(t.state_type, interrupt=interrupt),
+                start_at=t.start_time,
+                end_at=t.end_time,
+                duration_seconds=_duration(t.total_run_time, t.start_time, t.end_time),
+            )
+            for index, t in enumerate(tries, start=1)
+        ]
+        if several
+        else None,
+    )
 
 
 def _max_end(task_runs: list[TaskRunIn]) -> datetime | None:
@@ -437,11 +492,12 @@ def _build_processes(
     built: list[tuple[datetime, Process]] = []
     for name in sorted_names:
         opening = openings[name]
-        steps = assigned[name]
+        steps = _step_tries(assigned[name])
+        # A step's earlier failed tries do not make its process failed: its last try speaks.
         state = _process_state(
-            opening.raw_state, steps_raw=[s.state_type for s in steps], interrupt=interrupt
+            opening.raw_state, steps_raw=[s[-1].state_type for s in steps], interrupt=interrupt
         )
-        end_at = opening.end_at or _max_end(steps)
+        end_at = opening.end_at or _max_end(assigned[name])
         duration = (
             opening.duration
             if opening.duration is not None
@@ -466,7 +522,10 @@ def _build_processes(
     if orphans:
         times = [t for s in orphans if (t := _step_time(s)) is not None]
         sort_key = min(times) if times else (open_times[0] if open_times else _EPOCH)
-        state = _process_state(None, steps_raw=[s.state_type for s in orphans], interrupt=interrupt)
+        orphan_steps = _step_tries(orphans)
+        state = _process_state(
+            None, steps_raw=[s[-1].state_type for s in orphan_steps], interrupt=interrupt
+        )
         built.append(
             (
                 sort_key,
@@ -478,7 +537,7 @@ def _build_processes(
                     end_at=None,
                     duration_seconds=None,
                     expected_steps=None,
-                    steps=_steps_for(orphans, interrupt=interrupt),
+                    steps=_steps_for(orphan_steps, interrupt=interrupt),
                 ),
             )
         )

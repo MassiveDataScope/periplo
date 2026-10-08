@@ -15,6 +15,8 @@ def test_run_detail_encodes_the_contract_keys() -> None:
         state_message=None,
         expected_start_at=None,
         start_at=datetime(2026, 9, 23, 6, 0, tzinfo=UTC),
+        attempt_started_at=datetime(2026, 9, 23, 6, 0, tzinfo=UTC),
+        waiting_since=None,
         end_at=datetime(2026, 9, 23, 6, 1, tzinfo=UTC),
         duration_seconds=60.0,
         created_by="prefect-scheduler",
@@ -28,6 +30,9 @@ def test_run_detail_encodes_the_contract_keys() -> None:
         deployment_name="daily-orders",
         flow_name="daily-orders",
         terminal=True,
+        state_since=None,
+        triggered_by_run=None,
+        triggered_runs=[],
     )
 
     body = msgspec.json.decode(msgspec.json.encode(run))
@@ -53,6 +58,11 @@ def test_run_detail_encodes_the_contract_keys() -> None:
         "deployment_name",
         "flow_name",
         "terminal",
+        "state_since",
+        "attempt_started_at",
+        "waiting_since",
+        "triggered_by_run",
+        "triggered_runs",
     }
     assert body["start_at"] == "2026-09-23T06:00:00Z"
 

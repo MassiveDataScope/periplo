@@ -1,91 +1,11 @@
-/* Pieces shared by the ETL list and the ETL page: the cadence and the state mark. */
+/* Pieces shared by the ETL list and the ETL page: the state mark. */
 
-.schedule {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  min-inline-size: 0;
-  max-inline-size: 100%;
-  font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-sm);
-}
-
-/* Paused, or its schedule switched off: the cadence stays readable but steps back. */
-.schedule[data-paused="true"] {
-  color: var(--nt-color-text-muted);
-}
-
-.cron {
-  display: block;
-  max-inline-size: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.paused {
-  max-inline-size: 100%;
-  overflow: hidden;
-  color: var(--nt-color-text-subtle);
-  font-size: var(--nt-font-size-2xs);
-  letter-spacing: var(--nt-font-tracking-wide);
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-/* The run state: the same dot the freshness mark uses, coloured by the orchestrator's own state and nothing else.
-   Capped at the cell's width so a trailing message can truncate instead of widening the row. */
+/* The run state: its swatch and word. Capped at the cell's width so a trailing message can truncate instead of
+   widening the row. */
 .mark {
   display: inline-flex;
   align-items: center;
   gap: var(--nt-space-1-5);
   max-inline-size: 100%;
   font-size: var(--nt-font-size-sm);
-}
-
-.dot {
-  flex: none;
-  box-sizing: border-box;
-  inline-size: var(--nt-space-2);
-  block-size: var(--nt-space-2);
-  border: var(--nt-border-width) solid var(--nt-color-border-strong);
-  border-radius: var(--nt-radius-full);
-}
-
-.mark[data-tone="success"] .dot {
-  border-color: var(--nt-color-state-ok);
-  background: var(--nt-color-state-ok);
-}
-
-.mark[data-tone="danger"] .dot {
-  border-color: var(--nt-color-danger);
-  background: var(--nt-color-danger);
-}
-
-.mark[data-tone="info"] .dot {
-  border-color: var(--nt-color-info);
-  background: var(--nt-color-info);
-}
-
-/* A flex item that shrinks instead of bleeding into the next cell when its column runs narrow. */
-.age {
-  overflow: hidden;
-  max-inline-size: 100%;
-  color: var(--nt-color-text-muted);
-  font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* In a narrow cell the paused reason may take two lines rather than lose its words. */
-.schedule[data-compact="true"] .paused {
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-/* A dot on its own before a name keeps the same gap the full state mark has. */
-.mark[data-alone="true"] {
-  margin-inline-end: var(--nt-space-1-5);
 }

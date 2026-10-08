@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Icon, TitleMark } from "@periplo/core/ui";
+import { leaveOnClick } from "../../app/leave";
+import { href, type Route } from "../../app/routes";
 import type { Crumb } from "../lake/crumbs";
 import type { Freshness } from "../lake/freshness";
 import { FreshnessMark } from "../lake/FreshnessMark";
@@ -12,8 +14,8 @@ export type { Crumb };
 
 export interface TableHeaderProps {
   readonly crumbs: readonly Crumb[];
-  /** "Back to …" above the crumbs; absent on the peek, which closes instead. */
-  readonly back?: { readonly href: string; readonly label: string } | null;
+  /** "Back to …" above the crumbs, a real step back when that is where the user came from; absent on the peek, which closes instead. */
+  readonly back?: { readonly route: Route; readonly label: string } | null;
   readonly titleId?: string;
   readonly title: string;
   readonly freshness?: Freshness;
@@ -31,7 +33,7 @@ export function TableHeader({ crumbs, back, titleId, title, freshness, stats, co
   return (
     <header className={className ? `${styles.header} ${className}` : styles.header}>
       {back ? (
-        <a className={styles.back} href={back.href}>
+        <a className={styles.back} href={href(back.route)} onClick={leaveOnClick(back.route)}>
           <Icon name="chevron-right" className={styles.backIcon} />
           {t("table.back", { place: back.label })}
         </a>

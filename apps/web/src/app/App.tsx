@@ -5,9 +5,7 @@ import { CatalogTree } from "../features/catalog-tree/CatalogTree";
 import { tableKey } from "../features/catalog-tree/catalog-model";
 import { useCatalogData } from "../features/catalog-tree/useCatalogData";
 import { DiscoveryView } from "../features/discovery/DiscoveryView";
-import { EtlDashboard } from "../features/etl/EtlDashboard";
-import { EtlPage } from "../features/etl/EtlPage";
-import { RunPage } from "../features/etl/RunPage";
+import { EtlColumn, etlColumnTexts, EtlView, useEtlSection } from "../features/etl/EtlSection";
 import { useEtlStatus, type EtlStatus } from "../features/etl/useEtlStatus";
 import { Home } from "../features/home/Home";
 import { DatabasePage } from "../features/lake/DatabasePage";
@@ -17,6 +15,7 @@ import { QueryWorkspace } from "../features/query/QueryWorkspace";
 import { CommandPalette, type CommandPaletteHandle, type PaletteAction } from "../features/shell/CommandPalette";
 import { Logo } from "../features/shell/Logo";
 import { NavRail } from "../features/shell/NavRail";
+import { PageErrorBoundary } from "../features/shell/PageErrorBoundary";
 import { Shell, type ShellHandle } from "../features/shell/Shell";
 import { UnderConstruction } from "../features/shell/UnderConstruction";
 import { JoinStart } from "../features/join/JoinStart";
@@ -26,12 +25,12 @@ import type { Loadable } from "../api/loadable";
 import { previewSql } from "../api/sql";
 import { BRAND } from "./brand";
 import type { Dependencies } from "./dependencies";
+import { backDestination } from "./leave";
 import { usePreferences, type PreferencesStore } from "./preferences";
-import { href, navigate, useHashRoute, usePreviousRoute, type Route } from "./routes";
+import { isEtlRoute } from "./etl-routes";
+import { navigate, replaceRoute, useHashRoute, viewKey } from "./routes";
 import { ETL_UNDER_CONSTRUCTION } from "./sections";
 import styles from "./App.module.css";
-
-const ETL_ROUTES: ReadonlySet<Route["kind"]> = new Set<Route["kind"]>(["etl", "etl-deployment", "etl-run"]);
 
 const NEXT_THEME: Record<Theme, Theme> = {
   system: "light",
@@ -48,7 +47,11 @@ interface AppProps {
   readonly preferences: PreferencesStore;
 }
 
-/** Picks the console once, so `useEtlStatus` never mounts and never calls the ETL API when it is under construction. */
+/**
+ * Picks the console once, so `useEtlStatus` never mounts and never calls the ETL API when it is under construction.
+ * Precondition: `appHistory.install()` has run before the first render (as `main` does), or "Back to …" and Close
+ * always fall back to the view's parent.
+ */
 export function App(props: AppProps) {
   return ETL_UNDER_CONSTRUCTION ? <Console {...props} etl={ETL_UNDER_CONSTRUCTION_SECTION} /> : <ConsoleWithEtl {...props} />;
 }
@@ -61,14 +64,15 @@ function ConsoleWithEtl(props: AppProps) {
 function Console({ dependencies, preferences, etl }: AppProps & { readonly etl: EtlSection }) {
   const { t } = useTranslation();
   const route = useHashRoute();
-  const previous = usePreviousRoute(route);
+  const back = backDestination(route);
   const { catalog, sources, discovering, reload, rediscover } = useCatalogData(dependencies);
   const etlUnderConstruction = etl.kind === "under-construction";
   const etlStatus = etl.kind === "ready" && etl.value.configured ? etl.value : null;
   const etlConfigured = etlStatus !== null;
-  const etlRoute = ETL_ROUTES.has(route.kind);
+  const onEtlRoute = isEtlRoute(route);
   const { schemaOpen, favourites, recents } = usePreferences(preferences);
   const filterRef = useRef<HTMLInputElement>(null);
+  const etlSection = useEtlSection(dependencies, route, etlStatus);
   const editorRef = useRef<QueryEditorHandle>(null);
   const shellRef = useRef<ShellHandle>(null);
   const [sql, setSql] = useState("");
@@ -77,8 +81,9 @@ function Console({ dependencies, preferences, etl }: AppProps & { readonly etl: 
 
   // Without the integration the ETL routes do not exist: anyone landing on one goes Home.
   useEffect(() => {
-    if (etlRoute && etl.kind === "ready" && !etl.value.configured) navigate({ kind: "home" });
-  }, [etlRoute, etl]);
+    // A redirect replaces the entry: Back must not land on the ETL route only to be sent away again.
+    if (onEtlRoute && etl.kind === "ready" && !etl.value.configured) replaceRoute({ kind: "home" }, { newView: true });
+  }, [onEtlRoute, etl]);
 
   const openTable = route.kind === "table" ? tableKey({ database: route.database, name: route.table }) : null;
   useEffect(() => {
@@ -87,11 +92,13 @@ function Console({ dependencies, preferences, etl }: AppProps & { readonly etl: 
   }, [openTable, preferences]);
 
   // The rail's Catalog entry is a toggle: open (and focus the filter), or fold to the strip. Ctrl/Cmd+Shift+F only opens.
-  // Shell decides what "open" means (the preference in wide mode, a local overlay in narrow mode).
+  // Shell decides what "open" means (the preference in wide mode, a local overlay in narrow mode). Where the filter
+  // sits in the work area (the ETL dashboard's search), it is focused there, with no column brought over it.
+  const searchInWorkArea = etlSection?.searchInWorkArea ?? false;
   const bringCatalog = useCallback(() => {
-    shellRef.current?.bringCatalog();
+    if (!searchInWorkArea) shellRef.current?.bringCatalog();
     window.setTimeout(() => filterRef.current?.focus(), 0);
-  }, []);
+  }, [searchInWorkArea]);
   const toggleCatalog = useCallback(() => shellRef.current?.toggleCatalog(), []);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -111,7 +118,7 @@ function Console({ dependencies, preferences, etl }: AppProps & { readonly etl: 
         ? route.database
         : route.kind === "layer"
           ? (route.layer ?? t("catalog.noLayerShort"))
-          : etlRoute
+          : onEtlRoute
             ? t("nav.etl")
             : t("shell.catalog");
 
@@ -188,111 +195,116 @@ function Console({ dependencies, preferences, etl }: AppProps & { readonly etl: 
           />
         }
         stripLabel={stripLabel}
-        routeKey={href(route)}
-        catalog={
-          <>
-            {catalog.kind === "loading" ? (
+        routeKey={viewKey(route)}
+        columnTexts={etlSection !== null ? etlColumnTexts(t) : undefined}
+        column={
+          <PageErrorBoundary resetKey={viewKey(route)} label={etlSection !== null ? t("etl.side.failed") : t("shell.catalogFailed")}>
+            {etlSection !== null ? (
+              <EtlColumn section={etlSection} searchRef={filterRef} />
+            ) : (
               <>
-                <Logo size="lg" busy className={styles.loadingMark} />
-                <Progress label={t("catalog.loading")} />
+                {catalog.kind === "loading" ? (
+                  <>
+                    <Logo size="lg" busy className={styles.loadingMark} />
+                    <Progress label={t("catalog.loading")} />
+                  </>
+                ) : null}
+                {catalog.kind === "failed" ? (
+                  <ErrorNotice title={t("catalog.loadFailed")} error={catalog.error} onRetry={reload} retryLabel={t("catalog.retry")} />
+                ) : null}
+                {catalog.kind === "ready" ? (
+                  <CatalogTree
+                    catalog={catalog.value}
+                    route={route}
+                    preferences={preferences}
+                    filterRef={filterRef}
+                    onInsert={route.kind === "sql" ? (name) => editorRef.current?.insert(name) : undefined}
+                  />
+                ) : null}
               </>
-            ) : null}
-            {catalog.kind === "failed" ? (
-              <ErrorNotice title={t("catalog.loadFailed")} error={catalog.error} onRetry={reload} retryLabel={t("catalog.retry")} />
-            ) : null}
-            {catalog.kind === "ready" ? (
-              <CatalogTree
-                catalog={catalog.value}
-                route={route}
-                preferences={preferences}
-                filterRef={filterRef}
-                onInsert={route.kind === "sql" ? (name) => editorRef.current?.insert(name) : undefined}
-              />
-            ) : null}
-          </>
+            )}
+          </PageErrorBoundary>
         }
       >
-        {route.kind === "home" && catalog.kind === "ready" ? (
-          <Home
-            catalog={catalog.value}
-            preferences={preferences}
-            dependencies={dependencies}
-            brand={BRAND}
-            troubledSources={troubledSources}
-            onQuery={(database, table, lastSql) => {
-              setSql(lastSql ?? previewSql(database, table));
-              navigate({ kind: "sql" });
-            }}
-          />
-        ) : null}
-        {route.kind === "table" ? (
-          <TablePage
-            key={tableKey({ database: route.database, name: route.table })}
-            dependencies={dependencies}
-            preferences={preferences}
-            catalog={catalog.kind === "ready" ? catalog.value : null}
-            database={route.database}
-            table={route.table}
-            tab={route.tab}
-            back={previous}
-          />
-        ) : null}
-        {route.kind === "join" && (!route.database || !route.table) ? <JoinStart catalog={catalog.kind === "ready" ? catalog.value : null} suggested={[...favourites, ...recents]} /> : null}
-        {route.kind === "join" && route.database && route.table ? (
-          <JoinWorkspace
-            key={tableKey({ database: route.database, name: route.table })}
-            dependencies={dependencies}
-            preferences={preferences}
-            catalog={catalog.kind === "ready" ? catalog.value : null}
-            database={route.database}
-            table={route.table}
-            arm={route.arm}
-            back={previous}
-            onOpenInEditor={(joinSql) => {
-              setSql(joinSql);
-              navigate({ kind: "sql" });
-            }}
-          />
-        ) : null}
-        {route.kind === "database" && catalog.kind === "ready" ? (
-          <DatabasePage
-            dependencies={dependencies}
-            catalog={catalog.value}
-            database={route.database}
-            onQuery={(database, table) => {
-              setSql(previewSql(database, table));
-              navigate({ kind: "sql" });
-            }}
-          />
-        ) : null}
-        {route.kind === "layer" && catalog.kind === "ready" ? <LayerPage catalog={catalog.value} layer={route.layer} /> : null}
-        {route.kind === "sql" ? (
-          <QueryWorkspace
-            editorRef={editorRef}
-            dependencies={dependencies}
-            catalog={catalog.kind === "ready" ? catalog.value : null}
-            sql={sql}
-            onSqlChange={setSql}
-          />
-        ) : null}
-        {etlRoute && etlUnderConstruction ? <UnderConstruction section={t("nav.etl")} /> : null}
-        {etlRoute && etl.kind === "loading" ? <Progress label={t("etl.loading")} /> : null}
-        {etlRoute && etl.kind === "failed" ? <ErrorNotice title={t("etl.loadFailed")} error={etl.error} /> : null}
-        {route.kind === "etl" && etlStatus !== null ? <EtlDashboard dependencies={dependencies} status={etlStatus} /> : null}
-        {route.kind === "etl-deployment" && etlStatus !== null ? (
-          <EtlPage key={route.name} dependencies={dependencies} name={route.name} status={etlStatus} catalog={catalog.kind === "ready" ? catalog.value : null} />
-        ) : null}
-        {route.kind === "etl-run" && etlStatus !== null ? (
-          <RunPage key={route.id} dependencies={dependencies} id={route.id} catalog={catalog.kind === "ready" ? catalog.value : null} />
-        ) : null}
-        {route.kind === "discovery" ? (
-          <DiscoveryView
-            sources={sources}
-            conflicts={catalog.kind === "ready" ? catalog.value.conflicts : []}
-            discovering={discovering}
-            onRediscover={rediscover}
-          />
-        ) : null}
+        <PageErrorBoundary resetKey={viewKey(route)} label={t("shell.viewFailed")} homeLink>
+          {route.kind === "home" && catalog.kind === "ready" ? (
+            <Home
+              catalog={catalog.value}
+              preferences={preferences}
+              dependencies={dependencies}
+              brand={BRAND}
+              troubledSources={troubledSources}
+              onQuery={(database, table, lastSql) => {
+                setSql(lastSql ?? previewSql(database, table));
+                navigate({ kind: "sql" });
+              }}
+            />
+          ) : null}
+          {route.kind === "table" ? (
+            <TablePage
+              key={tableKey({ database: route.database, name: route.table })}
+              dependencies={dependencies}
+              preferences={preferences}
+              catalog={catalog.kind === "ready" ? catalog.value : null}
+              database={route.database}
+              table={route.table}
+              tab={route.tab}
+              back={back}
+            />
+          ) : null}
+          {route.kind === "join" && (!route.database || !route.table) ? (
+            <JoinStart catalog={catalog.kind === "ready" ? catalog.value : null} suggested={[...favourites, ...recents]} />
+          ) : null}
+          {route.kind === "join" && route.database && route.table ? (
+            <JoinWorkspace
+              key={tableKey({ database: route.database, name: route.table })}
+              dependencies={dependencies}
+              preferences={preferences}
+              catalog={catalog.kind === "ready" ? catalog.value : null}
+              database={route.database}
+              table={route.table}
+              arm={route.arm}
+              back={back}
+              onOpenInEditor={(joinSql) => {
+                setSql(joinSql);
+                navigate({ kind: "sql" });
+              }}
+            />
+          ) : null}
+          {route.kind === "database" && catalog.kind === "ready" ? (
+            <DatabasePage
+              dependencies={dependencies}
+              catalog={catalog.value}
+              database={route.database}
+              onQuery={(database, table) => {
+                setSql(previewSql(database, table));
+                navigate({ kind: "sql" });
+              }}
+            />
+          ) : null}
+          {route.kind === "layer" && catalog.kind === "ready" ? <LayerPage catalog={catalog.value} layer={route.layer} /> : null}
+          {route.kind === "sql" ? (
+            <QueryWorkspace
+              editorRef={editorRef}
+              dependencies={dependencies}
+              catalog={catalog.kind === "ready" ? catalog.value : null}
+              sql={sql}
+              onSqlChange={setSql}
+            />
+          ) : null}
+          {onEtlRoute && etlUnderConstruction ? <UnderConstruction section={t("nav.etl")} /> : null}
+          {onEtlRoute && etl.kind === "loading" ? <Progress label={t("etl.loading")} /> : null}
+          {onEtlRoute && etl.kind === "failed" ? <ErrorNotice title={t("etl.loadFailed")} error={etl.error} /> : null}
+          {etlSection !== null ? <EtlView section={etlSection} searchRef={filterRef} dependencies={dependencies} /> : null}
+          {route.kind === "discovery" ? (
+            <DiscoveryView
+              sources={sources}
+              conflicts={catalog.kind === "ready" ? catalog.value.conflicts : []}
+              discovering={discovering}
+              onRediscover={rediscover}
+            />
+          ) : null}
+        </PageErrorBoundary>
       </Shell>
 
       <CommandPalette

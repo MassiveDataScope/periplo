@@ -4,6 +4,8 @@ import styles from "./Tabs.module.css";
 export interface TabItem {
   readonly id: string;
   readonly label: string;
+  /** Drawn before the label and hidden from assistive technology: whatever it says, the label says in words too. */
+  readonly mark?: ReactNode;
 }
 
 export interface TabsProps {
@@ -51,6 +53,7 @@ export function Tabs({ label, tabs, selected, onSelect }: TabsProps) {
           className={styles.tab}
           onClick={() => onSelect(tab.id)}
         >
+          {tab.mark !== undefined ? <span aria-hidden="true">{tab.mark}</span> : null}
           {tab.label}
         </button>
       ))}

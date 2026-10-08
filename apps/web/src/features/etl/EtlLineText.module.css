@@ -1,0 +1,10 @@
+/* Slow is a word, in amber text only: never a colour on a bar or a fill. */
+.slow {
+  color: var(--nt-color-state-slow);
+  font-weight: var(--nt-font-weight-medium);
+}
+
+/* A failure reads in the failed colour wherever the line is said: the side list and the day panel alike. */
+.failed {
+  color: var(--nt-color-state-failed);
+}
