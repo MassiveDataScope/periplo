@@ -71,7 +71,7 @@ def client(engine: FakeEngine) -> TestClient:
     state.published = Published(Catalog(tables={("shop", "orders"): ORDERS}), (), datetime.now(UTC))
     runtime = QueryRuntime(max_concurrent=1, max_rows=100, max_bytes=1 << 20, timeout_seconds=5)
     app = FastAPI()
-    access = Access(SwitchAuthorizer(allow_operate=False), LogAuditSink())
+    access = Access(SwitchAuthorizer(allow_operate=False, allow_archive=False), LogAuditSink())
     planes = single_plane(state, engine)
     app.include_router(create_router(planes, runtime, access=access, credentials=process_gate()))
     app.add_middleware(

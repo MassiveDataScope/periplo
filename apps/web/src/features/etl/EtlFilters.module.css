@@ -1,20 +1,25 @@
+/* The column never takes the facets' unseen copies as its minimum width: the bar fits the pane, the copies are clipped. */
 .filters {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--nt-space-2);
 }
 
+/* One line, however many facets are picked: the facets that do not fit go under More, a long pick is cut. */
 .row {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--nt-space-3);
 }
 
 .search {
   display: flex;
+  box-sizing: border-box;
+  /* Shrinks far faster than the facets, so it gives way down to its minimum before a facet goes under More. */
+  flex: 0 1000 18rem;
   align-items: center;
   gap: var(--nt-space-1-5);
-  inline-size: 18rem;
+  min-inline-size: 12rem;
   max-inline-size: 100%;
   min-block-size: var(--nt-size-control);
   padding: 0 var(--nt-space-2);
@@ -64,23 +69,13 @@
   border-color: var(--nt-color-border-strong);
 }
 
-.filterButton::after {
+.filterButton[aria-haspopup]::after {
   content: "▾";
   color: var(--nt-color-text-muted);
 }
 
 .filterButton[aria-expanded="true"] {
   border-color: var(--nt-color-accent);
-}
-
-.badge {
-  padding: 0 var(--nt-space-1-5);
-  border-radius: var(--nt-radius-full);
-  background: var(--nt-color-accent-surface);
-  color: var(--nt-color-accent);
-  font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-2xs);
-  line-height: var(--nt-space-5);
 }
 
 .popover {
@@ -113,33 +108,132 @@
   font-size: var(--nt-font-size-sm);
 }
 
-.hint {
-  margin: 0;
-  color: var(--nt-color-text-muted);
-  font-size: var(--nt-font-size-2xs);
-}
-
-.optionGroup {
+/* The unseen copies of every button sit in a zero-high second row: they give the facets the width they would like
+   (the search gives way to it first), and the bar measures in what it gets how many fit. */
+.facets {
   display: grid;
-  gap: var(--nt-space-1);
+  flex: 0 1 auto;
+  grid-template-rows: auto 0;
+  min-inline-size: 0;
 }
 
-.groupLabel {
-  margin-block-start: var(--nt-space-1);
-  color: var(--nt-color-text-muted);
+/* A facet's button says what it picks; a × beside it clears that. Both one control high, so the bar never grows. */
+.shown,
+.measure {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-2);
+}
+
+.measure {
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.measure > * {
+  flex: none;
+}
+
+.facetButton {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.facetButton[data-picked] .filterButton {
+  overflow: hidden;
+  max-inline-size: 14rem;
+  border-color: var(--nt-color-accent);
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+  background: var(--nt-color-accent-surface);
   font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-2xs);
-  font-weight: var(--nt-font-weight-medium);
-  letter-spacing: var(--nt-font-tracking-wide);
-  text-transform: uppercase;
+}
+
+.buttonText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clearFacet {
+  padding: 0 var(--nt-space-2);
+  border: var(--nt-border-width) solid var(--nt-color-accent);
+  border-inline-start: 0;
+  border-start-end-radius: var(--nt-radius-sm);
+  border-end-end-radius: var(--nt-radius-sm);
+  background: var(--nt-color-accent-surface);
+  color: var(--nt-color-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.clearFacet:focus-visible,
+.filterButton:focus-visible,
+.options:focus-visible,
+.link:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: 1px;
+}
+
+/* The grouping, at the bar's far end. */
+.aside {
+  flex: none;
+  margin-inline-start: auto;
+}
+
+/* A facet's list: its values, each with how many ETLs it lets through, the empty ones dimmed at the end. */
+.facet {
+  display: grid;
+  gap: var(--nt-space-1-5);
+}
+
+.options {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .option {
   display: flex;
   align-items: center;
   gap: var(--nt-space-2);
+  padding: var(--nt-space-1) var(--nt-space-1-5);
+  border-radius: var(--nt-radius-sm);
   font-size: var(--nt-font-size-sm);
   cursor: pointer;
+}
+
+.option:hover,
+.option[data-active] {
+  background: var(--nt-color-surface);
+}
+
+.option[data-empty] {
+  color: var(--nt-color-text-subtle);
+}
+
+/* The pick mark: a box, filled when picked; the option's state is also its aria-selected. */
+.check {
+  flex: none;
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  border: var(--nt-border-width) solid var(--nt-color-border-strong);
+  border-radius: 2px;
+}
+
+.option[aria-selected="true"] .check {
+  border-color: var(--nt-color-accent);
+  background: var(--nt-color-accent);
+}
+
+.optionText {
+  overflow: hidden;
+  font-family: var(--nt-font-family-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .optionCount {
@@ -149,32 +243,13 @@
   font-size: var(--nt-font-size-xs);
 }
 
-.activeChip {
+.facetActions {
   display: flex;
-  align-items: center;
-  gap: var(--nt-space-1);
-  padding: 0 var(--nt-space-2);
-  border: var(--nt-border-width) solid var(--nt-color-accent);
-  border-radius: var(--nt-radius-full);
-  background: var(--nt-color-accent-surface);
-  color: var(--nt-color-accent);
-  font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-2xs);
-  line-height: var(--nt-space-5);
-  cursor: pointer;
+  justify-content: space-between;
+  gap: var(--nt-space-2);
 }
 
-.count {
-  margin-inline-start: auto;
-  color: var(--nt-color-text-muted);
-  font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-xs);
-  letter-spacing: var(--nt-font-tracking-wide);
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.clear {
+.link {
   padding: 0;
   border: 0;
   background: none;
@@ -183,6 +258,89 @@
   font-size: var(--nt-font-size-xs);
   text-decoration: underline;
   cursor: pointer;
-  white-space: nowrap;
 }
 
+.link:disabled {
+  color: var(--nt-color-text-subtle);
+  text-decoration: none;
+  cursor: default;
+}
+
+/* More, and the narrow sheet: one section per facet. */
+.morePopover {
+  min-inline-size: 22rem;
+  max-block-size: 28rem;
+}
+
+.facetSection {
+  display: grid;
+  gap: var(--nt-space-1);
+}
+
+.facetHeading {
+  margin: 0;
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-2xs);
+  font-weight: var(--nt-font-weight-medium);
+  letter-spacing: var(--nt-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+/* The narrow pane's sheet: the whole screen, its way out held at the bottom. */
+dialog.sheet {
+  inline-size: 100vw;
+  max-inline-size: 100vw;
+  block-size: 100dvh;
+  max-block-size: 100dvh;
+  margin: 0;
+  border-radius: 0;
+}
+
+.sheetBody {
+  display: grid;
+  gap: var(--nt-space-4);
+  padding: var(--nt-space-4) var(--nt-space-4) var(--nt-space-16, 4rem);
+}
+
+.sheetTitle {
+  margin: 0;
+  font-size: var(--nt-font-size-lg);
+}
+
+.sheetFooter {
+  position: sticky;
+  inset-block-end: 0;
+  display: grid;
+  padding: var(--nt-space-3) var(--nt-space-4);
+  border-block-start: var(--nt-border-width) solid var(--nt-color-border);
+  background: var(--nt-color-bg);
+}
+
+/* "Filters · N" is the narrow pane's: a wide one has the facets' own buttons. */
+.sheetButton {
+  display: none;
+}
+
+/* In a narrow pane the search takes the row and the menus wrap under it. */
+@container (max-width: 36rem) {
+  .filters {
+    min-inline-size: 0;
+  }
+
+  .row {
+    flex-wrap: wrap;
+  }
+
+  .search {
+    flex: 1 0 100%;
+  }
+
+  .facets {
+    display: none;
+  }
+
+  .sheetButton {
+    display: flex;
+  }
+}

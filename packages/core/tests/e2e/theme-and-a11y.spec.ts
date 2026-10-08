@@ -15,7 +15,7 @@ test("follows the system preference when there is no explicit choice", async ({ 
   await page.goto("/");
   await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.+/);
   const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-  expect(background).toBe("rgb(12, 13, 14)");
+  expect(background).toBe("rgb(14, 18, 19)");
 });
 
 for (const theme of ["light", "dark"] as const) {

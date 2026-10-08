@@ -1,7 +1,12 @@
 /*
- * Periplo design tokens — "Chart room, softened": black ink on white, one electric blue, names and figures in mono,
- * with thin grey borders and 6 px corners. Chosen by the users over an earlier petrol palette.
- * The frame stays quiet so the data carries the contrast; colour means data type, never decoration.
+ * Periplo design tokens — "Chart room, softened": ink on white over cool green-grey chrome, one sea-teal accent,
+ * names and figures in mono, with thin borders and 6 px corners. Neutrals and accent match massivedatascope.info.
+ * The orange brand colour is a signature, never a state: the logo's lens, the full stop of page titles, the dot of
+ * the current rail entry and the "now" line of the ETL chart.
+ * The frame stays quiet so the data carries the contrast: colour means data type or state, and apart from that
+ * one orange signature it is never decoration.
+ * Status colours keep one meaning each: blue only means "running", the sea teal stays the interactive accent (buttons,
+ * links, focus) and never a state, and the orange only signs. No state is told by colour alone: see StatusSwatch.
  * Components use only these custom properties: literal colours and pixel values live here and nowhere else.
  * Theme resolution: explicit [data-theme] wins, otherwise the system preference.
  * Each colour is declared once with light-dark(), so the two themes cannot drift apart.
@@ -11,51 +16,59 @@
   color-scheme: light dark;
 
   /* ── Surfaces (elevation: sunken < surface < bg < raised) ─────────────── */
-  --nt-color-bg: light-dark(#ffffff, #0c0d0e); /* content: grid, page            */
-  --nt-color-surface: light-dark(#f6f8fa, #131619); /* chrome: sidebar, headers, bars */
-  --nt-color-surface-raised: light-dark(#ffffff, #1a1e22); /* popovers, menus, palette       */
-  --nt-color-surface-sunken: light-dark(#eceff2, #07080a); /* NEW wells: bar tracks, code    */
-  --nt-color-surface-hover: light-dark(#eaeef2, #1f2429); /* NEW row/button hover           */
-  --nt-color-row-alt: light-dark(#fafbfc, #101214); /* grid zebra (opt-in)            */
-  --nt-color-selection: light-dark(#e1e6ff, #1d2452); /* selected row/cell/tree item    */
-  --nt-color-accent-surface: light-dark(#eceefe, #171c40); /* NEW soft accent fill           */
+  --nt-color-bg: light-dark(#ffffff, #0e1213); /* content: grid, page            */
+  --nt-color-surface: light-dark(#f2f4f3, #161c1d); /* chrome: sidebar, headers, bars */
+  --nt-color-surface-raised: light-dark(#ffffff, #1c2324); /* popovers, menus, palette       */
+  --nt-color-surface-sunken: light-dark(#e8ecea, #0a0d0e); /* wells: bar tracks, code    */
+  --nt-color-surface-hover: light-dark(#e6ebe9, #212829); /* row/button hover           */
+  --nt-color-row-alt: light-dark(#f8faf9, #111617); /* grid zebra (opt-in)            */
+  --nt-color-selection: light-dark(#d9ebe7, #173230); /* selected row/cell/tree item    */
+  --nt-color-accent-surface: light-dark(#e3eeec, #17292a); /* soft accent fill           */
 
   /* ── Text ─────────────────────────────────────────────────────────────── */
-  --nt-color-text: light-dark(#0b0c0d, #f1f2f3);
-  --nt-color-text-muted: light-dark(#4a4f55, #a6acb3); /* secondary */
-  --nt-color-text-subtle: light-dark(#636b74, #8b929a); /* NEW tertiary: types, counters, prefixes */
-  --nt-color-null: light-dark(#636b74, #8b929a);
-  --nt-color-rule: light-dark(rgba(11, 12, 13, 0.05), rgba(241, 242, 243, 0.05)); /* NEW ruled-paper hairline, decorative, no contrast requirement */
+  --nt-color-text: light-dark(#141819, #e6ebea);
+  --nt-color-text-muted: light-dark(#4b5452, #a3aead); /* secondary */
+  --nt-color-text-subtle: light-dark(#5f6866, #8e9997); /* tertiary: types, counters, prefixes */
+  --nt-color-null: light-dark(#5f6866, #8e9997);
+  --nt-color-rule: light-dark(rgba(20, 24, 25, 0.05), rgba(230, 235, 234, 0.05)); /* ruled-paper hairline, decorative, no contrast requirement */
 
   /* ── Borders ──────────────────────────────────────────────────────────── */
-  --nt-color-border-subtle: light-dark(#e7eaee, #1e2226); /* NEW grid row lines (decorative) */
-  --nt-color-border: light-dark(#d1d9e0, #30363d); /* region separators (decorative)  */
-  --nt-color-border-strong: light-dark(#7d8590, #6e7681); /* control outlines, ≥3:1          */
+  --nt-color-border-subtle: light-dark(#e4e9e7, #1f2627); /* grid row lines (decorative) */
+  --nt-color-border: light-dark(#d3dad8, #2a3334); /* region separators (decorative)  */
+  --nt-color-border-strong: light-dark(#7b8583, #6c7876); /* control outlines, ≥3:1          */
 
-  /* ── Accent (petrol) ──────────────────────────────────────────────────── */
-  --nt-color-accent: light-dark(#1f3bff, #8c9bff);
-  --nt-color-accent-hover: light-dark(#0f26cc, #aab5ff);
-  --nt-color-on-accent: light-dark(#ffffff, #0c0d0e);
-  --nt-color-focus: light-dark(#1f3bff, #a5b1ff);
+  /* ── Accent (sea teal, shared with massivedatascope.info) ──────────────── */
+  --nt-color-accent: light-dark(#2b6b65, #7dbdb3);
+  --nt-color-accent-hover: light-dark(#1f524d, #9fd3c9);
+  --nt-color-on-accent: light-dark(#ffffff, #0e1213);
+  --nt-color-focus: light-dark(#2b6b65, #9fd3c9);
+  /* the brand's signature, never a state: the logo's lens, the full stop of page titles, the current rail entry's dot, the ETL chart's "now" */
+  --nt-color-brand: light-dark(#ff441e, #ff5a36);
 
   /* ── Semantic ─────────────────────────────────────────────────────────── */
   --nt-color-success: light-dark(#1f6f37, #6ccf8e);
-  --nt-color-success-surface: light-dark(#e5f3e8, #12291a); /* NEW */
-  --nt-color-state-ok: light-dark(#4f9a66, #3f8a58); /* NEW calmed success for bars/dots/timeline marks only (UX-final value); text and icons keep --nt-color-success */
+  --nt-color-success-surface: light-dark(#e5f3e8, #12291a);
   --nt-color-warning: light-dark(#875000, #efb65c);
-  --nt-color-warning-surface: light-dark(#fbf0dc, #2e2210); /* NEW */
+  --nt-color-warning-surface: light-dark(#fbf0dc, #2e2210);
   --nt-color-danger: light-dark(#b3261e, #ff8f85);
   --nt-color-danger-hover: light-dark(#8c1d17, #ffaaa3);
   --nt-color-on-danger: light-dark(#ffffff, #2a0907);
   --nt-color-danger-surface: light-dark(#fdecea, #351513);
-  --nt-color-info: light-dark(#2a5db0, #8ab4f8); /* NEW */
-  --nt-color-info-surface: light-dark(#e8eefb, #152238); /* NEW */
-  --nt-color-state-run: light-dark(#2a5db0, #8ab4f8); /* NEW running bars/dots — its own name so bars can be tuned apart from info text, though it starts equal to it */
-  --nt-color-state-run-stripe: light-dark(rgba(255, 255, 255, 0.32), rgba(12, 13, 14, 0.34)); /* NEW the moving stripe over a running bar */
 
-  /* ── Data-type families (NEW) — foreground + badge surface ────────────── */
-  --nt-color-type-integer: light-dark(#2458b3, #86b2f5); /* blue    glyph "#"   */
-  --nt-color-type-integer-surface: light-dark(#e6edf9, #16243d);
+  /* ── Run, process and step states ─────────────────────────────────────────
+     Each ≥ 3:1 on bg, surface and surface-sunken in both themes, and the running stripes ≥ 3:1 on the running fill.
+     StatusSwatch adds the cue that is not colour (× failed, stripes running, dashed outline scheduled, a stop square
+     stopped): scheduled and stopped are close greys on purpose and told apart by that shape. */
+  --nt-color-state-completed: light-dark(#3d9461, #5cbf80);
+  --nt-color-state-failed: light-dark(#b42318, #f2685a);
+  --nt-color-state-running: light-dark(#2f62b3, #79a6ee);
+  --nt-color-state-running-stripe: light-dark(#b3c9ee, #2c4670); /* the diagonal stripes over a running fill */
+  --nt-color-state-scheduled: light-dark(#7b8684, #6b7674); /* outline only: a hole where a run will be */
+  --nt-color-state-slow: light-dark(#8a5a00, #d9a441); /* text only ("2.0× usual"): slow is a label, never a fill */
+
+  /* ── Data-type families — foreground + badge surface ────────────── */
+  --nt-color-type-integer: light-dark(#6e6400, #d6cc5c); /* olive   glyph "#" (not blue: blue means "running") */
+  --nt-color-type-integer-surface: light-dark(#f2f0d8, #29270e);
   --nt-color-type-decimal: light-dark(#6941b8, #b8a2f4); /* violet  glyph ".0"  */
   --nt-color-type-decimal-surface: light-dark(#eee9f9, #241c3d);
   --nt-color-type-text: light-dark(#2a6b3a, #7fcf95); /* green   glyph "Aa"  */
@@ -68,82 +81,82 @@
   --nt-color-type-nested-surface: light-dark(#eaedef, #22282e);
 
   /* ── Space (4-pt grid) ────────────────────────────────────────────────── */
-  --nt-space-0-5: 0.125rem; /* NEW */
+  --nt-space-0-5: 0.125rem;
   --nt-space-1: 0.25rem;
-  --nt-space-1-5: 0.375rem; /* NEW */
+  --nt-space-1-5: 0.375rem;
   --nt-space-2: 0.5rem;
-  --nt-space-2-5: 0.625rem; /* NEW */
+  --nt-space-2-5: 0.625rem;
   --nt-space-3: 0.75rem;
   --nt-space-4: 1rem; /* = tree indent step */
-  --nt-space-5: 1.25rem; /* NEW */
+  --nt-space-5: 1.25rem;
   --nt-space-6: 1.5rem;
   --nt-space-8: 2rem;
-  --nt-space-12: 3rem; /* NEW */
+  --nt-space-12: 3rem;
 
   /* ── Type ─────────────────────────────────────────────────────────────── */
   --nt-font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --nt-font-family-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --nt-font-features: normal;
-  --nt-font-features-data: "tnum", "zero"; /* NEW tabular figures + slashed zero */
-  --nt-font-size-2xs: 0.625rem; /* NEW 10 — instrument labels: sheet/grid headers, figures keys */
-  --nt-font-size-xs: 0.6875rem; /* NEW 11 — badges, overlines, status bar keys */
+  --nt-font-features-data: "tnum", "zero"; /* tabular figures + slashed zero */
+  --nt-font-size-2xs: 0.625rem; /* 10 — instrument labels: sheet/grid headers, figures keys */
+  --nt-font-size-xs: 0.6875rem; /* 11 — badges, overlines, status bar keys */
   --nt-font-size-sm: 0.75rem; /* 12 (was 13) — types, counters, meta */
   --nt-font-size-md: 0.8125rem; /* 13 (was 14) — body, tree, grid, controls */
   --nt-font-size-lg: 0.9375rem; /* 15 (was 16) — section titles */
-  --nt-font-size-xl: 1.25rem; /* NEW 20 — table name */
-  --nt-font-size-2xl: 1.75rem; /* NEW 28 — Home title */
-  --nt-font-size-figure: 1.125rem; /* NEW 18 — figures strip values */
-  --nt-font-weight-regular: 400; /* NEW */
-  --nt-font-weight-medium: 500; /* NEW selected items, column names, tabs */
-  --nt-font-weight-strong: 600; /* titles only */
+  --nt-font-size-xl: 1.25rem; /* 20 — table name */
+  --nt-font-size-2xl: 1.75rem; /* 28 — Home title */
+  --nt-font-size-figure: 1.125rem; /* 18 — figures strip values */
+  --nt-font-weight-regular: 400;
+  --nt-font-weight-medium: 500; /* selected items, column names, tabs */
+  --nt-font-weight-strong: 600; /* titles and the current rail entry */
   --nt-font-line-height: 1.45;
-  --nt-font-line-height-tight: 1.2; /* NEW single-line rows, headers */
-  --nt-font-tracking-caps: 0.08em; /* NEW for xs uppercase overlines (mono-caps instrument labels) */
-  --nt-font-tracking-wide: 0.1em; /* NEW sheet/grid header labels, figures keys */
+  --nt-font-line-height-tight: 1.2; /* single-line rows, headers */
+  --nt-font-tracking-caps: 0.08em; /* for xs uppercase overlines (mono-caps instrument labels) */
+  --nt-font-tracking-wide: 0.1em; /* sheet/grid header labels, figures keys */
 
   /* ── Shape & size ─────────────────────────────────────────────────────── */
   --nt-radius-sm: 4px;
   --nt-radius-md: 6px; /* was 8 */
-  --nt-radius-full: 999px; /* NEW pills, mini-bars */
+  --nt-radius-full: 999px; /* pills, mini-bars */
   --nt-border-width: 1px;
   --nt-focus-width: 2px;
   --nt-focus-offset: 2px;
   --nt-size-control: 1.75rem; /* 28 (was 32) */
-  --nt-size-control-lg: 2rem; /* NEW 32: Run, search */
-  --nt-size-control-xl: 2.5rem; /* NEW 40: rail entries */
-  --nt-size-icon: 1rem; /* NEW 16 */
-  --nt-size-type-badge: 1.125rem; /* NEW 18 */
-  --nt-size-row: 1.75rem; /* NEW 28: tree, schema, grid row */
-  --nt-size-header: 2.75rem; /* NEW 44: global header */
-  --nt-size-statusbar: 1.5rem; /* NEW 24 */
-  --nt-size-rail: 13.5rem; /* NEW 216: section rail with names */
-  --nt-size-rail-collapsed: 3.5rem; /* NEW 56: icons only */
-  --nt-size-catalog-strip: 2.25rem; /* NEW 36: folded catalog column */
-  --nt-size-sidebar: 17.5rem; /* NEW 280 */
-  --nt-size-schema: 18.75rem; /* NEW 300 */
-  --nt-size-nullbar-w: 2.5rem; /* NEW 40 */
-  --nt-size-nullbar-h: 0.25rem; /* NEW 4 */
+  --nt-size-control-lg: 2rem; /* 32: Run, search */
+  --nt-size-control-xl: 2.5rem; /* 40: rail entries */
+  --nt-size-icon: 1rem; /* 16 */
+  --nt-size-type-badge: 1.125rem; /* 18 */
+  --nt-size-row: 1.75rem; /* 28: tree, schema, grid row */
+  --nt-size-header: 2.75rem; /* 44: global header */
+  --nt-size-statusbar: 1.5rem; /* 24 */
+  --nt-size-rail: 13.5rem; /* 216: section rail with names */
+  --nt-size-rail-collapsed: 3.5rem; /* 56: icons only */
+  --nt-size-catalog-strip: 2.25rem; /* 36: folded catalog column */
+  --nt-size-sidebar: 17.5rem; /* 280 */
+  --nt-size-schema: 18.75rem; /* 300 */
+  --nt-size-nullbar-w: 2.5rem; /* 40 */
+  --nt-size-nullbar-h: 0.25rem; /* 4 */
   --nt-size-progress: 2px; /* was 4 */
-  --nt-size-guide: 1px; /* NEW tree guide line */
-  --nt-size-gutter: 3rem; /* NEW 48 — grid row-number gutter, matches ResultsGrid's GUTTER_WIDTH */
-  --nt-size-glyph: 0.5625rem; /* NEW 9 — grid NULL ring / boolean dot */
-  --nt-size-spine: 3px; /* NEW current-row ink spine on listings */
-  --nt-size-stripe: 10px; /* NEW one marching-stripe tile (period) on a running bar */
-  --nt-size-step-bar: 0.625rem; /* NEW 10px step timeline bar height */
-  --nt-size-log-line: 1.25rem; /* NEW 20px log line height, 5x the 4px ruled-paper hairline */
+  --nt-size-guide: 1px; /* tree guide line */
+  --nt-size-gutter: 3rem; /* 48 — grid row-number gutter, matches ResultsGrid's GUTTER_WIDTH */
+  --nt-size-glyph: 0.5625rem; /* 9 — grid NULL ring / boolean dot */
+  --nt-size-spine: 3px; /* current-row ink spine on listings */
+  --nt-size-stripe: 10px; /* one marching-stripe tile (period) on a running bar */
+  --nt-size-step-bar: 0.625rem; /* 10px step timeline bar height */
+  --nt-size-log-line: 1.25rem; /* 20px log line height, 5x the 4px ruled-paper hairline */
 
   /* ── Elevation: only floating things cast shadows ─────────────────────── */
   --nt-shadow-raised: 0 1px 2px light-dark(rgba(16, 24, 20, 0.08), rgba(0, 0, 0, 0.5));
   --nt-shadow-overlay:
-    0 8px 24px light-dark(rgba(16, 24, 20, 0.14), rgba(0, 0, 0, 0.6)), 0 0 0 1px light-dark(rgba(16, 24, 20, 0.06), rgba(255, 255, 255, 0.06)); /* NEW */
+    0 8px 24px light-dark(rgba(16, 24, 20, 0.14), rgba(0, 0, 0, 0.6)), 0 0 0 1px light-dark(rgba(16, 24, 20, 0.06), rgba(255, 255, 255, 0.06));
 
   /* ── Motion ───────────────────────────────────────────────────────────── */
   --nt-motion-fast: 120ms; /* hover, press, reveal */
-  --nt-motion-medium: 180ms; /* NEW panel/editor collapse, chevron */
+  --nt-motion-medium: 180ms; /* panel/editor collapse, chevron */
   --nt-motion-slow: 1400ms; /* skeleton shimmer, indeterminate progress */
-  --nt-motion-ease: cubic-bezier(0.2, 0, 0, 1); /* NEW */
-  --nt-motion-tick: 1s; /* NEW a live timeline's own clock: heights/widths that grow with a running run */
-  --nt-motion-march: 800ms; /* NEW one marching-stripe period on a running bar, ~12.5px/s */
+  --nt-motion-ease: cubic-bezier(0.2, 0, 0, 1);
+  --nt-motion-tick: 1s; /* a live timeline's own clock: heights/widths that grow with a running run */
+  --nt-motion-march: 800ms; /* one marching-stripe period on a running bar, ~12.5px/s */
 }
 
 [data-theme="light"] {

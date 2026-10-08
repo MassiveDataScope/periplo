@@ -1,0 +1,68 @@
+/* A run, process or step state: its colour plus one cue that survives without colour (see StatusSwatch). */
+
+.swatch {
+  display: block;
+  box-sizing: border-box;
+}
+
+.swatch[data-shape="dot"] {
+  display: inline-block;
+  flex: none;
+  inline-size: var(--nt-space-2);
+  block-size: var(--nt-space-2);
+  border-radius: var(--nt-radius-full);
+  vertical-align: middle;
+}
+
+/* A glyph keeps its square in the middle of any box: the icon's viewBox meets it. */
+.swatch > .glyph {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  stroke-width: 3;
+}
+
+.swatch[data-status="completed"] {
+  background: var(--nt-color-state-completed);
+}
+
+/* The cross is drawn in the page's own colour, so it reads as a cut through the fill in either theme. */
+.swatch[data-status="failed"] {
+  background: var(--nt-color-state-failed);
+  color: var(--nt-color-bg);
+}
+
+/* The tile is a token so a consumer can march the stripes by animating background-position by one tile. */
+.swatch[data-status="running"] {
+  background-color: var(--nt-color-state-running);
+  background-image: linear-gradient(
+    -45deg,
+    var(--nt-color-state-running-stripe) 25%,
+    transparent 25% 50%,
+    var(--nt-color-state-running-stripe) 50% 75%,
+    transparent 75%
+  );
+  background-size: var(--nt-size-stripe) var(--nt-size-stripe);
+}
+
+/* A dot is narrower than one bar tile: half a tile keeps two stripes inside it. */
+.swatch[data-shape="dot"][data-status="running"] {
+  background-size: calc(var(--nt-size-stripe) / 2) calc(var(--nt-size-stripe) / 2);
+}
+
+/* Not started yet: a hole where the run will be. */
+.swatch[data-status="scheduled"] {
+  border: var(--nt-border-width) dashed var(--nt-color-state-scheduled);
+}
+
+/* Cancelled or paused: it stopped on purpose, neither a success nor a failure. The solid outline and the stop square
+   tell it from scheduled, whose grey is close. */
+.swatch[data-status="stopped"] {
+  border: var(--nt-border-width) solid var(--nt-color-border-strong);
+  color: var(--nt-color-border-strong);
+}
+
+/* A state another one replaced (a failure tried again): the same look, dimmed; its word says "retried" beside it. */
+.swatch[data-superseded] {
+  opacity: 0.45;
+}

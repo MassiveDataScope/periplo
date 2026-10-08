@@ -21,6 +21,8 @@ from periplo.etl.errors import (
     Ambiguous,
     Busy,
     EtlError,
+    NotCancellable,
+    NotRetryable,
     Rejected,
     Unknown,
     Upstream,
@@ -50,6 +52,8 @@ class FakePrefect:
     def __init__(self) -> None:
         self.routes: dict[tuple[str, str], Any] = {}
         self.requests: list[Recorded] = []
+        # A workspace without automations, unless a test gives it some.
+        self.on("POST", "/automations/filter", [])
 
     def on(self, method: str, path: str, body: Any = None, *, status: int = 200) -> None:
         self.routes[(method, path)] = httpx2.Response(status, json=body)
@@ -221,7 +225,22 @@ def listing(
                 [dep_id] = filters["deployment_id"]["any_"]
                 return httpx2.Response(200, json=recent_by_id.get(dep_id, [run_json()]))
             if state_filter.get("any_") == ["RUNNING", "PENDING"]:
-                return httpx2.Response(200, json=running_runs)
+                # Prefect's START_TIME_DESC order is the canned order; its limit cuts the rest.
+                going = [r for r in running_runs if r["state_type"] in ("RUNNING", "PENDING")]
+                return httpx2.Response(200, json=going[: body["limit"]])
+            if filters.get("state", {}).get("name") == {"any_": ["AwaitingRetry"]}:
+                awaiting = [r for r in running_runs if r.get("state_name") == "AwaitingRetry"]
+                return httpx2.Response(200, json=awaiting[: body["limit"]])
+            if state_filter.get("any_") == ["PENDING"] and filters.get("start_time") == {
+                "is_null_": True
+            }:
+                waiting = [
+                    run
+                    for run in running_runs
+                    if run["state_type"] == "PENDING" and run.get("start_time") is None
+                ]
+                waiting.sort(key=lambda run: run["expected_start_time"])
+                return httpx2.Response(200, json=waiting[: body["limit"]])
             if state_filter.get("any_") == ["SCHEDULED"]:
                 return httpx2.Response(200, json=upcoming_runs)
             raise AssertionError(f"unexpected flow_runs/filter body {body}")
@@ -269,6 +288,7 @@ async def test_list_bodies_without_tags() -> None:
             "sort": "START_TIME_DESC",
             "limit": 12,
         },
+        {"sort": "NAME_ASC", "limit": 200},
         {
             "flow_runs": {
                 "deployment_id": {"any_": ["dep-1"]},
@@ -292,6 +312,23 @@ async def test_list_bodies_without_tags() -> None:
             },
             "sort": "START_TIME_DESC",
             "limit": 21,
+        },
+        {
+            "flow_runs": {
+                "deployment_id": {"any_": ["dep-1"]},
+                "state": {"type": {"any_": ["PENDING"]}},
+                "start_time": {"is_null_": True},
+            },
+            "sort": "EXPECTED_START_TIME_ASC",
+            "limit": 5,
+        },
+        {
+            "flow_runs": {
+                "deployment_id": {"any_": ["dep-1"]},
+                "state": {"type": {"any_": ["SCHEDULED"]}, "name": {"any_": ["AwaitingRetry"]}},
+            },
+            "sort": "EXPECTED_START_TIME_ASC",
+            "limit": 5,
         },
         {
             "flow_runs": {
@@ -411,8 +448,6 @@ async def test_list_maps_deployment_and_last_run() -> None:
     assert (deployment.schedule.kind, deployment.schedule.cron) == ("cron", "0 6 * * *")
     assert deployment.schedule.timezone == "Europe/Madrid"
     assert deployment.schedule.active is True
-    assert deployment.cadence is None
-    assert deployment.mode is None
     assert deployment.schedule_inactive is False
     run = deployment.last_run
     assert run is not None
@@ -560,10 +595,11 @@ async def test_list_call_budget() -> None:
     result = await client.list_deployments()
     assert len(result.etls) == count
     # Budget per refresh: 2 (deployments, flows) + N (recent, one per deployment)
-    # + 2 (summary: failed_24h, completed_24h) + 1 (running) + 1 (upcoming)
-    # + 2 (history: 1h, 7d) [+ 1 more if any running run was found, for its batched
-    # task_runs query -- none here].
-    assert len(fake.requests) == 2 + count + 2 + 1 + 1 + 2
+    # + 1 (the chain automations) + 2 (summary: failed_24h, completed_24h) + 3 (running,
+    # and the runs waiting to start it may cut: never started, and retries awaiting a
+    # worker) + 1 (upcoming) + 2 (history: 1h, 7d)
+    # [+ 1 more if any running run was found, for its batched task_runs query -- none here].
+    assert len(fake.requests) == 2 + count + 1 + 2 + 3 + 1 + 2
     assert 1 < peak <= 8
 
 
@@ -614,10 +650,12 @@ async def test_list_is_cached_within_the_ttl_and_refetched_after() -> None:
     first = await client.list_deployments()
     clock.now = 9.9
     assert await client.list_deployments() == first
-    assert len(fake.requests) == 9  # 2 + 1 + 2 + 4, see test_list_call_budget
+    assert len(fake.requests) == 12  # 2 + 1 + 1 + 2 + 6, see test_list_call_budget
     clock.now = 10.0
     assert await client.list_deployments() == first
-    assert len(fake.requests) == 18
+    assert (
+        len(fake.requests) == 24
+    )  # both lists read the automations: their cache expires with the list
 
 
 @pytest.mark.asyncio
@@ -633,7 +671,7 @@ async def test_concurrent_list_on_a_cold_cache_fetches_once() -> None:
     client = PrefectOrchestrator(BASE_URL, transport=httpx2.MockTransport(slow))
     results = await asyncio.gather(*(client.list_deployments() for _ in range(5)))
     assert all(len(r.etls) == 1 for r in results)
-    assert len(fake.requests) == 9  # 2 + 1 + 2 + 4, see test_list_call_budget
+    assert len(fake.requests) == 12  # 2 + 1 + 1 + 2 + 6, see test_list_call_budget
 
 
 @pytest.mark.asyncio
@@ -645,7 +683,7 @@ async def test_list_failure_is_not_cached() -> None:
         await client.list_deployments()
     listing(fake, [deployment_json()])
     assert len((await client.list_deployments()).etls) == 1
-    assert len(fake.requests) == 10  # 1 (failed, uncached) + 9, see test_list_call_budget
+    assert len(fake.requests) == 13  # 1 (failed, uncached) + 12, see test_list_call_budget
 
 
 # --- recent, next_run_at, schedule_inactive, tags ----------------------------------
@@ -779,23 +817,6 @@ async def test_schedule_inactive_false_when_paused() -> None:
     )
     [deployment] = (await orchestrator(fake).list_deployments()).etls
     assert deployment.schedule_inactive is False
-
-
-@pytest.mark.asyncio
-async def test_cadence_and_mode_from_tags() -> None:
-    fake = FakePrefect()
-    listing(fake, [deployment_json(tags=["shop", "cadence:daily", "mode:backfill"])])
-    [deployment] = (await orchestrator(fake).list_deployments()).etls
-    assert deployment.cadence == "daily"
-    assert deployment.mode == "backfill"
-
-
-@pytest.mark.asyncio
-async def test_cadence_and_mode_default_to_none_without_their_tags() -> None:
-    fake = FakePrefect()
-    listing(fake, [deployment_json(tags=["shop"])])
-    [deployment] = (await orchestrator(fake).list_deployments()).etls
-    assert (deployment.cadence, deployment.mode) == (None, None)
 
 
 @pytest.mark.asyncio
@@ -1011,6 +1032,104 @@ async def test_running_runs_are_capped_at_twenty_and_flagged_truncated() -> None
     result = await orchestrator(fake).list_deployments()
     assert len(result.running) == 20
     assert result.running_truncated is True
+
+
+@pytest.mark.asyncio
+async def test_a_pending_run_says_when_it_was_due_to_start() -> None:
+    """A run stuck in Submitting has no start time: when it was due is all that says how long it has waited."""
+    fake = FakePrefect()
+    listing(
+        fake,
+        [deployment_json()],
+        running=[
+            run_json(
+                id="run-stuck",
+                state_type="PENDING",
+                state_name="Submitting",
+                expected_start_time="2026-08-16T06:00:00+00:00",
+                start_time=None,
+                end_time=None,
+            )
+        ],
+    )
+    result = await orchestrator(fake).list_deployments()
+    [running] = result.running
+    assert running.start_at is None
+    assert running.expected_start_at == datetime(2026, 8, 16, 6, tzinfo=UTC)
+
+
+def stuck_run_json(**overrides: Any) -> dict[str, Any]:
+    return run_json(
+        **{
+            "id": "run-stuck",
+            "state_type": "PENDING",
+            "state_name": "Submitting",
+            "expected_start_time": "2026-08-16T06:00:00+00:00",
+            "start_time": None,
+            "end_time": None,
+            **overrides,
+        }
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_run_waiting_for_weeks_survives_the_cap_of_newer_running_runs() -> None:
+    """START_TIME_DESC sorts by coalesce(start_time, expected_start_time): a run waiting
+    since August sorts last and falls past the cap, so a second query brings it back."""
+    fake = FakePrefect()
+    newer = [
+        run_json(
+            id=f"run-{i}",
+            state_type="RUNNING",
+            state_name="Running",
+            start_time=f"2026-09-23T11:{i:02d}:00+00:00",
+        )
+        for i in range(21)
+    ]
+    listing(fake, [deployment_json()], running=[*newer, stuck_run_json()])
+    result = await orchestrator(fake).list_deployments()
+    ids = [run.id for run in result.running]
+    assert ids == [*(f"run-{i}" for i in range(20)), "run-stuck"]
+    assert result.running_truncated is True
+
+
+@pytest.mark.asyncio
+async def test_runs_waiting_to_start_are_asked_for_oldest_first_and_few() -> None:
+    fake = FakePrefect()
+    listing(fake, [deployment_json()])
+    await orchestrator(fake).list_deployments()
+    [body] = [
+        r.body
+        for r in fake.requests
+        if r.body is not None
+        and r.body.get("flow_runs", {}).get("state", {}).get("type") == {"any_": ["PENDING"]}
+    ]
+    assert body["flow_runs"]["start_time"] == {"is_null_": True}
+    assert body["flow_runs"]["deployment_id"] == {"any_": ["dep-1"]}
+    assert (body["sort"], body["limit"]) == ("EXPECTED_START_TIME_ASC", 5)
+
+
+@pytest.mark.asyncio
+async def test_running_counts_an_etl_once_per_run_that_has_started_in_the_live_list() -> None:
+    """The console's notion: a run is going once it has started, PENDING with a start
+    included; a run that has not started is waiting, however long."""
+    fake = FakePrefect()
+    listing(
+        fake,
+        [
+            deployment_json(id="dep-1", name="daily-orders", tags=["shop"]),
+            deployment_json(id="dep-2", name="other-etl", tags=["shop"]),
+            deployment_json(id="dep-3", name="stuck-etl", tags=["shop"]),
+        ],
+        running=[
+            run_json(id="a", deployment_id="dep-1", state_type="RUNNING", end_time=None),
+            run_json(id="b", deployment_id="dep-1", state_type="RUNNING", end_time=None),
+            run_json(id="c", deployment_id="dep-2", state_type="PENDING", end_time=None),
+            stuck_run_json(deployment_id="dep-3"),
+        ],
+    )
+    result = await orchestrator(fake).list_deployments()
+    assert result.summary.running == 2
 
 
 @pytest.mark.asyncio
@@ -1447,6 +1566,692 @@ async def test_attempt_locks_are_pruned_alongside_the_attempt_cache(
 
     assert len(client._attempt_cache) == 2
     assert len(client._attempt_locks) <= 2
+
+
+# --- chained ETLs (automations) ---------------------------------------------------
+
+CHAIN_AUTOMATION_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
+
+def chain_automation_json(
+    upstream: str,
+    downstream_id: str,
+    *,
+    flow: str = "orders",
+    copies: bool = True,
+    **overrides: Any,
+) -> dict[str, Any]:
+    """Shaped like production's ``respondio_message_nlp_daily__automation_1``."""
+    base: dict[str, Any] = {
+        "id": CHAIN_AUTOMATION_ID,
+        "name": f"{upstream}__then",
+        "description": "",
+        "enabled": True,
+        "tags": [],
+        "trigger": {
+            "type": "event",
+            "match": {"prefect.resource.id": "prefect.flow-run.*"},
+            "match_related": [
+                {"prefect.resource.name": flow, "prefect.resource.role": "flow"},
+                {"prefect.resource.name": upstream, "prefect.resource.role": "deployment"},
+            ],
+            "after": [],
+            "expect": ["prefect.flow-run.Completed"],
+            "for_each": [],
+            "posture": "Reactive",
+            "threshold": 1,
+            "within": 0,
+        },
+        "actions": [
+            {
+                "type": "run-deployment",
+                "source": "selected",
+                "deployment_id": downstream_id,
+                "parameters": {
+                    "run_date": {
+                        "template": "{{ flow_run.parameters['run_date'] }}",
+                        "__prefect_kind": "jinja",
+                    }
+                }
+                if copies
+                else {"mode": "full"},
+            }
+        ],
+        "actions_on_trigger": [],
+        "actions_on_resolve": [],
+    }
+    return {**base, **overrides}
+
+
+AUTOMATION_CREATOR = {"id": CHAIN_AUTOMATION_ID, "type": "AUTOMATION", "display_value": "x__then"}
+
+
+@pytest.mark.asyncio
+async def test_list_says_which_etl_starts_which() -> None:
+    fake = FakePrefect()
+    listing(
+        fake,
+        [
+            deployment_json(id="dep-1", name="daily-orders"),
+            deployment_json(id="dep-2", name="orders-model", schedules=[]),
+        ],
+    )
+    fake.on("POST", "/automations/filter", [chain_automation_json("daily-orders", "dep-2")])
+    result = await orchestrator(fake).list_deployments()
+    by_name = {d.name: d for d in result.etls}
+    assert by_name["daily-orders"].triggers == ["orders-model"]
+    assert by_name["daily-orders"].triggered_by is None
+    trigger = by_name["orders-model"].triggered_by
+    assert trigger is not None
+    assert (trigger.etl, trigger.on, trigger.passes) == ("daily-orders", "completed", ["run_date"])
+    [body] = [r.body for r in fake.requests if r.path == "/automations/filter"]
+    assert body == {"sort": "NAME_ASC", "limit": 200}
+
+
+@pytest.mark.asyncio
+async def test_list_without_automations_it_may_read_still_answers() -> None:
+    fake = FakePrefect()
+    listing(fake, [deployment_json()])
+    fake.on("POST", "/automations/filter", {"detail": "forbidden"}, status=403)
+    with structlog.testing.capture_logs() as captured:
+        result = await orchestrator(fake).list_deployments()
+    assert [(d.triggered_by, d.triggers) for d in result.etls] == [(None, [])]
+    unavailable = [e["event"] for e in captured if e["event"].endswith("_unavailable")]
+    assert unavailable == ["etl.automations_unavailable"]
+
+
+@pytest.mark.asyncio
+async def test_unreadable_automations_raise_a_fresh_error_while_not_asked_again() -> None:
+    fake = FakePrefect()
+    fake.on("POST", "/automations/filter", {"detail": "down"}, status=503)
+    client = orchestrator(fake, clock=Clock())
+    raised: list[EtlError] = []
+    for _ in range(3):
+        with pytest.raises(EtlError) as caught:
+            await client._chain_links()
+        raised.append(caught.value)
+    assert fake.paths().count("POST /automations/filter") == 1
+    assert raised[1] is not raised[2]
+
+
+def _at(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def _within(value: str | None, window: dict[str, str] | None) -> bool:
+    """Whether a time is in a Prefect ``after_``/``before_`` window, both ends included."""
+    if window is None:
+        return True
+    if value is None:
+        return False
+    at = _at(value)
+    after, before = window.get("after_"), window.get("before_")
+    return (after is None or at >= _at(after)) and (before is None or at <= _at(before))
+
+
+def chained_runs(
+    fake: FakePrefect,
+    run: dict[str, Any],
+    *,
+    upstream: list[dict[str, Any]] | None = None,
+    downstream: list[dict[str, Any]] | None = None,
+) -> None:
+    """Wires one run, the upstream runs asked for by deployment, and the downstream runs
+    asked for after this one ended, answering each as Prefect would: within the asked time
+    window and creator, sorted and limited as asked; and the names of both deployments."""
+
+    def flow_runs(body: dict[str, Any]) -> httpx2.Response:
+        filters = body["flow_runs"]
+        if "id" in filters:
+            return httpx2.Response(200, json=[run])
+        if "deployments" in body:
+            found = [
+                r
+                for r in upstream or []
+                if r["state_type"] == "COMPLETED"
+                and _within(r["end_time"], filters.get("end_time"))
+            ]
+            found.sort(key=lambda r: r["end_time"], reverse=True)
+            return httpx2.Response(200, json=found[: body["limit"]])
+        creators = filters.get("created_by", {}).get("id_")
+        found = [
+            r
+            for r in downstream or []
+            if _within(r["expected_start_time"], filters.get("expected_start_time"))
+            and (creators is None or (r.get("created_by") or {}).get("id") in creators)
+        ]
+        found.sort(key=lambda r: r["expected_start_time"])
+        return httpx2.Response(200, json=found[: body["limit"]])
+
+    fake.respond("POST", "/flow_runs/filter", flow_runs)
+    fake.on("GET", "/deployments/dep-1", deployment_json(id="dep-1", name="daily-orders"))
+    fake.on("GET", "/deployments/dep-2", deployment_json(id="dep-2", name="orders-model"))
+    fake.on("GET", "/flows/flow-1", {"id": "flow-1", "name": "orders"})
+
+
+DOWN_ID = "d0000000-0000-4000-8000-000000000001"
+UP_ID = "a0000000-0000-4000-8000-000000000001"
+CREATED = "2026-09-23T07:00:00+00:00"
+
+
+def downstream_run(**overrides: Any) -> dict[str, Any]:
+    """A run the chain automation created at 07:00, from the 06:00 upstream run."""
+    return run_json(
+        **{
+            "id": DOWN_ID,
+            "deployment_id": "dep-2",
+            "created": CREATED,
+            "expected_start_time": CREATED,
+            "start_time": CREATED,
+            "end_time": "2026-09-23T07:10:00+00:00",
+            "created_by": AUTOMATION_CREATOR,
+            "parameters": {"run_date": "2026-09-22"},
+            **overrides,
+        }
+    )
+
+
+def upstream_run(id_: str, end_time: str, run_date: str = "2026-09-22") -> dict[str, Any]:
+    return run_json(
+        id=id_,
+        name=id_,
+        deployment_id="dep-1",
+        end_time=end_time,
+        parameters={"run_date": run_date},
+    )
+
+
+async def upstream_of(
+    run: dict[str, Any], upstream: list[dict[str, Any]], **automation: Any
+) -> Any:
+    fake = FakePrefect()
+    fake.on(
+        "POST",
+        "/automations/filter",
+        [chain_automation_json("daily-orders", "dep-2", **automation)],
+    )
+    chained_runs(fake, run, upstream=upstream)
+    return await orchestrator(fake).get_run(run["id"]), fake
+
+
+@pytest.mark.asyncio
+async def test_a_run_an_automation_created_names_the_upstream_run_that_started_it() -> None:
+    """Within the hour before it was created, the upstream's run whose copied values match
+    this run's, over a newer one that does not match."""
+    upstream = [
+        upstream_run("newer", "2026-09-23T06:58:00+00:00", run_date="2026-09-23"),
+        upstream_run("matching", "2026-09-23T06:50:00+00:00"),
+    ]
+    detail, fake = await upstream_of(downstream_run(), upstream)
+    assert detail.trigger == "automation"
+    assert detail.triggered_by_run is not None
+    assert (
+        detail.triggered_by_run.etl,
+        detail.triggered_by_run.run_id,
+        detail.triggered_by_run.run_name,
+    ) == ("daily-orders", "matching", "matching")
+    [asked] = [r.body for r in fake.requests if r.body and "deployments" in r.body]
+    assert asked == {
+        "flow_runs": {
+            "state": {"type": {"any_": ["COMPLETED"]}},
+            "end_time": {
+                "after_": "2026-09-23T06:00:00+00:00",
+                "before_": "2026-09-23T07:02:00+00:00",
+            },
+        },
+        "deployments": {"operator": "or_", "name": {"any_": ["daily-orders"]}},
+        "flows": {"name": {"any_": ["orders"]}},
+        "sort": "END_TIME_DESC",
+        "limit": 5,
+    }
+
+
+@pytest.mark.asyncio
+async def test_an_upstream_run_ending_a_moment_after_by_the_clock_is_still_the_one() -> None:
+    """Prefect's and the worker's clocks may disagree by seconds: two minutes are allowed."""
+    upstream = [upstream_run("skewed", "2026-09-23T07:01:00+00:00")]
+    detail, _ = await upstream_of(downstream_run(), upstream)
+    assert detail.triggered_by_run is not None
+    assert detail.triggered_by_run.run_id == "skewed"
+
+
+@pytest.mark.asyncio
+async def test_of_two_upstream_runs_the_same_day_the_one_just_before_is_named() -> None:
+    upstream = [
+        upstream_run("evening", "2026-09-23T18:00:00+00:00"),
+        upstream_run("morning", "2026-09-23T06:00:00+00:00"),
+    ]
+    evening = downstream_run(
+        created="2026-09-23T18:01:00+00:00", expected_start_time="2026-09-23T18:01:00+00:00"
+    )
+    detail, _ = await upstream_of(evening, upstream)
+    assert detail.triggered_by_run is not None
+    assert detail.triggered_by_run.run_id == "evening"
+
+
+@pytest.mark.asyncio
+async def test_an_upstream_run_whose_copied_values_differ_is_not_the_one() -> None:
+    upstream = [upstream_run("other-day", "2026-09-23T06:50:00+00:00", run_date="2026-09-20")]
+    detail, _ = await upstream_of(downstream_run(), upstream)
+    assert detail.triggered_by_run is None
+
+
+@pytest.mark.asyncio
+async def test_with_nothing_copied_the_window_alone_names_the_upstream_run() -> None:
+    """No copied value tells the runs apart: the newest one completed in the hour before
+    is named, never one from long before."""
+    inside = [upstream_run("in-the-hour", "2026-09-23T06:40:00+00:00")]
+    detail, _ = await upstream_of(downstream_run(), inside, copies=False)
+    assert detail.triggered_by_run is not None
+    assert detail.triggered_by_run.run_id == "in-the-hour"
+    before = [upstream_run("yesterday", "2026-09-22T06:40:00+00:00")]
+    detail, _ = await upstream_of(downstream_run(), before, copies=False)
+    assert detail.triggered_by_run is None
+
+
+@pytest.mark.asyncio
+async def test_the_upstream_run_is_asked_for_once_while_its_run_goes_on() -> None:
+    fake = FakePrefect()
+    fake.on("POST", "/automations/filter", [chain_automation_json("daily-orders", "dep-2")])
+    going = downstream_run(state_type="RUNNING", state_name="Running", end_time=None)
+    chained_runs(fake, going, upstream=[upstream_run("matching", "2026-09-23T06:50:00+00:00")])
+    clock = Clock()
+    client = orchestrator(fake, clock=clock)
+    await client.get_run(DOWN_ID)
+    clock.now = 60.0
+    detail = await client.get_run(DOWN_ID)
+    assert detail.triggered_by_run is not None
+    assert len([r for r in fake.requests if r.body and "deployments" in r.body]) == 1
+
+
+ENDED = "2026-09-23T06:00:14+00:00"
+
+
+async def downstream_of(
+    downstream: list[dict[str, Any]], *, now: datetime = NOW, clock: Clock | None = None
+) -> tuple[Any, FakePrefect, PrefectOrchestrator]:
+    fake = FakePrefect()
+    fake.on("POST", "/automations/filter", [chain_automation_json("daily-orders", "dep-2")])
+    chained_runs(
+        fake, run_json(id=UP_ID, deployment_id="dep-1", end_time=ENDED), downstream=downstream
+    )
+    client = orchestrator(fake, now=lambda: now, clock=clock or Clock())
+    return await client.get_run(UP_ID), fake, client
+
+
+def by_hand(index: int) -> dict[str, Any]:
+    return run_json(
+        id=f"by-hand-{index}",
+        deployment_id="dep-2",
+        expected_start_time=f"2026-09-23T06:0{index}:30+00:00",
+        created_by={"id": None, "type": "USER", "display_value": "alice"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_completed_run_names_the_downstream_run_its_automation_created() -> None:
+    """Asked for by its creator, the automation, so runs started by hand in between do not
+    crowd it out."""
+    started = downstream_run(name="downstream", expected_start_time="2026-09-23T06:09:00+00:00")
+    detail, fake, _ = await downstream_of([*(by_hand(i) for i in range(6)), started])
+    assert detail.triggered_by_run is None
+    assert [(r.etl, r.run_id, r.run_name) for r in detail.triggered_runs] == [
+        ("orders-model", DOWN_ID, "downstream")
+    ]
+    [asked] = [
+        r.body for r in fake.requests if r.body and "created_by" in r.body.get("flow_runs", {})
+    ]
+    assert asked == {
+        "flow_runs": {
+            "deployment_id": {"any_": ["dep-2"]},
+            "created_by": {"id_": [CHAIN_AUTOMATION_ID], "type_": ["AUTOMATION"]},
+            "expected_start_time": {
+                "after_": "2026-09-23T05:58:14+00:00",
+                "before_": "2026-09-23T07:00:14+00:00",
+            },
+        },
+        "sort": "EXPECTED_START_TIME_ASC",
+        "limit": 1,
+    }
+
+
+@pytest.mark.asyncio
+async def test_a_downstream_run_of_the_next_cycle_is_not_this_ones() -> None:
+    """The downstream ETL never ran after this run: its run of the next day is not linked."""
+    tomorrow = downstream_run(expected_start_time="2026-09-24T06:09:00+00:00")
+    detail, _, _ = await downstream_of([tomorrow])
+    assert detail.triggered_runs == []
+
+
+@pytest.mark.asyncio
+async def test_a_run_just_completed_asks_again_soon_for_the_run_it_is_about_to_start() -> None:
+    """The automation creates the downstream run a moment after this one completes: until
+    half an hour has passed, a missing one is asked for again, not cached for the hour."""
+    clock = Clock()
+    just_after = datetime(2026, 9, 23, 6, 5, tzinfo=UTC)
+    _, fake, client = await downstream_of([], now=just_after, clock=clock)
+    clock.now = 10.0
+    await client.get_run(UP_ID)
+    asked = [r for r in fake.requests if r.body and "created_by" in r.body.get("flow_runs", {})]
+    assert len(asked) == 2
+
+
+@pytest.mark.asyncio
+async def test_a_run_completed_long_ago_keeps_its_downstream_runs_for_the_hour() -> None:
+    clock = Clock()
+    _, fake, client = await downstream_of([], clock=clock)
+    clock.now = 600.0
+    await client.get_run(UP_ID)
+    asked = [r for r in fake.requests if r.body and "created_by" in r.body.get("flow_runs", {})]
+    assert len(asked) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_completed_run_of_another_flow_than_the_automation_names_starts_nothing() -> None:
+    fake = FakePrefect()
+    automation = chain_automation_json("daily-orders", "dep-2", flow="another-flow")
+    fake.on("POST", "/automations/filter", [automation])
+    chained_runs(
+        fake,
+        run_json(id=UP_ID, deployment_id="dep-1", end_time=ENDED),
+        downstream=[downstream_run()],
+    )
+    detail = await orchestrator(fake).get_run(UP_ID)
+    assert detail.triggered_runs == []
+    assert not [r for r in fake.requests if r.body and "created_by" in r.body.get("flow_runs", {})]
+
+
+@pytest.mark.asyncio
+async def test_a_run_an_automation_created_does_not_name_it() -> None:
+    """An automation's name can carry a hidden upstream ETL's name: it is never sent."""
+    fake = FakePrefect()
+    fake.on("POST", "/automations/filter", [chain_automation_json("daily-orders", "dep-2")])
+    chained_runs(fake, downstream_run())
+    detail = await orchestrator(fake).get_run(DOWN_ID)
+    assert detail.created_by is None
+
+
+@pytest.mark.asyncio
+async def test_a_full_page_of_automations_is_said_to_be_cut_short() -> None:
+    fake = FakePrefect()
+    listing(fake, [deployment_json()])
+    page = [
+        chain_automation_json("daily-orders", "dep-2", id=f"auto-{i}", name=f"auto-{i:03}")
+        for i in range(200)
+    ]
+    fake.on("POST", "/automations/filter", page)
+    with structlog.testing.capture_logs() as captured:
+        await orchestrator(fake).list_deployments()
+    assert [e["event"] for e in captured if e["event"] == "etl.automations_truncated"] == [
+        "etl.automations_truncated"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_a_recent_run_says_how_many_attempts_it_took() -> None:
+    """Known even when its attempts are not, so a retried run is always marked."""
+    fake = FakePrefect()
+    listing(fake, [deployment_json()], recent={"dep-1": [run_json(id="retried", run_count=3)]})
+    fake.on("GET", "/flow_run_states/", [])
+    [etl] = (await orchestrator(fake).list_deployments()).etls
+    assert [r.run_count for r in etl.recent] == [3]
+
+
+@pytest.mark.asyncio
+async def test_a_recent_run_says_when_it_was_due_to_start() -> None:
+    """A run cancelled before it started has no start time: its expected start still dates it."""
+    fake = FakePrefect()
+    cancelled = run_json(
+        id="never-started",
+        state_type="CANCELLED",
+        state_name="Cancelled",
+        start_time=None,
+        end_time=None,
+    )
+    listing(fake, [deployment_json()], recent={"dep-1": [cancelled]})
+    [etl] = (await orchestrator(fake).list_deployments()).etls
+    [recent] = etl.recent
+    assert (recent.start_at, recent.expected_start_at) == (
+        None,
+        datetime(2026, 9, 23, 6, tzinfo=UTC),
+    )
+
+
+def failing_once(
+    fake: FakePrefect, when: Callable[[dict[str, Any]], bool], fail: Callable[[], httpx2.Response]
+) -> None:
+    """The first ``/flow_runs/filter`` request that *when* matches fails as *fail* does;
+    every other one is answered as before."""
+    answer = fake.routes[("POST", "/flow_runs/filter")]
+    failed: list[bool] = []
+
+    def flow_runs(body: dict[str, Any]) -> httpx2.Response:
+        if when(body) and not failed:
+            failed.append(True)
+            return fail()
+        return answer(body)  # type: ignore[no-any-return]
+
+    fake.respond("POST", "/flow_runs/filter", flow_runs)
+
+
+def asks_by_creator(body: dict[str, Any]) -> bool:
+    return "created_by" in body["flow_runs"]
+
+
+def asks_upstream(body: dict[str, Any]) -> bool:
+    return "deployments" in body
+
+
+def times_out() -> httpx2.Response:
+    raise httpx2.ReadTimeout("slow")
+
+
+@pytest.mark.asyncio
+async def test_a_prefect_without_the_creator_filter_still_finds_the_downstream_run() -> None:
+    """A 422 to ``created_by`` (a Prefect older than 3.7) is remembered: the runs due in the
+    window are asked for without it, more of them, and told apart by their creator here."""
+    fake = FakePrefect()
+    fake.on("POST", "/automations/filter", [chain_automation_json("daily-orders", "dep-2")])
+    started = downstream_run(name="downstream", expected_start_time="2026-09-23T06:09:00+00:00")
+    upstream_run_ = run_json(id=UP_ID, deployment_id="dep-1", end_time=ENDED)
+    chained_runs(fake, upstream_run_, downstream=[by_hand(1), started])
+    rejected: list[dict[str, Any]] = []
+    answer = fake.routes[("POST", "/flow_runs/filter")]
+
+    def no_creator_filter(body: dict[str, Any]) -> httpx2.Response:
+        if asks_by_creator(body):
+            rejected.append(body)
+            return httpx2.Response(422, json={"detail": "extra fields not permitted"})
+        return answer(body)  # type: ignore[no-any-return]
+
+    fake.respond("POST", "/flow_runs/filter", no_creator_filter)
+    clock = Clock()
+    client = orchestrator(fake, clock=clock)
+    with structlog.testing.capture_logs() as captured:
+        detail = await client.get_run(UP_ID)
+    assert [r.run_id for r in detail.triggered_runs] == [DOWN_ID]
+    assert [e["event"] for e in captured if e["event"] == "etl.created_by_filter_unsupported"] == [
+        "etl.created_by_filter_unsupported"
+    ]
+    windowed = [
+        r.body
+        for r in fake.requests
+        if r.body
+        and "expected_start_time" in r.body.get("flow_runs", {})
+        and not asks_by_creator(r.body)
+    ]
+    assert [body["limit"] for body in windowed] == [5]
+    clock.now = 7200.0
+    await client.get_run(UP_ID)
+    assert len(rejected) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_failing_downstream_query_leaves_the_page_and_is_asked_again_soon() -> None:
+    clock = Clock()
+    fake = FakePrefect()
+    fake.on("POST", "/automations/filter", [chain_automation_json("daily-orders", "dep-2")])
+    started = downstream_run(expected_start_time="2026-09-23T06:09:00+00:00")
+    chained_runs(
+        fake, run_json(id=UP_ID, deployment_id="dep-1", end_time=ENDED), downstream=[started]
+    )
+    failing_once(fake, asks_by_creator, times_out)
+    client = orchestrator(fake, clock=clock)
+    with structlog.testing.capture_logs() as captured:
+        detail = await client.get_run(UP_ID)
+    assert detail.triggered_runs == []
+    [unavailable] = [e for e in captured if e["event"] == "etl.chain_link_unavailable"]
+    assert unavailable["status"] == 502
+    clock.now = 31.0
+    assert [r.run_id for r in (await client.get_run(UP_ID)).triggered_runs] == [DOWN_ID]
+
+
+def automations_failing_once(fake: FakePrefect, automations: list[dict[str, Any]]) -> None:
+    """``/automations/filter`` answers 503 once, then *automations*."""
+    answers = [httpx2.Response(503, json={"detail": "down"})]
+    fake.respond(
+        "POST",
+        "/automations/filter",
+        lambda _body: answers.pop() if answers else httpx2.Response(200, json=automations),
+    )
+
+
+@pytest.mark.asyncio
+async def test_unreadable_automations_do_not_lose_a_runs_upstream_for_good() -> None:
+    clock = Clock()
+    fake = FakePrefect()
+    chained_runs(
+        fake, downstream_run(), upstream=[upstream_run("matching", "2026-09-23T06:50:00+00:00")]
+    )
+    automations_failing_once(fake, [chain_automation_json("daily-orders", "dep-2")])
+    client = orchestrator(fake, clock=clock)
+    assert (await client.get_run(DOWN_ID)).triggered_by_run is None
+    clock.now = 10.0
+    assert (await client.get_run(DOWN_ID)).triggered_by_run is None
+    assert fake.paths().count("POST /automations/filter") == 1
+    clock.now = 31.0
+    later = await client.get_run(DOWN_ID)
+    assert later.triggered_by_run is not None
+    assert later.triggered_by_run.run_id == "matching"
+
+
+@pytest.mark.asyncio
+async def test_unreadable_automations_do_not_settle_a_completed_runs_downstream() -> None:
+    clock = Clock()
+    fake = FakePrefect()
+    started = downstream_run(expected_start_time="2026-09-23T06:09:00+00:00")
+    chained_runs(
+        fake, run_json(id=UP_ID, deployment_id="dep-1", end_time=ENDED), downstream=[started]
+    )
+    automations_failing_once(fake, [chain_automation_json("daily-orders", "dep-2")])
+    client = orchestrator(fake, clock=clock)
+    assert (await client.get_run(UP_ID)).triggered_runs == []
+    clock.now = 31.0
+    assert [r.run_id for r in (await client.get_run(UP_ID)).triggered_runs] == [DOWN_ID]
+
+
+@pytest.mark.asyncio
+async def test_a_failing_upstream_query_leaves_the_page_and_is_not_kept() -> None:
+    clock = Clock()
+    fake = FakePrefect()
+    fake.on("POST", "/automations/filter", [chain_automation_json("daily-orders", "dep-2")])
+    chained_runs(
+        fake, downstream_run(), upstream=[upstream_run("matching", "2026-09-23T06:50:00+00:00")]
+    )
+    failing_once(fake, asks_upstream, lambda: httpx2.Response(503, json={"detail": "down"}))
+    client = orchestrator(fake, clock=clock)
+    with structlog.testing.capture_logs() as captured:
+        detail = await client.get_run(DOWN_ID)
+    assert detail.triggered_by_run is None
+    [unavailable] = [e for e in captured if e["event"] == "etl.chain_link_unavailable"]
+    assert set(unavailable) == {"event", "log_level", "status"}
+    clock.now = 31.0
+    later = await client.get_run(DOWN_ID)
+    assert later.triggered_by_run is not None
+    assert later.triggered_by_run.run_id == "matching"
+
+
+@pytest.mark.asyncio
+async def test_a_chain_link_that_keeps_failing_is_asked_again_only_after_a_while() -> None:
+    """The run itself is asked again at the live-run TTL; a chain link that failed, only
+    after _CHAIN_RETRY_AFTER, so a broken Prefect is not asked every few seconds."""
+    clock = Clock()
+    fake = FakePrefect()
+    fake.on("POST", "/automations/filter", [chain_automation_json("daily-orders", "dep-2")])
+    chained_runs(fake, run_json(id=UP_ID, deployment_id="dep-1", end_time=ENDED))
+    answer = fake.routes[("POST", "/flow_runs/filter")]
+
+    def always_down(body: dict[str, Any]) -> httpx2.Response:
+        if asks_by_creator(body):
+            return httpx2.Response(503, json={"detail": "down"})
+        return answer(body)  # type: ignore[no-any-return]
+
+    fake.respond("POST", "/flow_runs/filter", always_down)
+    client = orchestrator(fake, clock=clock)
+
+    def asked() -> int:
+        return len(
+            [r for r in fake.requests if r.body and "created_by" in r.body.get("flow_runs", {})]
+        )
+
+    with structlog.testing.capture_logs() as captured:
+        await client.get_run(UP_ID)
+        clock.now = 10.0
+        await client.get_run(UP_ID)
+        assert asked() == 1
+        clock.now = 31.0
+        await client.get_run(UP_ID)
+    assert asked() == 2
+    assert len([e for e in captured if e["event"] == "etl.chain_link_unavailable"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_a_creator_filter_rejected_for_another_reason_stays_on() -> None:
+    """Only a 422 says Prefect does not know the filter: a 400 fails the link softly and
+    the filter is asked for again next time."""
+    clock = Clock()
+    fake = FakePrefect()
+    fake.on("POST", "/automations/filter", [chain_automation_json("daily-orders", "dep-2")])
+    started = downstream_run(expected_start_time="2026-09-23T06:09:00+00:00")
+    chained_runs(
+        fake, run_json(id=UP_ID, deployment_id="dep-1", end_time=ENDED), downstream=[started]
+    )
+    failing_once(fake, asks_by_creator, lambda: httpx2.Response(400, json={"detail": "bad"}))
+    client = orchestrator(fake, clock=clock)
+    with structlog.testing.capture_logs() as captured:
+        detail = await client.get_run(UP_ID)
+    assert detail.triggered_runs == []
+    assert not [e for e in captured if e["event"] == "etl.created_by_filter_unsupported"]
+    clock.now = 31.0
+    assert [r.run_id for r in (await client.get_run(UP_ID)).triggered_runs] == [DOWN_ID]
+    assert (
+        len([r for r in fake.requests if r.body and "created_by" in r.body.get("flow_runs", {})])
+        == 2
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_run_not_completed_nor_created_by_an_automation_asks_for_no_automation() -> None:
+    fake = FakePrefect()
+    fake.on("POST", "/flow_runs/filter", [run_json(state_type="FAILED", state_name="Failed")])
+    fake.on("GET", "/deployments/dep-1", deployment_json())
+    fake.on("GET", "/flows/flow-1", {"id": "flow-1", "name": "orders"})
+    detail = await orchestrator(fake).get_run("11111111-1111-1111-1111-111111111111")
+    assert (detail.triggered_by_run, detail.triggered_runs) == (None, [])
+    assert "POST /automations/filter" not in fake.paths()
+
+
+@pytest.mark.asyncio
+async def test_automations_are_read_once_for_the_list_and_a_run_shortly_after() -> None:
+    fake = FakePrefect()
+    listing(fake, [deployment_json()])
+    client = orchestrator(fake, clock=Clock())
+    await client.list_deployments()
+    fake.on("POST", "/flow_runs/filter", [run_json()])
+    fake.on("GET", "/deployments/dep-1", deployment_json())
+    fake.on("GET", "/flows/flow-1", {"id": "flow-1", "name": "orders"})
+    await client.get_run("11111111-1111-1111-1111-111111111111")
+    assert fake.paths().count("POST /automations/filter") == 1
 
 
 # --- run detail -------------------------------------------------------------------
@@ -2861,10 +3666,10 @@ async def test_list_cache_is_kept_per_only() -> None:
     client = orchestrator(fake, clock=Clock())
     full = await client.list_deployments()
     only = await client.list_deployments(only=frozenset({"daily-orders"}))
-    assert len(fake.requests) == 18
+    assert len(fake.requests) == 23  # the second list reuses the automations just read
     assert await client.list_deployments() == full
     assert await client.list_deployments(only=frozenset({"daily-orders"})) == only
-    assert len(fake.requests) == 18
+    assert len(fake.requests) == 23
 
 
 @pytest.mark.asyncio
@@ -2881,7 +3686,7 @@ async def test_create_run_invalidates_every_cached_list() -> None:
 
     before = len(fake.requests)
     await client.list_deployments(only=frozenset({"daily-orders"}))
-    assert len(fake.requests) == before + 9
+    assert len(fake.requests) == before + 11
 
 
 def test_prefect_resolves_runs_to_their_etl() -> None:
@@ -2937,4 +3742,540 @@ async def test_list_only_may_be_any_collection_of_names() -> None:
     client = orchestrator(fake, clock=Clock())
     first = await client.list_deployments(only=["daily-orders"])
     assert await client.list_deployments(only=frozenset({"daily-orders"})) == first
-    assert len(fake.requests) == 9
+    assert len(fake.requests) == 12
+
+
+# --- cancel and retry ----------------------------------------------------------------
+
+CONTROL_ID = "22222222-2222-4222-8222-222222222222"
+CONTROL_NOW = datetime(2026, 10, 8, 9, 0, tzinfo=UTC)
+
+
+def controllable(
+    fake: FakePrefect,
+    run: dict[str, Any],
+    *,
+    outcome: str = "ACCEPT",
+    answer_state: str | None = None,
+) -> None:
+    """One run Prefect knows, which ``set_state`` moves to the proposed state when it
+    answers ``outcome`` ACCEPT, or to ``answer_state`` (a REJECT setting another one, or
+    leaving it as it was); its deployment and flow, for the run read back afterwards."""
+    current = {"run": run}
+
+    def flow_runs(body: dict[str, Any]) -> httpx2.Response:
+        if body["flow_runs"].get("id") != {"any_": [CONTROL_ID]}:
+            return httpx2.Response(200, json=[])
+        return httpx2.Response(200, json=[current["run"]])
+
+    def set_state(body: dict[str, Any]) -> httpx2.Response:
+        resulting = body["state"]["type"] if outcome == "ACCEPT" else answer_state
+        if resulting is not None:
+            current["run"] = {
+                **current["run"],
+                "state_type": resulting,
+                "state_name": resulting.title(),
+                "state": {"message": body["state"]["message"], "timestamp": "2026-10-08T09:00:00Z"},
+            }
+        state = {"type": resulting, "name": resulting.title()} if resulting is not None else None
+        answer = {"status": outcome, "state": state, "details": {"reason": "secret"}}
+        return httpx2.Response(200, json=answer)
+
+    fake.respond("POST", "/flow_runs/filter", flow_runs)
+    fake.respond("POST", f"/flow_runs/{CONTROL_ID}/set_state", set_state)
+    fake.on("GET", "/deployments/dep-1", deployment_json())
+    fake.on("GET", "/flows/flow-1", {"id": "flow-1", "name": "orders"})
+
+
+def control_run(**overrides: Any) -> dict[str, Any]:
+    base = {
+        "id": CONTROL_ID,
+        "state_type": "RUNNING",
+        "state_name": "Running",
+        "end_time": None,
+        "infrastructure_pid": "arn:ecs:task/1",
+    }
+    return run_json(**{**base, **overrides})
+
+
+def set_state_bodies(fake: FakePrefect) -> list[Any]:
+    return [r.body for r in fake.requests if r.path.endswith("/set_state")]
+
+
+@pytest.mark.asyncio
+async def test_cancel_proposes_cancelling_to_a_running_run_and_reads_it_back() -> None:
+    fake = FakePrefect()
+    controllable(fake, control_run())
+    detail = await orchestrator(fake, now=lambda: CONTROL_NOW).cancel_run(
+        CONTROL_ID, force=False, by="ana"
+    )
+    assert set_state_bodies(fake) == [
+        {
+            "state": {
+                "type": "CANCELLING",
+                "name": "Cancelling",
+                "message": "Cancelled from Periplo by ana",
+            },
+            "force": False,
+        }
+    ]
+    assert (detail.id, detail.state) == (CONTROL_ID, "CANCELLING")
+
+
+@pytest.mark.asyncio
+async def test_cancel_moves_a_run_that_never_started_straight_to_cancelled() -> None:
+    fake = FakePrefect()
+    stuck = control_run(
+        state_type="PENDING", state_name="Submitting", start_time=None, infrastructure_pid=None
+    )
+    controllable(fake, stuck)
+    detail = await orchestrator(fake, now=lambda: CONTROL_NOW).cancel_run(
+        CONTROL_ID, force=False, by=None
+    )
+    assert set_state_bodies(fake) == [
+        {
+            "state": {
+                "type": "CANCELLED",
+                "name": "Cancelled",
+                "message": "Cancelled from Periplo",
+            },
+            "force": True,
+        }
+    ]
+    assert detail.state == "CANCELLED"
+
+
+@pytest.mark.asyncio
+async def test_force_cancel_reads_how_long_the_run_has_been_cancelling() -> None:
+    fake = FakePrefect()
+    cancelling = control_run(
+        state_type="CANCELLING",
+        state_name="Cancelling",
+        state={"message": None, "timestamp": "2026-10-08T08:45:00Z"},
+    )
+    controllable(fake, cancelling)
+    await orchestrator(fake, now=lambda: CONTROL_NOW).cancel_run(CONTROL_ID, force=True, by=None)
+    assert [(b["state"]["type"], b["force"]) for b in set_state_bodies(fake)] == [
+        ("CANCELLED", True)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_cancel_of_a_finished_run_asks_prefect_nothing() -> None:
+    fake = FakePrefect()
+    controllable(fake, control_run(state_type="COMPLETED", state_name="Completed"))
+    with pytest.raises(NotCancellable):
+        await orchestrator(fake).cancel_run(CONTROL_ID, force=False, by=None)
+    assert set_state_bodies(fake) == []
+
+
+@pytest.mark.asyncio
+async def test_cancel_refused_by_prefect_is_not_cancellable_without_its_reason() -> None:
+    fake = FakePrefect()
+    controllable(fake, control_run(), outcome="ABORT")
+    with pytest.raises(NotCancellable) as excinfo:
+        await orchestrator(fake).cancel_run(CONTROL_ID, force=False, by=None)
+    assert "secret" not in excinfo.value.message
+
+
+@pytest.mark.asyncio
+async def test_retry_proposes_awaiting_retry_on_the_same_run() -> None:
+    fake = FakePrefect()
+    controllable(fake, control_run(state_type="FAILED", state_name="Failed", run_count=1))
+    detail = await orchestrator(fake).retry_run(CONTROL_ID, by="ana")
+    assert set_state_bodies(fake) == [
+        {
+            "state": {
+                "type": "SCHEDULED",
+                "name": "AwaitingRetry",
+                "message": "Retried from Periplo by ana",
+            },
+            "force": False,
+        }
+    ]
+    assert (detail.id, detail.state) == (CONTROL_ID, "SCHEDULED")
+
+
+@pytest.mark.asyncio
+async def test_retry_of_a_completed_run_asks_prefect_nothing() -> None:
+    fake = FakePrefect()
+    controllable(fake, control_run(state_type="COMPLETED", state_name="Completed"))
+    with pytest.raises(NotRetryable):
+        await orchestrator(fake).retry_run(CONTROL_ID, by=None)
+    assert set_state_bodies(fake) == []
+
+
+@pytest.mark.asyncio
+async def test_retry_refused_by_prefect_is_not_retryable() -> None:
+    fake = FakePrefect()
+    controllable(fake, control_run(state_type="CRASHED", state_name="Crashed"), outcome="ABORT")
+    with pytest.raises(NotRetryable):
+        await orchestrator(fake).retry_run(CONTROL_ID, by=None)
+
+
+@pytest.mark.asyncio
+async def test_a_run_outside_the_tags_is_unknown_and_never_changed() -> None:
+    fake = FakePrefect()
+    fake.on("POST", "/flow_runs/filter", [])
+    with pytest.raises(Unknown):
+        await orchestrator(fake, tags=["shop"]).cancel_run(CONTROL_ID, force=False, by=None)
+    assert fake.requests[0].body["flow_runs"]["tags"] == {"all_": ["shop"]}
+    assert set_state_bodies(fake) == []
+
+
+@pytest.mark.asyncio
+async def test_a_change_drops_the_cached_run_and_lists() -> None:
+    fake = FakePrefect()
+    controllable(fake, control_run())
+    client = orchestrator(fake, now=lambda: CONTROL_NOW)
+    before = await client.get_run(CONTROL_ID)
+    await client.cancel_run(CONTROL_ID, force=False, by=None)
+    after = await client.get_run(CONTROL_ID)
+    assert (before.state, after.state) == ("RUNNING", "CANCELLING")
+
+
+@pytest.mark.asyncio
+async def test_a_change_drops_the_cached_lists() -> None:
+    fake = FakePrefect()
+    listing(fake, [deployment_json()])
+    client = orchestrator(fake, now=lambda: CONTROL_NOW)
+    await client.list_deployments()
+    controllable(fake, control_run())
+    await client.cancel_run(CONTROL_ID, force=False, by=None)
+    before_second_list = len(fake.requests)
+    listing(fake, [deployment_json()])
+    await client.list_deployments()
+    assert len(fake.requests) > before_second_list
+
+
+@pytest.mark.asyncio
+async def test_a_run_says_since_when_it_is_in_its_state() -> None:
+    fake = FakePrefect()
+    cancelling = control_run(
+        state_type="CANCELLING",
+        state_name="Cancelling",
+        state={"message": None, "timestamp": "2026-10-08T08:45:00Z"},
+    )
+    controllable(fake, cancelling)
+    detail = await orchestrator(fake).get_run(CONTROL_ID)
+    assert detail.state_since == datetime(2026, 10, 8, 8, 45, tzinfo=UTC)
+
+
+# --- a run retried from Prefect's UI: same run id, the first attempt's start_time --------
+# As Prefect does it: a run failed at 01:06:57; a UI Retry at 07:12:43 made it SCHEDULED
+# "AwaitingRetry", then RUNNING at 07:13:25 with run_count 2, its start_time still 01:00:33.
+
+FIRST_START = "2026-10-08T01:00:33Z"
+SECOND_START = "2026-10-08T07:13:25Z"
+
+
+def ui_retried_run(**overrides: Any) -> dict[str, Any]:
+    base = {
+        "id": "run-retried",
+        "state_type": "RUNNING",
+        "state_name": "Running",
+        "state": {"message": None, "timestamp": SECOND_START},
+        "start_time": FIRST_START,
+        "end_time": None,
+        "run_count": 2,
+    }
+    return run_json(**{**base, **overrides})
+
+
+@pytest.mark.asyncio
+async def test_a_run_going_again_after_a_retry_says_when_this_attempt_started() -> None:
+    fake = FakePrefect()
+    listing(fake, [deployment_json()], running=[ui_retried_run()])
+    result = await orchestrator(fake).list_deployments()
+    [running] = result.running
+    assert running.start_at == datetime(2026, 10, 8, 1, 0, 33, tzinfo=UTC)
+    assert running.attempt_started_at == datetime(2026, 10, 8, 7, 13, 25, tzinfo=UTC)
+
+
+@pytest.mark.asyncio
+async def test_a_retried_run_waiting_for_its_next_attempt_is_not_going() -> None:
+    fake = FakePrefect()
+    waiting = ui_retried_run(
+        state_type="PENDING",
+        state_name="Pending",
+        state={"message": None, "timestamp": "2026-10-08T07:13:00Z"},
+        run_count=1,
+    )
+    listing(fake, [deployment_json()], running=[waiting])
+    result = await orchestrator(fake).list_deployments()
+    [running] = result.running
+    assert running.attempt_started_at is None
+    assert result.summary.running == 0
+
+
+@pytest.mark.asyncio
+async def test_a_run_of_one_attempt_started_its_attempt_when_it_started() -> None:
+    fake = FakePrefect()
+    resolvable(fake)
+    fake.on("POST", "/flow_runs/filter", [run_json(id="run-1", run_count=1)])
+    [run] = await orchestrator(fake).list_runs("daily-orders", 25)
+    assert run.attempt_started_at == run.start_at
+
+
+@pytest.mark.asyncio
+async def test_a_finished_retried_run_says_when_its_last_attempt_started() -> None:
+    fake = FakePrefect()
+    resolvable(fake)
+    fake.on("POST", "/flow_runs/filter", [run_json(id="run-2", run_count=2)])
+    fake.on("GET", "/flow_run_states/", _RETRY_STATES)
+    [run] = await orchestrator(fake).list_runs("daily-orders", 25)
+    assert run.attempt_started_at == datetime(2026, 9, 23, 6, 0, 10, tzinfo=UTC)
+
+
+@pytest.mark.asyncio
+async def test_a_run_detail_says_when_this_attempt_started() -> None:
+    fake = FakePrefect()
+    controllable(fake, control_run(**{k: v for k, v in ui_retried_run().items() if k != "id"}))
+    detail = await orchestrator(fake).get_run(CONTROL_ID)
+    assert detail.attempt_started_at == datetime(2026, 10, 8, 7, 13, 25, tzinfo=UTC)
+
+
+# --- a cached finished run retried from Prefect's UI meanwhile --------------------------
+
+
+def _retried_meanwhile(fake: FakePrefect) -> dict[str, Any]:
+    """A run cached as FAILED (3 attempts), which a UI retry has since completed in a 4th;
+    the list's recent runs show it as it now is. Answers ``/flow_runs/filter`` by id with
+    whatever ``current["run"]`` holds."""
+    current = {
+        "run": control_run(
+            state_type="FAILED",
+            state_name="Failed",
+            run_count=3,
+            end_time="2026-10-07T22:10:00Z",
+            state={"message": None, "timestamp": "2026-10-07T22:10:00Z"},
+        )
+    }
+    listing(fake, [deployment_json()])
+    listed = fake.routes[("POST", "/flow_runs/filter")]
+
+    def flow_runs(body: dict[str, Any]) -> httpx2.Response:
+        if body["flow_runs"].get("id") == {"any_": [CONTROL_ID]}:
+            return httpx2.Response(200, json=[current["run"]])
+        if "not_any_" in body["flow_runs"].get("state", {}).get("type", {}):
+            return httpx2.Response(200, json=[current["run"]])
+        return listed(body)  # type: ignore[no-any-return]
+
+    fake.respond("POST", "/flow_runs/filter", flow_runs)
+    fake.on("GET", "/deployments/dep-1", deployment_json())
+    fake.on("GET", "/flows/flow-1", {"id": "flow-1", "name": "orders"})
+    fake.on("GET", "/flow_run_states/", _RETRY_STATES)
+    return current
+
+
+def _completed_in_a_fourth_attempt() -> dict[str, Any]:
+    return control_run(
+        state_type="COMPLETED",
+        state_name="Completed",
+        run_count=4,
+        end_time="2026-10-08T07:11:00Z",
+        state={"message": None, "timestamp": "2026-10-08T07:11:00Z"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_cached_finished_run_the_list_shows_changed_is_read_again() -> None:
+    fake = FakePrefect()
+    current = _retried_meanwhile(fake)
+    client = orchestrator(fake)
+    before = await client.get_run(CONTROL_ID)
+    current["run"] = _completed_in_a_fourth_attempt()
+    await client.list_deployments()
+    after = await client.get_run(CONTROL_ID)
+    assert (before.state, before.run_count) == ("FAILED", 3)
+    assert (after.state, after.run_count, after.end_at) == (
+        "COMPLETED",
+        4,
+        datetime(2026, 10, 8, 7, 11, tzinfo=UTC),
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_cached_finished_run_the_list_shows_unchanged_stays_cached() -> None:
+    fake = FakePrefect()
+    _retried_meanwhile(fake)
+    client = orchestrator(fake)
+    await client.get_run(CONTROL_ID)
+    await client.list_deployments()
+    reads_before = len(fake.requests)
+    await client.get_run(CONTROL_ID)
+    assert len(fake.requests) == reads_before
+
+
+@pytest.mark.asyncio
+async def test_a_finished_runs_attempts_are_read_again_once_it_has_run_again() -> None:
+    fake = FakePrefect()
+    current = _retried_meanwhile(fake)
+    clock = Clock()
+    client = orchestrator(fake, clock=clock)
+    await client.list_deployments()
+    current["run"] = _completed_in_a_fourth_attempt()
+    clock.now = 1_000.0  # past the list's own short cache
+    await client.list_deployments()
+    states_calls = [r for r in fake.requests if r.path == "/flow_run_states/"]
+    assert len(states_calls) == 2
+
+
+# --- a retried run waiting for its next attempt ---
+# Prefect keeps a retried run's first expected_start_time (global_policy only sets it when
+# absent) and its first start_time: neither says since when this attempt has waited.
+
+AWAITING_SINCE = "2026-10-08T07:12:43Z"
+
+
+def awaiting_retry_run(**overrides: Any) -> dict[str, Any]:
+    base = {
+        "id": "run-awaiting",
+        "state_type": "SCHEDULED",
+        "state_name": "AwaitingRetry",
+        "state": {"message": "Retry from the UI", "timestamp": AWAITING_SINCE},
+        "expected_start_time": "2026-10-08T01:00:00Z",
+        "start_time": FIRST_START,
+        "end_time": "2026-10-08T01:06:57Z",
+        "run_count": 1,
+    }
+    return run_json(**{**base, **overrides})
+
+
+@pytest.mark.asyncio
+async def test_a_retry_nobody_picks_up_is_listed_waiting_since_the_retry() -> None:
+    fake = FakePrefect()
+    listing(fake, [deployment_json()], running=[awaiting_retry_run()])
+    result = await orchestrator(fake).list_deployments()
+    [waiting] = result.running
+    assert (waiting.id, waiting.state, waiting.attempt_started_at) == (
+        "run-awaiting",
+        "SCHEDULED",
+        None,
+    )
+    assert waiting.waiting_since == datetime(2026, 10, 8, 7, 12, 43, tzinfo=UTC)
+    assert result.summary.running == 0
+
+
+@pytest.mark.asyncio
+async def test_a_retried_run_pending_again_waits_since_its_state_not_its_first_schedule() -> None:
+    fake = FakePrefect()
+    pending = awaiting_retry_run(
+        state_type="PENDING",
+        state_name="Pending",
+        state={"message": None, "timestamp": "2026-10-08T07:13:00Z"},
+    )
+    listing(fake, [deployment_json()], running=[pending])
+    [waiting] = (await orchestrator(fake).list_deployments()).running
+    assert waiting.waiting_since == datetime(2026, 10, 8, 7, 13, tzinfo=UTC)
+
+
+@pytest.mark.asyncio
+async def test_a_run_that_never_started_waits_since_it_was_due() -> None:
+    fake = FakePrefect()
+    never = run_json(
+        id="run-never",
+        state_type="PENDING",
+        state_name="Submitting",
+        expected_start_time="2026-08-16T06:00:00Z",
+        start_time=None,
+        end_time=None,
+        run_count=0,
+    )
+    listing(fake, [deployment_json()], running=[never])
+    [waiting] = (await orchestrator(fake).list_deployments()).running
+    assert waiting.waiting_since == datetime(2026, 8, 16, 6, tzinfo=UTC)
+
+
+@pytest.mark.asyncio
+async def test_a_run_detail_says_since_when_it_waits() -> None:
+    fake = FakePrefect()
+    controllable(fake, control_run(**{k: v for k, v in awaiting_retry_run().items() if k != "id"}))
+    detail = await orchestrator(fake).get_run(CONTROL_ID)
+    assert detail.waiting_since == datetime(2026, 10, 8, 7, 12, 43, tzinfo=UTC)
+
+
+@pytest.mark.asyncio
+async def test_cancel_of_a_retried_attempt_not_started_is_cancelled_at_once() -> None:
+    fake = FakePrefect()
+    pending = {
+        k: v
+        for k, v in awaiting_retry_run(state_type="PENDING", state_name="Pending").items()
+        if k != "id"
+    }
+    controllable(fake, control_run(**{**pending, "infrastructure_pid": None}))
+    await orchestrator(fake, now=lambda: CONTROL_NOW).cancel_run(CONTROL_ID, force=False, by=None)
+    assert [(b["state"]["type"], b["force"]) for b in set_state_bodies(fake)] == [
+        ("CANCELLED", True)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_cancel_of_a_retried_attempt_with_infrastructure_asks_for_cancelling() -> None:
+    fake = FakePrefect()
+    pending = {
+        k: v
+        for k, v in awaiting_retry_run(state_type="PENDING", state_name="Pending").items()
+        if k != "id"
+    }
+    controllable(fake, control_run(**{**pending, "infrastructure_pid": "arn:ecs:task/2"}))
+    await orchestrator(fake, now=lambda: CONTROL_NOW).cancel_run(CONTROL_ID, force=False, by=None)
+    assert [(b["state"]["type"], b["force"]) for b in set_state_bodies(fake)] == [
+        ("CANCELLING", False)
+    ]
+
+
+# --- a REJECT that changed nothing is a refusal ---
+
+
+@pytest.mark.asyncio
+async def test_a_reject_that_leaves_the_run_as_it_was_is_not_cancellable() -> None:
+    fake = FakePrefect()
+    controllable(fake, control_run(), outcome="REJECT", answer_state="RUNNING")
+    with pytest.raises(NotCancellable):
+        await orchestrator(fake).cancel_run(CONTROL_ID, force=False, by=None)
+
+
+@pytest.mark.asyncio
+async def test_a_reject_that_sets_another_state_is_a_cancel() -> None:
+    fake = FakePrefect()
+    scheduled = control_run(
+        state_type="SCHEDULED", state_name="Scheduled", start_time=None, infrastructure_pid="pid"
+    )
+    controllable(fake, scheduled, outcome="REJECT", answer_state="CANCELLED")
+    detail = await orchestrator(fake, now=lambda: CONTROL_NOW).cancel_run(
+        CONTROL_ID, force=False, by=None
+    )
+    assert detail.state == "CANCELLED"
+
+
+@pytest.mark.asyncio
+async def test_a_retry_with_a_delay_waits_from_when_it_is_due_to_run_again() -> None:
+    """Prefect's RetryFailedFlows proposes AwaitingRetry(scheduled_time = now + delay): the
+    run is not late before that time, however long ago its state was entered."""
+    fake = FakePrefect()
+    delayed = awaiting_retry_run(
+        state={
+            "message": None,
+            "timestamp": AWAITING_SINCE,
+            "state_details": {"scheduled_time": "2026-10-08T09:12:43Z"},
+        }
+    )
+    listing(fake, [deployment_json()], running=[delayed])
+    [waiting] = (await orchestrator(fake).list_deployments()).running
+    assert waiting.waiting_since == datetime(2026, 10, 8, 9, 12, 43, tzinfo=UTC)
+
+
+@pytest.mark.asyncio
+async def test_a_retry_due_before_its_state_was_entered_waits_from_the_state() -> None:
+    fake = FakePrefect()
+    late = awaiting_retry_run(
+        state={
+            "message": None,
+            "timestamp": AWAITING_SINCE,
+            "state_details": {"scheduled_time": "2026-10-08T07:00:00Z"},
+        }
+    )
+    listing(fake, [deployment_json()], running=[late])
+    [waiting] = (await orchestrator(fake).list_deployments()).running
+    assert waiting.waiting_since == datetime(2026, 10, 8, 7, 12, 43, tzinfo=UTC)

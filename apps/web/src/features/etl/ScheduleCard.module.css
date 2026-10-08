@@ -1,0 +1,26 @@
+.words {
+  display: grid;
+  gap: var(--nt-space-0-5);
+}
+
+.headline {
+  font-size: var(--nt-font-size-lg);
+  font-weight: var(--nt-font-weight-strong);
+}
+
+.muted {
+  margin: 0;
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-sm);
+}
+
+.code {
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+}
+
+/* A schedule kept in a time zone no clock knows: said in words, as amber text, beside the sentence. */
+.note {
+  color: var(--nt-color-warning);
+  font-size: var(--nt-font-size-sm);
+}

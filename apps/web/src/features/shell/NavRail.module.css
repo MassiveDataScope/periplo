@@ -17,7 +17,6 @@
 
 /* Collapsed, names and shortcuts leave the layout but stay as each control's accessible name. */
 .rail[data-collapsed="true"] .label,
-.rail[data-collapsed="true"] .wordmark,
 .rail[data-collapsed="true"] .shortcut {
   display: none;
 }
@@ -34,17 +33,12 @@
 }
 
 .logo {
-  inline-size: var(--nt-size-control-xl);
+  inline-size: var(--nt-size-control-lg);
   block-size: var(--nt-size-control-lg);
 }
 
-
 .wordmark {
-  font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-lg);
-  font-weight: var(--nt-font-weight-strong);
-  letter-spacing: -0.01em;
-  line-height: var(--nt-font-line-height-tight);
+  block-size: var(--nt-space-5);
 }
 
 .items {
@@ -114,17 +108,26 @@ nav.items {
   cursor: not-allowed;
 }
 
-/* Where you are: the entry inverts to ink on paper. Unmistakable, and it needs no colour at all. */
+/* Where you are: the strong weight says it without colour, the hover surface stays on, and the brand's
+   dot at the edge is the periscope's lens saying "here" — a signature, not the signal. */
 .item[aria-current="page"],
 .item[data-current="true"] {
-  background: var(--nt-color-text);
-  color: var(--nt-color-bg);
+  background: var(--nt-color-surface-hover);
+  color: var(--nt-color-text);
+  font-weight: var(--nt-font-weight-strong);
 }
 
-.item[aria-current="page"]:hover,
-.item[data-current="true"]:hover {
-  background: var(--nt-color-text);
-  color: var(--nt-color-bg);
+.item[aria-current="page"]::before,
+.item[data-current="true"]::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: calc(-1 * var(--nt-space-1-5));
+  inset-block-start: 50%;
+  inline-size: var(--nt-space-1-5);
+  block-size: var(--nt-space-1-5);
+  border-radius: var(--nt-radius-full);
+  background: var(--nt-color-brand);
+  transform: translateY(-50%);
 }
 
 .brand:focus-visible,
@@ -140,6 +143,8 @@ nav.items {
   inline-size: var(--nt-space-2);
   block-size: var(--nt-space-2);
   border-radius: var(--nt-radius-full);
+  /* A warning, so the warning colour: the brand's orange marks the logo, title stops, the current entry
+     and "now" on a timeline, never a status. */
   background: var(--nt-color-warning);
 }
 

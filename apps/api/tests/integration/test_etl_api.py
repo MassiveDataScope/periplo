@@ -14,7 +14,17 @@ from loom.core.logger import get_logger
 
 from periplo.etl.adapters import prefect as prefect_adapter
 from periplo.etl.adapters.prefect import PrefectOrchestrator
-from periplo.etl.errors import Ambiguous, Busy, EtlError, Rejected, Unknown, Upstream
+from periplo.etl.errors import (
+    Ambiguous,
+    Busy,
+    EtlError,
+    NotCancellable,
+    NotRetryable,
+    Rejected,
+    Unknown,
+    Upstream,
+)
+from periplo.etl.facets import FacetConfig
 from periplo.etl.ports import (
     Attempt,
     Deployment,
@@ -30,6 +40,7 @@ from periplo.etl.ports import (
     RecentRun,
     RunDetail,
     RunGrid,
+    RunningRun,
     RunTasks,
     Schedule,
     Step,
@@ -49,6 +60,8 @@ RUN = FlowRun(
     state_message=None,
     expected_start_at=STARTED,
     start_at=STARTED,
+    attempt_started_at=STARTED,
+    waiting_since=None,
     end_at=None,
     duration_seconds=12.5,
     created_by="prefect-scheduler",
@@ -58,7 +71,15 @@ RUN = FlowRun(
     trigger="manual",
     external_url="https://prefect.example/runs/flow-run/run-1",
 )
-RECENT = RecentRun(id=RUN.id, state=RUN.state, start_at=RUN.start_at, end_at=RUN.end_at)
+RECENT = RecentRun(
+    id=RUN.id,
+    state=RUN.state,
+    run_count=RUN.run_count,
+    expected_start_at=RUN.expected_start_at,
+    start_at=RUN.start_at,
+    attempt_started_at=RUN.start_at,
+    end_at=RUN.end_at,
+)
 ORDERS = Deployment(
     id="dep-1",
     name="daily-orders",
@@ -74,10 +95,11 @@ ORDERS = Deployment(
     recent=[RECENT],
     next_run_at=None,
     schedule_inactive=False,
-    cadence=None,
-    mode=None,
     accepts_processes=True,
     external_url="https://prefect.example/deployments/deployment/dep-1",
+    triggered_by=None,
+    triggers=[],
+    archived=None,
 )
 CUSTOMERS = Deployment(
     id="dep-2",
@@ -92,10 +114,11 @@ CUSTOMERS = Deployment(
     recent=[],
     next_run_at=None,
     schedule_inactive=False,
-    cadence=None,
-    mode=None,
     accepts_processes=False,
     external_url=None,
+    triggered_by=None,
+    triggers=[],
+    archived=None,
 )
 EMPTY_HISTORY_1H = History(interval="1h", buckets=[], upcoming=[], median_seconds=None)
 EMPTY_HISTORY_7D = History(interval="1d", buckets=[], upcoming=[], median_seconds=None)
@@ -128,6 +151,7 @@ STEP = Step(
     start_at=STARTED,
     end_at=STARTED,
     duration_seconds=1.0,
+    tries=None,
 )
 PROCESS = Process(
     name="Orders",
@@ -182,6 +206,9 @@ def detail(run_id: str = RUN.id, parameters: dict[str, Any] | None = None) -> Ru
         deployment_name=ORDERS.name,
         flow_name=ORDERS.flow_name,
         terminal=True,
+        state_since=None,
+        triggered_by_run=None,
+        triggered_runs=[],
     )
 
 
@@ -190,9 +217,13 @@ class FakeOrchestrator:
 
     def __init__(self) -> None:
         self.calls: list[tuple[Any, ...]] = []
+        # Each list's ``only``: what the list was narrowed to (hidden or archived ETLs left out).
+        self.asked_only: list[frozenset[str] | None] = []
         self.deployments = [ORDERS, CUSTOMERS]
         self.visible_runs = {RUN.id}
         self.failure: Exception | None = None
+        # What cancel or retry refuse with, as the adapter would for the run's state.
+        self.refusal: EtlError | None = None
         self.tasks = TASKS
         self.grid = GRID
         self.running: list[Any] = []
@@ -208,9 +239,10 @@ class FakeOrchestrator:
 
     async def list_deployments(self, only: Collection[str] | None = None) -> EtlList:
         self._record("list_deployments")
-        return EtlList(
-            etls=self.deployments, summary=SUMMARY, running=self.running, running_truncated=False
-        )
+        self.asked_only.append(None if only is None else frozenset(only))
+        etls = [d for d in self.deployments if only is None or d.name in only]
+        running = [r for r in self.running if only is None or r.etl in only]
+        return EtlList(etls=etls, summary=SUMMARY, running=running, running_truncated=False)
 
     async def list_runs(self, name: str, limit: int) -> list[FlowRun]:
         self._record("list_runs", name, limit)
@@ -262,6 +294,20 @@ class FakeOrchestrator:
         self._record("create_run", name, parameters)
         self._deployment(name)
         return detail("run-new", parameters)
+
+    async def cancel_run(self, run_id: str, *, force: bool, by: str | None) -> RunDetail:
+        self._record("cancel_run", run_id, force, by)
+        self._run(run_id)
+        if self.refusal is not None:
+            raise self.refusal
+        return msgspec.structs.replace(detail(run_id), state="CANCELLING", terminal=False)
+
+    async def retry_run(self, run_id: str, *, by: str | None) -> RunDetail:
+        self._record("retry_run", run_id, by)
+        self._run(run_id)
+        if self.refusal is not None:
+            raise self.refusal
+        return msgspec.structs.replace(detail(run_id), state="SCHEDULED", terminal=False)
 
     async def set_schedule(self, name: str, active: bool) -> Deployment:
         self._record("set_schedule", name, active)
@@ -321,12 +367,24 @@ def envelope(response: httpx2.Response, status: int, code: str, *, retryable: bo
 @pytest.mark.parametrize("settings", [Settings(etl_allow_operate=True)], indirect=True)
 @pytest.mark.parametrize("orchestrator", [None], indirect=True)
 def test_status_off_never_enables_runs(client: TestClient) -> None:
-    assert client.get(f"{ETL}/status").json() == {"configured": False, "operate_enabled": False}
+    assert client.get(f"{ETL}/status").json() == {
+        "configured": False,
+        "operate_enabled": False,
+        "archive_enabled": False,
+        "archive_mode": "process",
+        "facets": {},
+    }
 
 
 @pytest.mark.parametrize("settings", [Settings(etl_allow_operate=True)], indirect=True)
 def test_status_on(client: TestClient, fake: FakeOrchestrator) -> None:
-    assert client.get(f"{ETL}/status").json() == {"configured": True, "operate_enabled": True}
+    assert client.get(f"{ETL}/status").json() == {
+        "configured": True,
+        "operate_enabled": True,
+        "archive_enabled": True,
+        "archive_mode": "process",
+        "facets": {},
+    }
     assert fake.calls == []
 
 
@@ -873,3 +931,203 @@ def test_openapi_still_renders(client: TestClient) -> None:
     assert f"{ETL}/runs/{{run_id}}/steps/{{task_run}}" in paths
     assert f"{ETL}/{{name}}/schedule/resume" in paths
     assert f"{ETL}/{{name}}/schedule/pause" in paths
+
+
+# --- archiving (kept by Periplo, never by the orchestrator) ------------------------------
+
+
+ARCHIVING = Settings(etl_allow_archive=True)
+"""Archiving on, operating off: the switches are separate."""
+
+
+def test_archiving_follows_the_operate_switch_by_default(client: TestClient) -> None:
+    response = client.post(f"{ETL}/daily-orders/archive", json={})
+    envelope(response, 403, "etl_archive_disabled", retryable=False)
+    assert client.get(f"{ETL}/status").json()["archive_enabled"] is False
+
+
+@pytest.mark.parametrize("settings", [ARCHIVING], indirect=True)
+def test_archives_an_etl_and_says_so_in_the_list(
+    client: TestClient, fake: FakeOrchestrator
+) -> None:
+    """Archiving changes nothing in the orchestrator; its own switch allows it where
+    operating is off."""
+    response = client.post(f"{ETL}/daily-orders/archive", json={"reason": "replaced"})
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["name"], body["archived"]["by"], body["archived"]["reason"]) == (
+        "daily-orders",
+        None,
+        "replaced",
+    )
+    fake.asked_only.clear()
+
+    listing = client.get(ETL).json()
+    by_name = {etl["name"]: etl for etl in listing["etls"]}
+    assert by_name["daily-orders"]["archived"]["reason"] == "replaced"
+    assert by_name["nightly-customers"]["archived"] is None
+    # The summary, history and live runs are the active ETLs' alone.
+    assert fake.asked_only == [None, frozenset({"nightly-customers"})]
+
+
+@pytest.mark.parametrize("settings", [ARCHIVING], indirect=True)
+def test_keeps_an_archived_etls_live_runs_for_its_own_page(
+    client: TestClient, fake: FakeOrchestrator
+) -> None:
+    """Only the counts leave an archived ETL out: its stuck run still shows on its page."""
+    stuck = RunningRun(
+        id="run-stuck",
+        name="stuck",
+        etl="daily-orders",
+        state="PENDING",
+        start_at=None,
+        attempt_started_at=None,
+        waiting_since=None,
+        expected_start_at=STARTED,
+        created_by=None,
+        trigger="scheduled",
+        current=None,
+        typical_seconds=None,
+    )
+    fake.running = [stuck]
+    client.post(f"{ETL}/daily-orders/archive", json={})
+    listing = client.get(ETL).json()
+    assert [run["id"] for run in listing["running"]] == ["run-stuck"]
+
+
+@pytest.mark.parametrize("settings", [ARCHIVING], indirect=True)
+def test_restores_an_archived_etl(client: TestClient, fake: FakeOrchestrator) -> None:
+    client.post(f"{ETL}/daily-orders/archive", json={})
+    response = client.post(f"{ETL}/daily-orders/restore")
+    assert response.json() == {"name": "daily-orders", "archived": None}
+    fake.asked_only.clear()
+    listing = client.get(ETL).json()
+    assert [etl["archived"] for etl in listing["etls"]] == [None, None]
+    assert fake.asked_only == [None]
+
+
+@pytest.mark.parametrize("settings", [ARCHIVING], indirect=True)
+def test_archiving_an_unknown_etl_is_404(client: TestClient) -> None:
+    response = client.post(f"{ETL}/nope/archive", json={})
+    envelope(response, 404, "not_found", retryable=False)
+
+
+@pytest.mark.parametrize("settings", [ARCHIVING], indirect=True)
+def test_a_reason_over_the_length_cap_is_422(client: TestClient) -> None:
+    response = client.post(f"{ETL}/daily-orders/archive", json={"reason": "x" * 501})
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("settings", [ARCHIVING], indirect=True)
+def test_restores_an_etl_the_orchestrator_no_longer_knows(
+    client: TestClient, fake: FakeOrchestrator
+) -> None:
+    """An ETL deleted in the orchestrator since it was archived can still leave the archive."""
+    response = client.post(f"{ETL}/gone/restore")
+    assert response.status_code == 200
+    assert response.json() == {"name": "gone", "archived": None}
+    assert fake.calls == []
+
+
+# --- cancel and retry a run (behind the operate switch) ---------------------------------
+
+OPERATING = Settings(etl_allow_operate=True)
+
+
+@pytest.mark.parametrize("settings", [OPERATING], indirect=True)
+def test_cancels_a_run_and_answers_its_new_state(
+    client: TestClient, fake: FakeOrchestrator
+) -> None:
+    response = client.post(f"{ETL}/runs/{RUN.id}/cancel", json={})
+    assert response.status_code == 202
+    assert response.json()["state"] == "CANCELLING"
+    assert fake.calls[-1] == ("cancel_run", RUN.id, False, None)
+
+
+@pytest.mark.parametrize("settings", [OPERATING], indirect=True)
+def test_forces_a_cancel_when_asked(client: TestClient, fake: FakeOrchestrator) -> None:
+    client.post(f"{ETL}/runs/{RUN.id}/cancel", json={"force": True})
+    assert fake.calls[-1] == ("cancel_run", RUN.id, True, None)
+
+
+@pytest.mark.parametrize("settings", [OPERATING], indirect=True)
+def test_retries_a_run_and_answers_its_new_state(
+    client: TestClient, fake: FakeOrchestrator
+) -> None:
+    response = client.post(f"{ETL}/runs/{RUN.id}/retry")
+    assert response.status_code == 202
+    assert response.json()["state"] == "SCHEDULED"
+    assert fake.calls[-1] == ("retry_run", RUN.id, None)
+
+
+@pytest.mark.parametrize("settings", [OPERATING], indirect=True)
+@pytest.mark.parametrize(
+    ("suffix", "refusal", "code"),
+    [
+        ("cancel", NotCancellable("This run has already finished"), "etl_run_not_cancellable"),
+        (
+            "retry",
+            NotRetryable("Only a failed or crashed run can be retried"),
+            "etl_run_not_retryable",
+        ),
+    ],
+)
+def test_a_run_in_the_wrong_state_is_409_with_its_code(
+    client: TestClient, fake: FakeOrchestrator, suffix: str, refusal: EtlError, code: str
+) -> None:
+    fake.refusal = refusal
+    response = client.post(f"{ETL}/runs/{RUN.id}/{suffix}", json={})
+    envelope(response, 409, code, retryable=False)
+    assert response.json()["detail"]["message"] == refusal.message
+
+
+@pytest.mark.parametrize("settings", [OPERATING], indirect=True)
+@pytest.mark.parametrize("suffix", ["cancel", "retry"])
+def test_an_unknown_run_is_404(client: TestClient, suffix: str) -> None:
+    response = client.post(f"{ETL}/runs/nope/{suffix}", json={})
+    envelope(response, 404, "not_found", retryable=False)
+
+
+@pytest.mark.parametrize("suffix", ["cancel", "retry"])
+def test_cancel_and_retry_are_off_with_the_operate_switch(
+    client: TestClient, fake: FakeOrchestrator, suffix: str
+) -> None:
+    response = client.post(f"{ETL}/runs/{RUN.id}/{suffix}", json={})
+    envelope(response, 403, "etl_operate_disabled", retryable=False)
+    assert not [c for c in fake.calls if c[0] in ("cancel_run", "retry_run")]
+
+
+# --- facets: how the installation names the facets its tags form ------------------------
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        Settings(
+            etl_facets={
+                "system": FacetConfig(label="System", order=1, role="reads"),
+                "tier": FacetConfig(hidden=True),
+                "cadence": FacetConfig(role="expects_schedule", values=["daily"]),
+            }
+        )
+    ],
+    indirect=True,
+)
+def test_status_serves_the_facet_config(client: TestClient) -> None:
+    assert client.get(f"{ETL}/status").json()["facets"] == {
+        "system": {
+            "label": "System",
+            "order": 1,
+            "hidden": False,
+            "role": "reads",
+            "values": None,
+        },
+        "tier": {"label": None, "order": None, "hidden": True, "role": None, "values": None},
+        "cadence": {
+            "label": None,
+            "order": None,
+            "hidden": False,
+            "role": "expects_schedule",
+            "values": ["daily"],
+        },
+    }

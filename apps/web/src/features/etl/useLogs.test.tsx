@@ -124,6 +124,22 @@ describe("useLogs", () => {
     expect(result.current.entries.map((entry) => entry.id)).toEqual(lines(1, 4).map((entry) => entry.id));
   });
 
+  it("keeps its lines through a failed poll, says so, and recovers on the next one", async () => {
+    const server = logServer(lines(1, 3));
+    const unavailable = new ApiError({ status: 502, code: "etl_upstream", message: "Prefect did not answer" });
+    const dependencies = fakeDependencies(server.GET);
+    const { result } = renderHook(() => useLogs(dependencies, { runId: "run-1", scope: RUN_SCOPE, q: null, minLevel: null, follow: true, terminal: false }));
+    await settle();
+    server.GET.mockRejectedValueOnce(unavailable);
+    await tick();
+    expect(result.current).toMatchObject({ status: "ready", entries: lines(1, 3), pollError: unavailable });
+
+    server.append([line(4)]);
+    await tick();
+    expect(result.current.entries.map((entry) => entry.id)).toEqual(lines(1, 4).map((entry) => entry.id));
+    expect(result.current.pollError).toBeUndefined();
+  });
+
   it("does not poll while follow is false", async () => {
     const server = logServer(lines(1, 3));
     const dependencies = fakeDependencies(server.GET);
@@ -162,6 +178,28 @@ describe("useLogs", () => {
 
     await tick(POLL_MS * 5);
     expect(server.GET).toHaveBeenCalledTimes(2);
+  });
+
+  it("tries the last pass again until it gets through, then stops", async () => {
+    const server = logServer(lines(1, 3));
+    const unavailable = new ApiError({ status: 502, code: "etl_upstream", message: "Prefect did not answer" });
+    const dependencies = fakeDependencies(server.GET);
+    const { result, rerender } = renderHook(
+      ({ terminal }: { terminal: boolean | null }) => useLogs(dependencies, { runId: "run-1", scope: RUN_SCOPE, q: null, minLevel: null, follow: true, terminal }),
+      { initialProps: { terminal: false as boolean | null } },
+    );
+    await settle();
+    server.append([line(4)]);
+    server.GET.mockRejectedValueOnce(unavailable);
+    rerender({ terminal: true });
+    await settle();
+    expect(result.current).toMatchObject({ entries: lines(1, 3), pollError: unavailable });
+
+    await tick();
+    expect(result.current.entries.map((entry) => entry.id)).toEqual(lines(1, 4).map((entry) => entry.id));
+    expect(result.current.pollError).toBeUndefined();
+    await tick(POLL_MS * 5);
+    expect(server.GET).toHaveBeenCalledTimes(3);
   });
 
   it("pauses the poll while the tab is hidden", async () => {
@@ -255,5 +293,114 @@ describe("useLogs", () => {
     await settle();
     expect(result.current.status).toBe("failed");
     expect(result.current.error).toBe(error);
+  });
+
+  describe("the whole run", () => {
+    /** A log server holding the run's own lines and each task run's, answering a `task_run` list from those runs only. */
+    function scopedServer(flow: LogEntry[], tasks: Record<string, LogEntry[]>) {
+      const held = { flow, tasks };
+      const GET = vi.fn((_path: string, init: { params: { query: LogQuery } }) => {
+        const { after, limit, task_run: taskRuns } = init.params.query;
+        const scoped =
+          taskRuns === undefined ? held.flow : taskRuns.flatMap((id) => held.tasks[id] ?? []).sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+        const answer = after === undefined ? scoped.slice(-limit) : scoped.filter((entry) => entry.timestamp >= after).slice(0, limit);
+        return Promise.resolve(page(answer, after));
+      });
+      return { GET, add: (taskRun: string, more: LogEntry[]) => (held.tasks[taskRun] = [...(held.tasks[taskRun] ?? []), ...more]) };
+    }
+
+    const ofTask = (entry: LogEntry, taskRunId: string): LogEntry => ({ ...entry, task_run_id: taskRunId });
+    const ids = (count: number): string[] => Array.from({ length: count }, (_, index) => `task-${index}`);
+
+    it("asks for the run's own lines once and its task runs in batches of at most 100, merged by time", async () => {
+      const server = scopedServer([line(1)], { "task-0": [ofTask(line(2), "task-0")], "task-150": [ofTask(line(3), "task-150")] });
+      const scope: LogsScope = { kind: "whole", taskRunIds: ids(201) };
+      const dependencies = fakeDependencies(server.GET);
+      const { result } = renderHook(() => useLogs(dependencies, { runId: "run-1", scope, q: null, minLevel: null, follow: false, terminal: true }));
+      await settle();
+      const asked = server.GET.mock.calls.map(([, init]) => (init as { params: { query: LogQuery } }).params.query.task_run?.length ?? 0);
+      expect(asked).toEqual([0, 100, 100, 1]);
+      expect(result.current.entries).toEqual([line(1), ofTask(line(2), "task-0"), ofTask(line(3), "task-150")]);
+    });
+
+    it("keeps its lines while a live run starts new task runs, asking only the batch that grew from its start", async () => {
+      const server = scopedServer([line(1)], { "task-0": [ofTask(line(2), "task-0")] });
+      const dependencies = fakeDependencies(server.GET);
+      const { result, rerender } = renderHook(
+        ({ taskRunIds }: { taskRunIds: readonly string[] }) =>
+          useLogs(dependencies, { runId: "run-1", scope: { kind: "whole", taskRunIds }, q: null, minLevel: null, follow: true, terminal: false }),
+        { initialProps: { taskRunIds: ["task-0"] } },
+      );
+      await settle();
+      server.add("task-1", [ofTask(line(3), "task-1")]);
+      rerender({ taskRunIds: ["task-0", "task-1"] });
+      expect(result.current.status).toBe("ready");
+      expect(result.current.entries.map((entry) => entry.id)).toEqual([line(1), line(2)].map((entry) => entry.id));
+      const before = server.GET.mock.calls.length;
+      await tick();
+      expect(result.current.entries.map((entry) => entry.id)).toEqual([line(1), line(2), line(3)].map((entry) => entry.id));
+      const asked = server.GET.mock.calls.slice(before).map(([, init]) => (init as { params: { query: LogQuery } }).params.query);
+      expect(asked).toEqual([
+        { limit: 200, after: line(1).timestamp },
+        { limit: 200, task_run: ["task-0", "task-1"] },
+      ]);
+    });
+
+    it("says it holds only the last lines of a part whose first page came full", async () => {
+      const server = scopedServer([line(1)], { "task-0": lines(2, 260).map((entry) => ofTask(entry, "task-0")) });
+      const dependencies = fakeDependencies(server.GET);
+      const scope: LogsScope = { kind: "whole", taskRunIds: ["task-0"] };
+      const { result } = renderHook(() => useLogs(dependencies, { runId: "run-1", scope, q: null, minLevel: null, follow: false, terminal: true }));
+      await settle();
+      expect(result.current.truncated).toBe(true);
+      expect(result.current.entries).toHaveLength(201);
+    });
+
+    it("follows every batch from its own cursor", async () => {
+      const server = scopedServer([line(1)], { "task-0": [ofTask(line(2), "task-0")] });
+      const scope: LogsScope = { kind: "whole", taskRunIds: ["task-0"] };
+      const dependencies = fakeDependencies(server.GET);
+      const { result } = renderHook(() => useLogs(dependencies, { runId: "run-1", scope, q: null, minLevel: null, follow: true, terminal: false }));
+      await settle();
+      server.add("task-0", [ofTask(line(5), "task-0")]);
+      await tick();
+      expect(result.current.entries.map((entry) => entry.id)).toEqual([line(1), line(2), line(5)].map((entry) => entry.id));
+      const cursors = server.GET.mock.calls.slice(2).map(([, init]) => (init as { params: { query: LogQuery } }).params.query.after);
+      expect(cursors).toEqual([line(1).timestamp, line(2).timestamp]);
+    });
+  });
+
+  it("makes the last pass when following resumes, if the run ended while it was not followed", async () => {
+    const server = logServer(lines(1, 3));
+    const dependencies = fakeDependencies(server.GET);
+    const { result, rerender } = renderHook(
+      ({ follow, terminal }: { follow: boolean; terminal: boolean }) =>
+        useLogs(dependencies, { runId: "run-1", scope: RUN_SCOPE, q: null, minLevel: null, follow, terminal }),
+      { initialProps: { follow: true, terminal: false } },
+    );
+    await settle();
+    rerender({ follow: false, terminal: false });
+    server.append([line(4)]);
+    rerender({ follow: false, terminal: true });
+    await tick();
+    expect(result.current.entries).toEqual(lines(1, 3));
+    rerender({ follow: true, terminal: true });
+    await settle();
+    expect(result.current.entries.map((entry) => entry.id)).toEqual(lines(1, 4).map((entry) => entry.id));
+    const calls = server.GET.mock.calls.length;
+    rerender({ follow: false, terminal: true });
+    rerender({ follow: true, terminal: true });
+    await tick(POLL_MS * 2);
+    expect(server.GET).toHaveBeenCalledTimes(calls);
+  });
+
+  it("asks nothing without a scope", async () => {
+    const server = logServer(lines(1, 3));
+    const dependencies = fakeDependencies(server.GET);
+    const { result } = renderHook(() => useLogs(dependencies, { runId: "run-1", scope: null, q: null, minLevel: null, follow: true, terminal: false }));
+    await settle();
+    await tick();
+    expect(server.GET).not.toHaveBeenCalled();
+    expect(result.current.entries).toEqual([]);
   });
 });

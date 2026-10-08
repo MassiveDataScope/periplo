@@ -85,6 +85,13 @@ describe("LogViewer", () => {
     expect(screen.getByText("CRIT").dataset.level).toBe("CRITICAL");
   });
 
+  it("keeps its lines through a failed poll and says the next one will try again", () => {
+    const pollError = new ApiError({ status: 502, code: "etl_upstream", message: "The ETL orchestrator did not answer" });
+    renderViewer({ logs: { ...ready([entry(1)]), pollError }, live: true });
+    expect(screen.getByText("line 1")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe("New lines could not be read just now; trying again.");
+  });
+
   it("shows loading and failed states", () => {
     const { rerender } = renderViewer({ logs: { entries: [], truncated: false, capped: false, status: "loading" } });
     expect(screen.getByRole("progressbar", { name: "Loading the logs" })).toBeTruthy();
@@ -209,35 +216,6 @@ describe("LogViewer", () => {
     expect(screen.getByText("—")).toBeTruthy();
   });
 
-  it("scrolls the first ERROR line into view once, with initialLevelFocus=\"error\"", () => {
-    const scrollIntoView = vi.fn();
-    const original = Element.prototype.scrollIntoView;
-    Element.prototype.scrollIntoView = scrollIntoView;
-    try {
-      renderViewer({
-        logs: ready([entry(1), entry(2, { level: 40, level_name: "ERROR", message: "boom" }), entry(3, { level: 40, level_name: "ERROR", message: "again" })]),
-        initialLevelFocus: "error",
-      });
-      expect(scrollIntoView).toHaveBeenCalledTimes(1);
-      expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
-    } finally {
-      Element.prototype.scrollIntoView = original;
-    }
-  });
-
-  it("does nothing without initialLevelFocus, or with no ERROR line", () => {
-    const scrollIntoView = vi.fn();
-    const original = Element.prototype.scrollIntoView;
-    Element.prototype.scrollIntoView = scrollIntoView;
-    try {
-      renderViewer({ logs: ready([entry(1), entry(2, { level: 40, level_name: "ERROR" })]) });
-      renderViewer({ logs: ready([entry(1)]), initialLevelFocus: "error" });
-      expect(scrollIntoView).not.toHaveBeenCalled();
-    } finally {
-      Element.prototype.scrollIntoView = original;
-    }
-  });
-
   it("shows the live indicator as following while live and pinned, paused once scrolled up", () => {
     const { rerender } = renderViewer({ logs: ready([entry(1)]), live: true });
     expect(screen.getByText("Live · following")).toBeTruthy();
@@ -301,32 +279,6 @@ describe("LogViewer", () => {
     expect(scroller.scrollTop).toBe(1000);
   });
 
-  it("draws a source separator only when the entry carries a task_run_id and it resolves to a label", () => {
-    const withSource = entry(1, { message: "first", task_run_id: "tr-1" });
-    renderViewer({ logs: ready([withSource]), resolveSource: (id) => (id === "tr-1" ? "MergeStep · attempt 1 of 1" : null) });
-    expect(screen.getByText("MergeStep · attempt 1 of 1")).toBeTruthy();
-  });
-
-  it("renders no separator without a resolver, even with a task_run_id present", () => {
-    const withSource = entry(1, { message: "first", task_run_id: "tr-1" });
-    renderViewer({ logs: ready([withSource]) });
-    expect(screen.queryByText(/attempt/)).toBeNull();
-  });
-
-  it("draws a separator for each of two distinct task_run_ids, even across a run of noise", () => {
-    renderViewer({
-      logs: ready([
-        entry(1, { message: "first", task_run_id: "tr-1" }),
-        entry(2, { noise: true, message: "n1", task_run_id: "tr-1" }),
-        entry(3, { noise: true, message: "n2", task_run_id: "tr-2" }),
-        entry(4, { message: "second", task_run_id: "tr-2" }),
-      ]),
-      resolveSource: (id) => (id === "tr-1" ? "FirstStep" : id === "tr-2" ? "SecondStep" : null),
-    });
-    expect(screen.getByText("FirstStep")).toBeTruthy();
-    expect(screen.getByText("SecondStep")).toBeTruthy();
-  });
-
   it("ignores folded noise lines when counting search matches", () => {
     renderViewer({
       logs: ready([entry(1, { message: "boom one" }), entry(2, { noise: true, message: "boom in the noise" }), entry(3, { message: "boom two" })]),
@@ -334,5 +286,64 @@ describe("LogViewer", () => {
     });
     // Two real matches, not three — the noise line's "boom" is folded away and never on screen to jump to.
     expect(screen.getByText("1 of 2")).toBeTruthy();
+  });
+});
+
+describe("LogViewer on a run's whole log", () => {
+  const lines = [entry(1), entry(2, { task_run_id: "task-a" }), entry(3, { task_run_id: "task-b" }), entry(4, { task_run_id: "task-a" })];
+  const sourceOf = (line: LogEntry): string => (line.task_run_id === "task-a" ? "load" : line.task_run_id === "task-b" ? "check" : "run");
+
+  it("labels every line with the step it came from", () => {
+    renderViewer({ logs: ready(lines), sourceOf });
+    const items = screen.getAllByRole("listitem");
+    expect(items.map((item) => item.querySelector("[data-source]")?.textContent)).toEqual(["run", "load", "check", "load"]);
+  });
+
+  it("marks the highlighted task run's lines and dims the rest", () => {
+    renderViewer({ logs: ready(lines), sourceOf, highlight: ["task-a"] });
+    expect(screen.getAllByRole("listitem").map((item) => item.dataset.focus)).toEqual(["out", "in", "out", "in"]);
+  });
+
+  it("says which lines are the highlighted step's to a screen reader, not by their look alone", () => {
+    renderViewer({ logs: ready(lines), sourceOf, highlight: ["task-a"] });
+    const description = (item: HTMLElement) => document.getElementById(item.getAttribute("aria-describedby") ?? "")?.textContent ?? null;
+    expect(screen.getAllByRole("listitem").map(description)).toEqual([null, "In the selected step", null, "In the selected step"]);
+  });
+
+  it("marks nothing without a highlight", () => {
+    renderViewer({ logs: ready(lines), sourceOf });
+    expect(screen.getAllByRole("listitem").map((item) => item.dataset.focus)).toEqual([undefined, undefined, undefined, undefined]);
+  });
+
+  it("brings the highlighted step's first line into view, and again when the highlight moves", () => {
+    const scrolled: string[] = [];
+    // jsdom lays nothing out, so it has no scrollIntoView to spy on.
+    HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
+      scrolled.push(this.textContent ?? "");
+    };
+    const { rerender, props } = renderViewer({ logs: ready(lines), sourceOf, highlight: ["task-b"] });
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <LogViewer {...props} highlight={["task-a"]} />
+      </I18nextProvider>,
+    );
+    expect(scrolled.map((text) => (text.includes("line 3") ? "line 3" : text.includes("line 2") ? "line 2" : text))).toEqual(["line 3", "line 2"]);
+    Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+  });
+
+  it("does not pull the reader back to the highlight when a poll brings new lines", () => {
+    let scrolls = 0;
+    HTMLElement.prototype.scrollIntoView = () => {
+      scrolls += 1;
+    };
+    const { rerender, props } = renderViewer({ logs: ready(lines), sourceOf, highlight: ["task-a"] });
+    expect(scrolls).toBe(1);
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <LogViewer {...props} logs={ready([...lines, entry(5, { task_run_id: "task-a" })])} highlight={["task-a"]} />
+      </I18nextProvider>,
+    );
+    expect(scrolls).toBe(1);
+    Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
   });
 });

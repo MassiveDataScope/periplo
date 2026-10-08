@@ -1,0 +1,133 @@
+.section {
+  display: grid;
+  gap: var(--nt-space-2-5);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--nt-space-2);
+}
+
+.title {
+  margin: 0;
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-xs);
+  font-weight: var(--nt-font-weight-medium);
+  letter-spacing: var(--nt-font-tracking-caps);
+  text-transform: uppercase;
+}
+
+.summary {
+  margin: 0;
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-sm);
+}
+
+.plot {
+  position: relative;
+  block-size: 9rem;
+  border-block-end: var(--nt-border-width) solid var(--nt-color-border);
+}
+
+/* The usual range: a quiet shaded band behind the bars, on their own scale. */
+.band {
+  position: absolute;
+  inset-inline: 0;
+  background: var(--nt-color-accent-surface);
+}
+
+.bars,
+.days {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: var(--nt-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bars {
+  position: absolute;
+  inset: 0;
+  align-items: end;
+}
+
+.slot {
+  block-size: 100%;
+}
+
+/* A link whose only text is the "↻ N" mark: in the mark's muted ink, never the browser's blue underline. */
+.bar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  block-size: 100%;
+  border-radius: var(--nt-radius-sm) var(--nt-radius-sm) 0 0;
+  color: var(--nt-color-text-muted);
+  text-decoration: none;
+}
+
+.bar:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: var(--nt-focus-offset);
+}
+
+/* Even a run that took no time at all shows a sliver, never a gap. */
+.fill {
+  min-block-size: 4px;
+  border-radius: var(--nt-radius-sm) var(--nt-radius-sm) 0 0;
+}
+
+/* The chosen run: a ring around its bar, the same in both themes. */
+.bar[aria-current="true"] .fill {
+  box-shadow:
+    0 0 0 2px var(--nt-color-bg),
+    0 0 0 4px var(--nt-color-text);
+}
+
+/* Longer than the chart is tall: a cut across its top says it goes on. */
+.bar[data-clipped]::after {
+  position: absolute;
+  inset-block-start: 4px;
+  inset-inline: -2px;
+  block-size: 2px;
+  background: var(--nt-color-bg);
+  content: "";
+  transform: skewY(-12deg);
+}
+
+.days {
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-2xs);
+  font-feature-settings: var(--nt-font-features-data);
+  text-align: center;
+}
+
+/* A retried run: one segment per attempt, the first at the bottom, a hairline between them. */
+.attempts {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+  min-block-size: 4px;
+}
+
+.attempt {
+  flex-basis: 0;
+  min-block-size: 2px;
+}
+
+.attempt:last-child {
+  border-radius: var(--nt-radius-sm) var(--nt-radius-sm) 0 0;
+}
+
+/* "↻ N" just above the bar's top, centred on it. */
+.retryMark {
+  align-self: center;
+  margin-block-end: var(--nt-space-0-5);
+}

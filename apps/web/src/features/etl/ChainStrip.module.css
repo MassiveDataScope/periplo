@@ -1,0 +1,50 @@
+/* A chain of ETLs on one line, wrapping where the card is narrow: each a link with its last run's mark. */
+.chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nt-space-1) var(--nt-space-1-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--nt-font-size-sm);
+}
+
+/* A link never breaks inside its name: the chain wraps between links, and a name longer than the card is cut. */
+.item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nt-space-1-5);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  white-space: nowrap;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nt-space-1);
+  max-inline-size: 100%;
+  color: var(--nt-color-text);
+  font-family: var(--nt-font-family-mono);
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.link[aria-current="page"] {
+  font-weight: var(--nt-font-weight-strong);
+  text-decoration: none;
+}
+
+.mark {
+  flex-shrink: 0;
+}
+
+.arrow {
+  flex-shrink: 0;
+  color: var(--nt-color-text-muted);
+}

@@ -228,6 +228,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/etl/{name}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["archiveEtl"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/etl/{name}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["restoreEtl"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/etl/runs/{id}": {
         parameters: {
             query?: never;
@@ -238,6 +270,38 @@ export interface paths {
         get: operations["getEtlRun"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/etl/runs/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cancelEtlRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/etl/runs/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["retryEtlRun"];
         delete?: never;
         options?: never;
         head?: never;
@@ -449,6 +513,43 @@ export interface components {
         EtlStatus: {
             configured: boolean;
             operate_enabled: boolean;
+            /** @description Whether the caller may archive and restore ETLs (kept by Periplo; nothing changes in the orchestrator). The open-core default follows PERIPLO_ETL_ALLOW_ARCHIVE, else PERIPLO_ETL_ALLOW_OPERATE. */
+            archive_enabled: boolean;
+            /**
+             * @description process: archives are kept in this API process, lost on restart and not shared between API workers (the open-core store); durable: a store that outlives it.
+             * @enum {string}
+             */
+            archive_mode: "process" | "durable";
+            /** @description How the installation names the facets its tags form, by tag prefix (PERIPLO_ETL_FACETS); empty when it configures none. Nothing in the console names a prefix: every prefix:value tag forms a facet, and tags without a colon one Labels facet. */
+            facets: {
+                [key: string]: components["schemas"]["FacetConfig"];
+            };
+        };
+        FacetConfig: {
+            /** @description Its name; the prefix, humanised, when null. */
+            label: string | null;
+            /** @description Its place among the facets, lowest first; unset ones follow by how many ETLs carry the prefix. */
+            order: number | null;
+            /** @description Never offered as a filter, a grouping or on an ETL's page. */
+            hidden: boolean;
+            /** @description reads/writes: lineage. expects_schedule: an ETL carrying one of values should be scheduled. */
+            role: ("reads" | "writes" | "expects_schedule") | null;
+            /** @description Required by, and only allowed with, role expects_schedule. */
+            values: string[] | null;
+        };
+        ArchiveMark: {
+            /** Format: date-time */
+            at: string;
+            /** @description The caller's subject; null without a login. */
+            by: string | null;
+            reason: string | null;
+        };
+        ArchiveState: {
+            name: string;
+            archived: components["schemas"]["ArchiveMark"] | null;
+        };
+        ArchiveRequest: {
+            reason?: string | null;
         };
         Schedule: {
             /** @enum {string} */
@@ -457,6 +558,19 @@ export interface components {
             interval_seconds: number | null;
             timezone: string | null;
             active: boolean;
+        };
+        /** @description What starts a chained ETL: another ETL's run completing. */
+        EtlTrigger: {
+            /** @description The ETL whose completed run starts this one. */
+            etl: string;
+            /** @enum {string} */
+            on: "completed";
+            /** @description The parameters the trigger copies from the upstream run onto the run it starts, by name, sorted. */
+            passes: string[];
+            /** @description The parameters the trigger sets to a constant on the run it starts, with their value. One set by any other template is in neither. */
+            sets: {
+                [key: string]: unknown;
+            };
         };
         FlowRun: {
             id: string;
@@ -468,18 +582,29 @@ export interface components {
             expected_start_at: string | null;
             /** Format: date-time */
             start_at: string | null;
+            /**
+             * Format: date-time
+             * @description When its current (or, once finished, its last) attempt started. start_at is the orchestrator's own start, which a retry from its UI keeps at the first attempt's: elapsed time, slowness and a live bar run from this one. null while the run waits to start, a retried run waiting for its next attempt included. For a finished retried run whose attempts were not read, the first start.
+             */
+            attempt_started_at: string | null;
+            /**
+             * Format: date-time
+             * @description Since when it has waited for its current attempt to start: when it was due, or, for a retried run waiting for its next attempt, when it entered its current state or, if later, when that state is due (a retry delay); the orchestrator keeps the first attempt's expected start. The console calls a run stuck from this.
+             */
+            waiting_since: string | null;
             /** Format: date-time */
             end_at: string | null;
             duration_seconds: number;
+            /** @description Who created the run, as the orchestrator names them. null for a run an automation created: its name can carry a hidden upstream ETL's name, so the console says "Triggered by X › run" from triggered_by_run instead. */
             created_by: string | null;
             run_count: number;
             retries: number;
             retry_delay_seconds: number;
             /**
-             * @description scheduled when the run carries the orchestrator's own auto-scheduled marker
+             * @description automation when an orchestrator automation created the run (a chained ETL), scheduled when it carries the orchestrator's own auto-scheduled marker, else manual
              * @enum {string}
              */
-            trigger: "scheduled" | "manual";
+            trigger: "scheduled" | "manual" | "automation";
             /** @description A deep link into the orchestrator's own UI, or null when none is configured. */
             external_url: string | null;
             /** @description One entry per attempt when run_count > 1; null when run_count <= 1 or the response's attempt budget was already spent. */
@@ -499,8 +624,20 @@ export interface components {
             id: string;
             /** @enum {string} */
             state: "SCHEDULED" | "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "CRASHED" | "PAUSED" | "CANCELLING";
+            /** @description How many attempts the run took (FlowRun.run_count): known even when attempts is not, so a retried run is always marked as such. */
+            run_count: number;
+            /**
+             * Format: date-time
+             * @description When it was due: dates a run that never started (cancelled before it did).
+             */
+            expected_start_at: string | null;
             /** Format: date-time */
             start_at: string | null;
+            /**
+             * Format: date-time
+             * @description As FlowRun.attempt_started_at.
+             */
+            attempt_started_at: string | null;
             /** Format: date-time */
             end_at: string | null;
             /** @description Copied from the FlowRun it derives from; same rules as FlowRun.attempts. */
@@ -522,12 +659,16 @@ export interface components {
             /** Format: date-time */
             next_run_at: string | null;
             schedule_inactive: boolean;
-            cadence: string | null;
-            mode: string | null;
             /** @description processes appears in parameter_openapi_schema.properties; gates "Re-run from failed process" */
             accepts_processes: boolean;
             /** @description A deep link into the orchestrator's own UI, or null when none is configured. */
             external_url: string | null;
+            /** @description The ETL whose completed run starts this one, when an orchestrator automation chains them; only ETLs in the same list are named. */
+            triggered_by: components["schemas"]["EtlTrigger"] | null;
+            /** @description The ETLs this one's completed run starts, sorted; only ETLs in the same list. */
+            triggers: string[];
+            /** @description When the ETL was archived in Periplo, by whom and why; null for an active one. An archived ETL is left out of the list's summary and history; its live runs stay in running. */
+            archived: components["schemas"]["ArchiveMark"] | null;
         };
         /** @description Where a running run is right now: its process, step, and position among them. total counts processes seen so far in this run, not the deployment's typical process count (documented limitation). */
         EtlCurrent: {
@@ -544,9 +685,24 @@ export interface components {
             state: "SCHEDULED" | "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "CRASHED" | "PAUSED" | "CANCELLING";
             /** Format: date-time */
             start_at: string | null;
+            /**
+             * Format: date-time
+             * @description As FlowRun.attempt_started_at.
+             */
+            attempt_started_at: string | null;
+            /**
+             * Format: date-time
+             * @description When it was due to start. For a run that has not started (no start time; PENDING here), it says how long the run has waited: the console calls it stuck once it is more than an hour past it.
+             */
+            expected_start_at: string | null;
+            /**
+             * Format: date-time
+             * @description As FlowRun.waiting_since.
+             */
+            waiting_since: string | null;
             created_by: string | null;
             /** @enum {string} */
-            trigger: "scheduled" | "manual";
+            trigger: "scheduled" | "manual" | "automation";
             current: components["schemas"]["EtlCurrent"] | null;
             /** @description Median duration of the deployment's COMPLETED entries in recent. */
             typical_seconds: number | null;
@@ -573,6 +729,7 @@ export interface components {
             median_seconds: number | null;
         };
         Summary: {
+            /** @description ETLs with a run going: one that has started (RUNNING, or PENDING with a start time) in running, or a newest recent run that has. A run that has not started is waiting, never running. */
             running: number;
             failed_24h: number;
             completed_24h: number;
@@ -583,7 +740,7 @@ export interface components {
             etls: components["schemas"]["Etl"][];
             summary: components["schemas"]["Summary"];
             running: components["schemas"]["RunningRun"][];
-            /** @description running was capped at 20 entries. */
+            /** @description running was capped at 20 entries. The runs waiting to start appended after the cap (at most 5) do not count, so running can hold up to 25 entries. */
             running_truncated: boolean;
         };
         RunList: {
@@ -598,6 +755,21 @@ export interface components {
             flow_name: string;
             /** @description state in COMPLETED, FAILED, CANCELLED, CRASHED */
             terminal: boolean;
+            /**
+             * Format: date-time
+             * @description When the run entered its current state: how long it has been cancelling, before a force.
+             */
+            state_since: string | null;
+            /** @description For a run an automation created: the upstream ETL's run that started it, read as that ETL's newest run completed before this one was created, preferring one whose passed parameters match this run's. */
+            triggered_by_run: components["schemas"]["RunLink"] | null;
+            /** @description For a completed run: each downstream ETL's run its automations created after it ended, the first per downstream ETL. A downstream ETL with none did not run. */
+            triggered_runs: components["schemas"]["RunLink"][];
+        };
+        /** @description A run of another ETL a run is chained to. */
+        RunLink: {
+            etl: string;
+            run_id: string;
+            run_name: string;
         };
         LogEntry: {
             id: string;
@@ -613,6 +785,19 @@ export interface components {
         };
         /** @enum {string} */
         StepState: "SCHEDULED" | "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "CRASHED" | "PAUSED" | "CANCELLING" | "INTERRUPTED";
+        /** @description One try of a step that failed and was started again in the same attempt: loom makes a task run each time a step starts, so each try is its own task run. */
+        StepTry: {
+            /** @description 1 for the first try. */
+            index: number;
+            task_run_id: string;
+            state: components["schemas"]["StepState"];
+            /** Format: date-time */
+            start_at: string | null;
+            /** Format: date-time */
+            end_at: string | null;
+            duration_seconds: number | null;
+        };
+        /** @description One step of a process. A step started again after failing is one step: its state and task_run_id are its last try's, its span from its first try's start to its last try's end, and tries lists each; null for a step that ran once. */
         Step: {
             name: string;
             task_run_id: string;
@@ -622,6 +807,7 @@ export interface components {
             /** Format: date-time */
             end_at: string | null;
             duration_seconds: number | null;
+            tries: components["schemas"]["StepTry"][] | null;
         };
         Process: {
             name: string | null;
@@ -697,6 +883,13 @@ export interface components {
             parameters?: {
                 [key: string]: unknown;
             } | null;
+        };
+        CancelRequest: {
+            /**
+             * @description Force a run stuck cancelling for 10 minutes to cancelled; it stops nothing still running.
+             * @default false
+             */
+            force: boolean;
         };
     };
     responses: never;
@@ -1410,6 +1603,126 @@ export interface operations {
             };
         };
     };
+    archiveEtl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArchiveRequest"];
+            };
+        };
+        responses: {
+            /** @description Archived in Periplo; nothing changes in the orchestrator. One already archived keeps its first mark */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchiveState"];
+                };
+            };
+            /** @description Archiving is not allowed to this caller (etl_archive_disabled by default) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Integration off (etl_not_configured) or unknown deployment (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A reason longer than 500 characters */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The orchestrator is unreachable or rejected the credential (etl_upstream) */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    restoreEtl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Restored; one that was not archived is left as it is. The orchestrator is not asked */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchiveState"];
+                };
+            };
+            /** @description Archiving is not allowed to this caller (etl_archive_disabled by default) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Integration off (etl_not_configured), or a deployment hidden from the caller (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     getEtlRun: {
         parameters: {
             query?: never;
@@ -1432,6 +1745,144 @@ export interface operations {
             };
             /** @description Integration off (etl_not_configured) or unknown deployment/run (not_found) */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The orchestrator is unreachable or rejected the credential (etl_upstream) */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    cancelEtlRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelRequest"];
+            };
+        };
+        responses: {
+            /** @description The run read back: CANCELLING while its infrastructure is stopped, or CANCELLED for a run that never started (or one forced) */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunDetail"];
+                };
+            };
+            /** @description Operating ETLs is disabled (etl_operate_disabled) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Integration off (etl_not_configured) or unknown run (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Finished, already cancelling, or not stuck cancelling long enough to force (etl_run_not_cancellable) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The orchestrator is unreachable or rejected the credential (etl_upstream) */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    retryEtlRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The same run, scheduled again (AwaitingRetry); its run_count grows when it starts */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunDetail"];
+                };
+            };
+            /** @description Operating ETLs is disabled (etl_operate_disabled) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Integration off (etl_not_configured) or unknown run (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Not failed or crashed, or without a deployment (etl_run_not_retryable) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -26,7 +26,7 @@ const tasks: RunTasks = {
           end_at: "2026-09-23T06:02:00Z",
           duration_seconds: 119,
           expected_steps: null,
-          steps: [{ name: "Load", task_run_id: "task-1", state: "COMPLETED", start_at: "2026-09-23T06:00:01Z", end_at: "2026-09-23T06:02:00Z", duration_seconds: 119 }],
+          steps: [{ name: "Load", task_run_id: "task-1", state: "COMPLETED", start_at: "2026-09-23T06:00:01Z", end_at: "2026-09-23T06:02:00Z", duration_seconds: 119 , tries: null}],
         },
       ],
     },

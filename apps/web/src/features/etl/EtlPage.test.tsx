@@ -1,51 +1,17 @@
-import { ApiError } from "@periplo/core/api";
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { StrictMode } from "react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nextProvider } from "react-i18next";
+import type { Loadable } from "../../api/loadable";
 import type { Dependencies } from "../../app/dependencies";
+import { href } from "../../app/routes";
 import { createI18n } from "../../i18n";
-import type { Catalog } from "../catalog-tree/catalog-model";
-import { EtlPage, processesToRerun } from "./EtlPage";
-import type { Etl, FlowRun, RunDetail } from "./useEtl";
+import { EtlPage } from "./EtlPage";
+import type { Etl, EtlList, FlowRun, RunDetail, RunningRun } from "./useEtl";
 import type { EtlStatus } from "./useEtlStatus";
+import { useRunsNow } from "./useRunsNow";
 
 const i18n = await createI18n();
-
-// jsdom has no modal machinery for `<dialog>`; the `open` attribute standing in for it is enough here.
-beforeAll(() => {
-  if (typeof HTMLDialogElement.prototype.showModal !== "function") {
-    HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
-      this.setAttribute("open", "");
-    };
-  }
-  if (typeof HTMLDialogElement.prototype.close !== "function") {
-    HTMLDialogElement.prototype.close = function (this: HTMLDialogElement) {
-      this.removeAttribute("open");
-    };
-  }
-  if (typeof window.matchMedia !== "function") {
-    // Wide by default: the details column is the design, the popover the (untested-here) narrow exception.
-    vi.stubGlobal("matchMedia", (query: string) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {} }));
-  }
-});
-
-// jsdom lays nothing out: every element's own `getBoundingClientRect` is all zeros, which `ProcessPopover` would
-// read as "its own anchor scrolled fully out of the pipeline frame" (0 > 0 is false) and close itself right after
-// opening. A fixed non-zero rect for every element is enough to exercise the popover here — its own geometry is
-// covered by `ProcessPopover.test.tsx`'s dedicated tests for `positionProcessPopover`.
-beforeEach(() => {
-  vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({
-    top: 100,
-    left: 100,
-    right: 150,
-    bottom: 130,
-    width: 50,
-    height: 30,
-    x: 100,
-    y: 100,
-    toJSON: () => ({}),
-  });
-});
 
 afterEach(() => {
   cleanup();
@@ -53,662 +19,443 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const enabled: EtlStatus = { configured: true, operate_enabled: true };
-
-const etl: Etl = {
-  id: "dep-1",
-  name: "daily-orders",
-  flow_name: "daily-orders",
-  description: "Loads the previous day's orders.",
-  tags: ["shop", "orders"],
-  paused: false,
-  schedule: { kind: "cron", cron: "0 6 * * *", interval_seconds: null, timezone: "Europe/Madrid", active: true },
-  parameters: { run_date: "${today}" },
-  last_run: null,
-  recent: [],
-  next_run_at: null,
-  schedule_inactive: false,
-  cadence: null,
-  mode: null,
-  accepts_processes: false,
-  external_url: "https://prefect.example/deployments/deployment/dep-1",
-};
+const operator: EtlStatus = { configured: true, operate_enabled: true, archive_enabled: true, archive_mode: "process", facets: {} };
+const reader: EtlStatus = { configured: true, operate_enabled: false, archive_enabled: false, archive_mode: "process", facets: {} };
 
 function run(overrides: Partial<FlowRun> & Pick<FlowRun, "id" | "name" | "state">): FlowRun {
   return {
     state_message: null,
-    expected_start_at: "2026-09-22T06:00:00Z",
-    start_at: "2026-09-22T06:00:01Z",
-    end_at: "2026-09-22T06:01:00Z",
-    duration_seconds: 59,
+    expected_start_at: "2026-09-22T04:00:00Z",
+    waiting_since: "2026-09-22T04:00:00Z",
+    start_at: "2026-09-22T04:00:01Z",
+    attempt_started_at: "2026-09-22T04:00:01Z",
+    end_at: "2026-09-22T04:05:00Z",
+    duration_seconds: 300,
     created_by: null,
     run_count: 1,
     retries: 0,
     retry_delay_seconds: 0,
-    trigger: "manual",
+    trigger: "scheduled",
     external_url: null,
     attempts: null,
     ...overrides,
   };
 }
 
-const completed = run({ id: "run-1", name: "old-completion", state: "COMPLETED", start_at: "2026-09-20T06:00:01Z", end_at: "2026-09-20T06:01:41Z" });
-
-const staging = {
-  name: "Staging",
-  task_run_id: "process-1",
+const failed = run({
+  id: "run-3",
+  name: "dapper-heron",
   state: "FAILED",
-  start_at: "2026-09-22T06:00:02Z",
-  end_at: "2026-09-22T06:00:41Z",
-  duration_seconds: 39,
-  expected_steps: null,
-  steps: [{ name: "Load", task_run_id: "task-1", state: "FAILED", start_at: "2026-09-22T06:00:02Z", end_at: "2026-09-22T06:00:41Z", duration_seconds: 39 }],
+  state_message: "EmptyUserPartitionError: no users for 2026-09-22",
+  start_at: "2026-09-22T04:00:01Z",
+  attempt_started_at: "2026-09-22T04:00:01Z",
+  end_at: "2026-09-22T04:01:45Z",
+  duration_seconds: 104,
+});
+const runs: FlowRun[] = [
+  failed,
+  run({ id: "run-2", name: "fuzzy-quail", state: "COMPLETED", start_at: "2026-09-21T04:00:01Z", duration_seconds: 420, trigger: "manual", created_by: "ana" }),
+  run({ id: "run-1", name: "lively-raven", state: "COMPLETED", start_at: "2026-09-20T04:00:01Z", duration_seconds: 300, run_count: 2 }),
+];
+
+const etl: Etl = {
+  id: "dep-1",
+  name: "customer_facts",
+  flow_name: "customer_facts",
+  description: "Rebuilds the customer fact table from the core orders and returns.",
+  tags: ["team:data-platform", "source:orders", "target:mart"],
+  paused: false,
+  schedule: { kind: "cron", cron: "0 4 * * *", interval_seconds: null, timezone: "UTC", active: true },
+  parameters: { feed: "customer_facts", source_kind: "table" },
+  last_run: failed,
+  recent: [],
+  next_run_at: "2026-09-23T04:00:00Z",
+  schedule_inactive: false,
+  accepts_processes: false,
+  external_url: "https://prefect.example/deployments/deployment/dep-1",
+  triggered_by: null,
+  triggers: [],
+  archived: null,
 };
 
-const failedAttempt = { number: 1, state: "FAILED", started_at: "2026-09-22T06:00:01Z", ended_at: "2026-09-22T06:00:41Z", message: "shop API returned 503", processes: [staging] };
-const failedTasks = { attempts: [failedAttempt], expected_steps_known: true };
+const launched: RunDetail = {
+  ...run({ id: "run-9", name: "bold-crane", state: "SCHEDULED", start_at: null, attempt_started_at: null, end_at: null }),
+  parameters: etl.parameters,
+  deployment_id: "dep-1",
+  deployment_name: "customer_facts",
+  flow_name: "customer_facts",
+  terminal: false,
+  state_since: null,
+  triggered_by_run: null,
+  triggered_runs: [],
+};
 
-const okStaging = { ...staging, state: "COMPLETED", steps: [{ ...staging.steps[0], state: "COMPLETED" }] };
-const okAttempt = { number: 1, state: "COMPLETED", started_at: "2026-09-20T06:00:01Z", ended_at: "2026-09-20T06:01:41Z", message: null, processes: [okStaging] };
-const okTasks = { attempts: [okAttempt], expected_steps_known: true };
-const emptyTasks = { attempts: [], expected_steps_known: true };
-
-const stepDetail = (taskRunId: string, name: string) => ({
-  step: { name, task_run_id: taskRunId, state: "FAILED", start_at: "2026-09-22T06:00:02Z", end_at: "2026-09-22T06:00:41Z", duration_seconds: 39 },
-  process: "Staging",
-  facts: { reads: ["orders"], writes: ["orders_staging"], rows: 42, delta_version: 1 },
-  logs: { entries: [{ id: "log-1", timestamp: "2026-09-22T06:00:03Z", level: 40, level_name: "ERROR", message: "boom", noise: false }], next: null, truncated: false },
+const quietHistory = { buckets: [], upcoming: [], median_seconds: null };
+const listOf = (...etls: Etl[]): Loadable<EtlList> => ({
+  kind: "ready",
+  value: {
+    etls,
+    running: [],
+    running_truncated: false,
+    summary: { running: 0, failed_24h: 0, completed_24h: 0, history: { interval: "1h", ...quietHistory }, history_7d: { interval: "1d", ...quietHistory } },
+  },
 });
 
-interface RouterOptions {
-  readonly etl?: Etl;
-  readonly runs?: FlowRun[];
-  readonly tasksByRun?: Record<string, unknown>;
-  readonly runDetailsById?: Record<string, unknown>;
-  readonly grid?: unknown;
+interface PageOptions {
+  readonly one?: Etl;
+  readonly list?: Loadable<EtlList>;
+  readonly status?: EtlStatus;
+  readonly selectedRunId?: string | null;
+  readonly POST?: ReturnType<typeof vi.fn>;
 }
 
-/** Routes every endpoint the page can call, keyed by path template — as the real client sends it. */
-function router({ etl: one = etl, runs = [completed], tasksByRun = {}, runDetailsById = {}, grid = { processes: [], truncated: false, runs: [] } }: RouterOptions = {}) {
-  const GET = vi.fn((path: string, init?: { params?: { path?: Record<string, string> } }) => {
-    if (path === "/etl") return Promise.resolve({ data: { etls: [one] } });
+type PageProps = Parameters<typeof EtlPage>[0];
+
+/** The page as the section gives it its list and that list's reading, by the section's own hook. */
+function SectionPage(props: Omit<PageProps, "runsNow">) {
+  const runsNow = useRunsNow(props.list, true, props.status.facets);
+  return <EtlPage {...props} runsNow={runsNow} />;
+}
+
+function page(props: Omit<PageProps, "name" | "runsNow"> & { readonly one: Etl }) {
+  const { one, ...rest } = props;
+  return (
+    <I18nextProvider i18n={i18n}>
+      <SectionPage name={one.name} {...rest} />
+    </I18nextProvider>
+  );
+}
+
+function renderPage({ one = etl, list = listOf(one), status = operator, selectedRunId = null, POST = vi.fn() }: PageOptions = {}) {
+  const GET = vi.fn((path: string) => {
     if (path === "/etl/{name}/runs") return Promise.resolve({ data: { runs } });
-    if (path === "/etl/{name}/grid") return Promise.resolve({ data: grid });
-    if (path === "/etl/runs/{id}/tasks") {
-      const id = init?.params?.path?.id ?? "";
-      return Promise.resolve({ data: tasksByRun[id] ?? emptyTasks });
-    }
-    if (path === "/etl/runs/{id}/steps/{task_run}") {
-      const taskRun = init?.params?.path?.task_run ?? "";
-      return Promise.resolve({ data: stepDetail(taskRun, "Load") });
-    }
-    if (path === "/etl/runs/{id}") {
-      const id = init?.params?.path?.id ?? "";
-      const found = (runDetailsById[id] as RunDetail | undefined) ?? {
-        ...(runs.find((candidate) => candidate.id === id) ?? completed),
-        parameters: { run_date: "2026-09-22" },
-        deployment_id: one.id,
-        deployment_name: one.name,
-        flow_name: one.flow_name,
-        terminal: true,
-      };
-      return Promise.resolve({ data: found });
-    }
     return Promise.reject(new Error(`unexpected GET ${path}`));
   });
-  const POST = vi.fn().mockResolvedValue({ data: { ...completed, parameters: {}, deployment_id: one.id, deployment_name: one.name, flow_name: one.flow_name, terminal: false, id: "run-9" } });
-  return { GET, POST };
+  const onListChanged = vi.fn();
+  const dependencies = { client: { GET, POST } } as unknown as Dependencies;
+  const props = { one, dependencies, status, onListChanged, selectedRunId, onRunOnceTaken: vi.fn() };
+  const { rerender } = render(page({ ...props, list }));
+  return { GET, POST, onListChanged, showList: (next: Loadable<EtlList>) => rerender(page({ ...props, list: next })) };
 }
 
-function renderPage(options: RouterOptions = {}, status = enabled, name = etl.name, catalog: Catalog | null = null) {
-  const { GET, POST } = router(options);
-  render(
-    <I18nextProvider i18n={i18n}>
-      <EtlPage dependencies={{ client: { GET, POST } } as unknown as Dependencies} name={name} status={status} catalog={catalog} />
-    </I18nextProvider>,
-  );
-  return { GET, POST };
-}
-
-/** Every process is a folded box (never an inline step node) — opens the process's own Spark-UI steps view. */
-async function openProcessBox(label: string | RegExp): Promise<void> {
-  fireEvent.click(await screen.findByRole("button", { name: label }));
-}
-
-/** The step's own row within the process's already-open popover — the control that actually opens the log window
- * now. Scoped to the popover itself (`role="dialog"`): the same step name can also be showing in the floating
- * logs pill's own `<b>` (and the runs table is a second, unrelated `<table>` on the page) at the same time, and
- * an unscoped query would find more than one match. */
-async function stepRow(stepName: string): Promise<HTMLElement> {
-  const popover = await screen.findByRole("dialog");
-  return within(popover).getByText(stepName).closest("tr") as HTMLElement;
+/** Renders the page and waits for its runs, so no state update lands after the test has finished. */
+async function renderLoaded(options: PageOptions = {}) {
+  const rendered = renderPage(options);
+  await screen.findByRole("table", { name: "Runs" });
+  return rendered;
 }
 
 describe("EtlPage", () => {
-  it("heads the page with the deployment and lists its runs, each linking to the run", async () => {
-    renderPage();
-    const section = await screen.findByRole("region", { name: "daily-orders" });
-    const rows = await within(section).findAllByRole("row", { name: /old-completion/ });
-    expect(within(rows[0]!).getByRole("link").getAttribute("href")).toBe("#/etl/runs/run-1");
-    expect(rows[0]!.textContent).toContain("Completed");
-  });
-
-  it("says so when the ETL has not run yet, and offers Run", async () => {
-    renderPage({ runs: [] });
-    // The history chart's own empty state ("No runs yet") happens to read the same as the page's; both are fine.
-    expect((await screen.findAllByText("No runs yet")).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: "Run" }).length).toBeGreaterThan(0);
-  });
-
-  it("reports an unknown name instead of an empty page", async () => {
-    renderPage({}, enabled, "nightly-nothing");
-    expect((await screen.findByRole("alert")).textContent).toContain("ETL nightly-nothing is not known");
-    expect(screen.queryByRole("region")).toBeNull();
-  });
-
-  it("shows the API's error for the runs and asks again on retry", async () => {
-    const GET = vi.fn((path: string) => (path === "/etl" ? Promise.resolve({ data: { etls: [etl] } }) : Promise.reject(new ApiError({ status: 502, code: "etl_upstream", message: "Prefect did not answer" }))));
-    render(
-      <I18nextProvider i18n={i18n}>
-        <EtlPage dependencies={{ client: { GET, POST: vi.fn() } } as unknown as Dependencies} name={etl.name} status={enabled} catalog={null} />
-      </I18nextProvider>,
-    );
-    const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toContain("The runs could not be loaded");
-    const before = GET.mock.calls.filter(([path]) => path === "/etl/{name}/runs").length;
-    fireEvent.click(within(alert).getByRole("button", { name: "Retry" }));
-    await waitFor(() => expect(GET.mock.calls.filter(([path]) => path === "/etl/{name}/runs").length).toBe(before + 1));
-  });
-
-  it("offers Pause (behind the ⋯ menu) on an active schedule, and a single 'Resume schedule' primary once paused after a failure", async () => {
-    renderPage();
-    fireEvent.click(await screen.findByRole("button", { name: "More ways to manage daily-orders" }));
-    expect(screen.getByRole("menuitem", { name: "Pause" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Resume schedule" })).toBeNull();
+  it("says so when the ETL is not known, and waits for the list", () => {
+    renderPage({ list: listOf() });
+    expect(screen.getByRole("alert").textContent).toContain("ETL customer_facts is not known");
     cleanup();
-
-    const inactive: Etl = { ...etl, schedule_inactive: true, schedule: { ...etl.schedule!, active: false } };
-    renderPage({ etl: inactive });
-    expect(await screen.findByRole("button", { name: "Resume schedule" })).toBeTruthy();
-    // No duplicate Resume: the ⋯ menu carries the "run once while still paused" action instead.
-    fireEvent.click(screen.getByRole("button", { name: "More ways to manage daily-orders" }));
-    expect(screen.getByRole("menuitem", { name: "Run now" })).toBeTruthy();
-    expect(screen.queryByRole("menuitem", { name: "Pause" })).toBeNull();
+    renderPage({ list: { kind: "loading" } });
+    expect(screen.getByRole("progressbar", { name: "Loading ETLs" })).toBeTruthy();
   });
 
-  it("offers neither Resume, Pause nor Run when operating is switched off", async () => {
-    renderPage({}, { configured: true, operate_enabled: false });
-    await screen.findByRole("region", { name: "daily-orders" });
-    expect(screen.queryByRole("button", { name: "Resume schedule" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "More ways to manage daily-orders" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Run" })).toBeNull();
+  it("leads back to the ETLs with breadcrumbs, and names the ETL with its description", async () => {
+    await renderLoaded();
+    const crumbs = within(screen.getByRole("navigation", { name: "Breadcrumb" }));
+    expect(crumbs.getByRole("link", { name: "ETLs" }).getAttribute("href")).toBe("#/etl");
+    expect(screen.getByRole("heading", { level: 2, name: /customer_facts/ })).toBeTruthy();
+    expect(screen.getByText(etl.description ?? "")).toBeTruthy();
   });
 
-  it("Run now launches straight away and goes to the launched run", async () => {
-    const { POST } = renderPage();
-    fireEvent.click(await screen.findByRole("button", { name: "Run" }));
-    await waitFor(() => expect(window.location.hash).toBe("#/etl/runs/run-9"));
-    expect(POST).toHaveBeenCalledWith("/etl/{name}/runs", expect.objectContaining({ body: { parameters: { run_date: "${today}" } } }));
+  it("shows the newest failure's error once, with a link to its run", async () => {
+    await renderLoaded();
+    const failure = screen.getByRole("region", { name: "Last failure" });
+    expect(failure.textContent).toMatch(/run failed/);
+    expect(within(failure).getByRole("link", { name: "Open run" }).getAttribute("href")).toBe("#/etl/runs/run-3");
+    expect(screen.getAllByText(/EmptyUserPartitionError/)).toHaveLength(1);
   });
 
-  it("Run with parameters… opens the dialog seeded from the deployment's own parameters", async () => {
-    renderPage();
-    fireEvent.click(await screen.findByRole("button", { name: "More ways to run" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Run with parameters…" }));
-    const dialog = within(await screen.findByRole("dialog", { name: "Run daily-orders" }));
-    expect((dialog.getByLabelText("Parameters (JSON)") as HTMLTextAreaElement).value).toContain('"run_date": "${today}"');
-  });
-
-  it("the run menu: focuses its first item on open, Esc returns focus to the caret, an outside click closes it", async () => {
-    renderPage();
-    const caret = await screen.findByRole("button", { name: "More ways to run" });
-    fireEvent.click(caret);
-    const first = screen.getByRole("menuitem", { name: "Run with parameters…" });
-    await waitFor(() => expect(document.activeElement).toBe(first));
-
-    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
-    expect(screen.queryByRole("menu")).toBeNull();
-    expect(document.activeElement).toBe(caret);
-
-    fireEvent.click(caret);
-    expect(screen.getByRole("menu")).toBeTruthy();
-    fireEvent.pointerDown(document.body);
-    expect(screen.queryByRole("menu")).toBeNull();
-  });
-
-  it("the run menu: ↑/↓ rove between its items", async () => {
-    const acceptsProcesses: Etl = { ...etl, accepts_processes: true };
-    const failed = run({ id: "run-2", name: "quiet-heron", state: "FAILED" });
-    renderPage({ etl: acceptsProcesses, runs: [completed, failed], tasksByRun: { "run-2": failedTasks } });
-    // canRerun (and so the menu's second item) resolves once the failed run's own tasks and the shape are both in.
-    await screen.findByRole("status", { name: "Needs attention" });
-    await waitFor(async () => expect(await within(screen.getByRole("status", { name: "Needs attention" })).findByRole("button", { name: "Re-run from failed process" })).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: "More ways to run" }));
-    const menu = screen.getByRole("menu");
-    const [first, second] = await screen.findAllByRole("menuitem");
-    await waitFor(() => expect(document.activeElement).toBe(first));
-    fireEvent.keyDown(menu, { key: "ArrowDown" });
-    expect(document.activeElement).toBe(second);
-    fireEvent.keyDown(menu, { key: "ArrowUp" });
-    expect(document.activeElement).toBe(first);
-  });
-});
-
-describe("EtlPage — failed run defaults", () => {
-  it("opens with the last failed run selected, its failed step focused, and the log window open on the first ERROR line", async () => {
-    const failed = run({ id: "run-2", name: "quiet-heron", state: "FAILED", state_message: "shop API returned 503" });
-    renderPage({ runs: [completed, failed], tasksByRun: { "run-2": failedTasks } });
-
-    // The pipeline graph always shows folded process boxes (never an inline step node) — the failed process's
-    // own box (danger-toned) is what the reader sees there; the log window itself carries the step detail.
-    await screen.findByRole("button", { name: "Staging · 1 step · Failed" });
-
-    const window_ = await screen.findByRole("complementary", { name: (value) => value !== "Details" });
-    expect(window_.textContent).toContain("quiet-heron");
-    // The step names arrive with the run's tasks, after the window itself has opened.
-    await waitFor(() => expect(window_.textContent).toContain("Staging › Load"));
-  });
-
-  it("links a reads/writes reference to the Catalog only when App.tsx's own catalog data says it exists (item c)", async () => {
-    const failed = run({ id: "run-2", name: "quiet-heron", state: "FAILED", state_message: "shop API returned 503" });
-    const catalog: Catalog = {
-      published_at: "2026-09-23T00:00:00Z",
-      group_by: [],
-      label_values: {},
-      conflicts: [],
-      tables: [{ database: "lake", name: "orders", source: "s3", path: "lake/orders", labels: {}, unlabeled: [] }],
+  it("says a run of it is stuck waiting to start, with a link to that run, and nothing when none is", async () => {
+    const stuck: RunningRun = {
+      id: "run-stuck",
+      name: "stuck",
+      etl: etl.name,
+      state: "PENDING",
+      start_at: null,
+      attempt_started_at: null,
+      expected_start_at: "2026-08-16T12:00:00Z",
+      waiting_since: "2026-08-16T12:00:00Z",
+      created_by: null,
+      trigger: "scheduled",
+      current: null,
+      typical_seconds: null,
     };
-    const GET = vi.fn((path: string, init?: { params?: { path?: Record<string, string> } }) => {
-      if (path === "/etl") return Promise.resolve({ data: { etls: [etl] } });
-      if (path === "/etl/{name}/runs") return Promise.resolve({ data: { runs: [completed, failed] } });
-      if (path === "/etl/{name}/grid") return Promise.resolve({ data: { processes: [], truncated: false, runs: [] } });
-      if (path === "/etl/runs/{id}/tasks") return Promise.resolve({ data: failedTasks });
-      if (path === "/etl/runs/{id}/steps/{task_run}") {
-        const taskRun = init?.params?.path?.task_run ?? "";
-        return Promise.resolve({
-          data: { step: { name: "Load", task_run_id: taskRun, state: "FAILED", start_at: null, end_at: null, duration_seconds: null }, process: "Staging", facts: { reads: ["lake.orders"], writes: ["lake.unknown_table"], rows: null, delta_version: null }, logs: { entries: [], next: null, truncated: false } },
-        });
-      }
-      if (path === "/etl/runs/{id}") return Promise.resolve({ data: { ...failed, parameters: {}, deployment_id: etl.id, deployment_name: etl.name, flow_name: etl.flow_name, terminal: true } });
-      return Promise.reject(new Error(`unexpected GET ${path}`));
-    });
-    render(
-      <I18nextProvider i18n={i18n}>
-        <EtlPage dependencies={{ client: { GET, POST: vi.fn() } } as unknown as Dependencies} name={etl.name} status={enabled} catalog={catalog} />
-      </I18nextProvider>,
-    );
-
-    const window_ = await screen.findByRole("complementary", { name: (value) => value !== "Details" });
-    await waitFor(() => expect(within(window_).getByText("lake.orders").closest("a")).toBeTruthy());
-    expect(within(window_).getByText("lake.orders").closest("a")?.getAttribute("href")).toBe("#/t/lake/orders");
-    expect(within(window_).getByText("lake.unknown_table").closest("a")).toBeNull();
+    const ready = listOf(etl);
+    if (ready.kind !== "ready") throw new Error("listOf is always ready");
+    await renderLoaded({ list: { kind: "ready", value: { ...ready.value, running: [stuck] } } });
+    const notice = screen.getByRole("region", { name: "Run stuck waiting to start" });
+    expect(notice.textContent).toMatch(/^Stuck waiting to start since Aug 16, \d\d:00/);
+    expect(within(notice).getByRole("link", { name: "Open run" }).getAttribute("href")).toBe("#/etl/runs/run-stuck");
+    cleanup();
+    await renderLoaded();
+    expect(screen.queryByRole("region", { name: "Run stuck waiting to start" })).toBeNull();
   });
 
-  it("shows the status strip with View logs and (only when accepted) Re-run from failed process — no duplicate Resume, that lives in the header's own primary action", async () => {
-    const acceptsProcesses: Etl = { ...etl, accepts_processes: true, schedule_inactive: true, schedule: { ...etl.schedule!, active: false } };
-    const failed = run({ id: "run-2", name: "quiet-heron", state: "FAILED", state_message: "shop API returned 503" });
-    renderPage({ etl: acceptsProcesses, runs: [completed, failed], tasksByRun: { "run-2": failedTasks } });
-
-    expect(await screen.findByRole("button", { name: "Resume schedule" })).toBeTruthy();
-    const strip = await screen.findByRole("status", { name: "Needs attention" });
-    expect(within(strip).queryByRole("button", { name: "Resume schedule" })).toBeNull();
-    expect(within(strip).getByRole("button", { name: "View logs" })).toBeTruthy();
-    // Re-run only once the failed run's own tasks have resolved the failed process it acts on.
-    expect(await within(strip).findByRole("button", { name: "Re-run from failed process" })).toBeTruthy();
-    expect(strip.textContent).toContain("shop API returned 503");
+  it("lays out a chained ETL's chain from the list, each link a real one to its page", async () => {
+    const upstream: Etl = { ...etl, id: "dep-up", name: "respondio_messages", triggers: [etl.name] };
+    const chained: Etl = { ...etl, schedule: null, triggered_by: { etl: upstream.name, on: "completed", passes: [], sets: {} } };
+    await renderLoaded({ one: chained, list: listOf(upstream, chained) });
+    expect(
+      within(screen.getByText(/^Runs after/))
+        .getByRole("link")
+        .getAttribute("href"),
+    ).toBe("#/etl/respondio_messages");
+    const chain = within(screen.getByRole("list", { name: "Chain" })).getAllByRole("link");
+    expect(chain.map((link) => link.textContent)).toEqual(["respondio_messages", etl.name]);
   });
 
-  it("does not offer Re-run from failed process when the deployment does not accept processes", async () => {
-    const failed = run({ id: "run-2", name: "quiet-heron", state: "FAILED", state_message: "shop API returned 503" });
-    renderPage({ runs: [completed, failed], tasksByRun: { "run-2": failedTasks } });
-    const strip = await screen.findByRole("status", { name: "Needs attention" });
-    expect(within(strip).queryByRole("button", { name: "Re-run from failed process" })).toBeNull();
+  it("says a failure paused the schedule, and offers to resume it", async () => {
+    const POST = vi.fn().mockResolvedValue({ data: etl });
+    const { onListChanged } = await renderLoaded({ one: { ...etl, schedule_inactive: true, next_run_at: null }, POST });
+    expect(screen.getByRole("region", { name: "Last failure" }).textContent).toMatch(/^Paused after the .* run failed/);
+    fireEvent.click(screen.getByRole("button", { name: "Resume schedule" }));
+    await waitFor(() => expect(onListChanged).toHaveBeenCalled());
+    expect(POST).toHaveBeenCalledWith("/etl/{name}/schedule/resume", { params: { path: { name: "customer_facts" } } });
   });
 
-  it("waits for the last completed run's own shape before offering Re-run, instead of falling back silently", async () => {
-    const acceptsProcesses: Etl = { ...etl, accepts_processes: true };
-    const failed = run({ id: "run-2", name: "quiet-heron", state: "FAILED", state_message: "shop API returned 503" });
-    const shapeCompleted = run({ id: "run-1", name: "old-completion", state: "COMPLETED", start_at: "2026-09-20T06:00:01Z" });
-    const shapeGate: { resolve: (() => void) | null } = { resolve: null };
-    const shapePending = new Promise<void>((resolve) => {
-      shapeGate.resolve = resolve;
-    });
-
-    const GET = vi.fn((path: string, init?: { params?: { path?: Record<string, string> } }) => {
-      if (path === "/etl") return Promise.resolve({ data: { etls: [acceptsProcesses] } });
-      if (path === "/etl/{name}/runs") return Promise.resolve({ data: { runs: [shapeCompleted, failed] } });
-      if (path === "/etl/{name}/grid") return Promise.resolve({ data: { processes: [], truncated: false, runs: [] } });
-      if (path === "/etl/runs/{id}/tasks") {
-        const id = init?.params?.path?.id ?? "";
-        if (id === "run-1") return shapePending.then(() => ({ data: okTasks }));
-        return Promise.resolve({ data: failedTasks });
-      }
-      return Promise.reject(new Error(`unexpected GET ${path}`));
-    });
-
-    render(
-      <I18nextProvider i18n={i18n}>
-        <EtlPage dependencies={{ client: { GET, POST: vi.fn() } } as unknown as Dependencies} name={acceptsProcesses.name} status={enabled} catalog={null} />
-      </I18nextProvider>,
-    );
-
-    const strip = await screen.findByRole("status", { name: "Needs attention" });
-    // The shape (run-1, the last completed run) has not answered its own tasks yet: no button to act on it.
-    expect(within(strip).queryByRole("button", { name: "Re-run from failed process" })).toBeNull();
-
-    shapeGate.resolve?.();
-    expect(await within(strip).findByRole("button", { name: "Re-run from failed process" })).toBeTruthy();
-  });
-});
-
-describe("EtlPage — Re-run from failed process", () => {
-  it("opens the dialog prefilled with the failed run's parameters plus processes, and posts them only once confirmed", async () => {
-    const acceptsProcesses: Etl = { ...etl, accepts_processes: true };
-    const failed = run({ id: "run-2", name: "quiet-heron", state: "FAILED", state_message: "shop API returned 503" });
-    const { POST } = renderPage({
-      etl: acceptsProcesses,
-      runs: [completed, failed],
-      tasksByRun: { "run-2": failedTasks, "run-1": okTasks },
-      runDetailsById: { "run-2": { ...failed, parameters: { run_date: "2026-09-22" }, deployment_id: acceptsProcesses.id, deployment_name: acceptsProcesses.name, flow_name: acceptsProcesses.flow_name, terminal: true } },
-    });
-
-    const strip = await screen.findByRole("status", { name: "Needs attention" });
-    fireEvent.click(await within(strip).findByRole("button", { name: "Re-run from failed process" }));
-
-    const dialog = within(await screen.findByRole("dialog", { name: "Run daily-orders" }));
-    // No POST yet: opening the dialog is not a launch — the reader still confirms.
-    expect(POST).not.toHaveBeenCalled();
-    const textarea = dialog.getByLabelText("Parameters (JSON)") as HTMLTextAreaElement;
-    await waitFor(() => expect(textarea.value).toContain('"processes"'));
-    expect(textarea.value).toContain("Staging");
-    expect(dialog.getByRole("note").textContent).toContain("${now}");
-
-    fireEvent.click(dialog.getByRole("button", { name: "Run now" }));
-    await waitFor(() => expect(POST).toHaveBeenCalled());
-    const body = POST.mock.calls[0]?.[1]?.body;
-    expect(body.parameters.processes).toEqual(["Staging"]);
-  });
-});
-
-describe("EtlPage — selection and the log window", () => {
-  it("selecting another run from the runs table keeps the same step selected and the window open", async () => {
-    const failed = run({ id: "run-2", name: "quiet-heron", state: "FAILED", state_message: "shop API returned 503" });
-    renderPage({ runs: [completed, failed], tasksByRun: { "run-2": failedTasks, "run-1": okTasks } });
-
-    await screen.findByRole("complementary", { name: (value) => value !== "Details" });
-    const nameLink = (await screen.findAllByRole("link", { name: "old-completion" }))[0]!;
-    fireEvent.click(nameLink, { button: 0 });
-
-    await waitFor(() => {
-      const content = screen.getByRole("complementary", { name: (value) => value !== "Details" }).textContent ?? "";
-      expect(content).toContain("old-completion");
-      // The same step (Staging › Load), not reset to nothing, and not closed by the click.
-      expect(content).toContain("Staging › Load");
-    });
+  it("pauses an active schedule", async () => {
+    const POST = vi.fn().mockResolvedValue({ data: etl });
+    const { onListChanged } = await renderLoaded({ POST });
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    await waitFor(() => expect(onListChanged).toHaveBeenCalled());
+    expect(POST).toHaveBeenCalledWith("/etl/{name}/schedule/pause", { params: { path: { name: "customer_facts" } } });
   });
 
-  it("selecting another run from the history bar also keeps the same step selected", async () => {
-    const failed = run({ id: "run-2", name: "quiet-heron", state: "FAILED", state_message: "shop API returned 503" });
-    renderPage({ runs: [completed, failed], tasksByRun: { "run-2": failedTasks, "run-1": okTasks } });
-
-    await screen.findByRole("complementary", { name: (value) => value !== "Details" });
-    fireEvent.click(screen.getByRole("button", { name: /old-completion/ }));
-
-    await waitFor(() => {
-      const content = screen.getByRole("complementary", { name: (value) => value !== "Details" }).textContent ?? "";
-      expect(content).toContain("old-completion");
-      expect(content).toContain("Staging › Load");
-    });
+  it("offers no action to someone who cannot operate ETLs", async () => {
+    await renderLoaded({ status: reader });
+    expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Run once…" })).toBeNull();
+    expect(screen.getByRole("link", { name: /Open in orchestrator/ }).getAttribute("href")).toBe(etl.external_url);
   });
 
-  it("moves focus to the window's title on a keyboard node activation, but never on a click (item a)", async () => {
-    const failed = run({ id: "run-2", name: "quiet-heron", state: "FAILED", state_message: "shop API returned 503" });
-    renderPage({ runs: [completed, failed], tasksByRun: { "run-2": failedTasks } });
-
-    // The process box opens the Spark-UI steps view; the step *row* inside it is what opens the log window.
-    await openProcessBox("Staging · 1 step · Failed");
-    const node = await stepRow("Load");
-    const opened = await screen.findByRole("complementary", { name: (value) => value !== "Details" });
-    // `focusOnOpen` only moves focus on mount, so close the (already auto-opened) window first: a click reopening
-    // it must not steal focus, but Enter reopening it afterwards must.
-    fireEvent.click(within(opened).getByRole("button", { name: "Close" }));
-    expect(screen.queryByRole("complementary", { name: (value) => value !== "Details" })).toBeNull();
-
-    fireEvent.click(node);
-    const afterClick = await screen.findByRole("complementary", { name: (value) => value !== "Details" });
-    expect(document.activeElement).not.toBe(within(afterClick).getByRole("heading", { level: 2 }));
-    fireEvent.click(within(afterClick).getByRole("button", { name: "Close" }));
-
-    fireEvent.keyDown(node, { key: "Enter" });
-    const afterEnter = await screen.findByRole("complementary", { name: (value) => value !== "Details" });
-    await waitFor(() => expect(document.activeElement).toBe(within(afterEnter).getByRole("heading", { level: 2 })));
+  it("puts the schedule in words, in Madrid's time, with the cron and fourteen days around today", async () => {
+    await renderLoaded();
+    const schedule = within(screen.getByRole("region", { name: "Schedule" }));
+    expect(schedule.getByText("Daily at 04:00 (UTC)")).toBeTruthy();
+    expect(schedule.getByText(/^0[56]:00 in Madrid$/)).toBeTruthy();
+    expect(schedule.getByText("0 4 * * *")).toBeTruthy();
+    expect(within(schedule.getByRole("list", { name: "Last 7 days and next 7" })).getAllByRole("listitem")).toHaveLength(14);
   });
 
-  it("clicking another node while the window is open changes its content instead of closing it", async () => {
-    const twoProcessTasks = {
-      attempts: [
-        {
-          number: 1,
-          state: "FAILED",
-          started_at: "2026-09-22T06:00:01Z",
-          ended_at: "2026-09-22T06:00:41Z",
-          message: null,
-          processes: [
-            staging,
-            { name: "Publish", task_run_id: "process-2", state: "COMPLETED", start_at: "2026-09-22T06:00:41Z", end_at: "2026-09-22T06:01:00Z", duration_seconds: 19, expected_steps: null, steps: [{ name: "Write", task_run_id: "task-2", state: "COMPLETED", start_at: "2026-09-22T06:00:41Z", end_at: "2026-09-22T06:01:00Z", duration_seconds: 19 }] },
-          ],
-        },
-      ],
-      expected_steps_known: true,
+  it("lists the parameters every scheduled run uses, and runs once with others from there", async () => {
+    await renderLoaded();
+    const parameters = within(screen.getByRole("region", { name: "Parameters" }));
+    expect(parameters.getByText("feed")).toBeTruthy();
+    expect(parameters.getByText("customer_facts")).toBeTruthy();
+    expect(parameters.getByText(/Every scheduled run uses these values/)).toBeTruthy();
+    fireEvent.click(parameters.getByRole("button", { name: "Run once with others" }));
+    expect(await screen.findByRole("dialog", { name: "Run customer_facts once" })).toBeTruthy();
+  });
+
+  it("lists every facet of its tags, each value a link to the dashboard filtered by it, and how long it usually takes", async () => {
+    await renderLoaded();
+    const about = within(screen.getByRole("region", { name: "About" }));
+    expect(about.getByText("Team")).toBeTruthy();
+    expect(about.getByRole("link", { name: "data-platform" }).getAttribute("href")).toBe(href({ kind: "etl", filters: { tags: ["team:data-platform"] } }));
+    expect(about.getByRole("link", { name: "orders" })).toBeTruthy();
+    expect(about.getByRole("link", { name: "mart" })).toBeTruthy();
+    expect(about.queryByText("Reads")).toBeNull();
+    expect(await about.findByText("6m 00s")).toBeTruthy();
+  });
+
+  it("names its facets as the installation does, says what it reads and writes where it declares those roles, and hides what it hides", async () => {
+    const facets = {
+      source: { label: null, order: null, hidden: false, role: "reads" as const, values: null },
+      target: { label: null, order: null, hidden: false, role: "writes" as const, values: null },
+      team: { label: "Owning team", order: null, hidden: false, role: null, values: null },
     };
-    const failed = run({ id: "run-2", name: "quiet-heron", state: "FAILED" });
-    renderPage({ runs: [completed, failed], tasksByRun: { "run-2": twoProcessTasks } });
-
-    await screen.findByRole("complementary", { name: (value) => value !== "Details" });
-    await openProcessBox("Publish · 1 step · Completed");
-    fireEvent.click(await stepRow("Write"));
-
-    await waitFor(() => expect(screen.getByRole("complementary", { name: (value) => value !== "Details" }).textContent).toContain("Publish › Write"));
+    await renderLoaded({ status: { ...operator, facets } });
+    const about = within(screen.getByRole("region", { name: "About" }));
+    expect(about.getByText("Owning team")).toBeTruthy();
+    expect(about.getByText("Reads")).toBeTruthy();
+    expect(about.getByRole("link", { name: "orders" }).getAttribute("href")).toBe(href({ kind: "etl", filters: { tags: ["source:orders"] } }));
+    expect(about.getByText("Writes")).toBeTruthy();
+    expect(about.queryByText("Source")).toBeNull();
+    cleanup();
+    await renderLoaded({ status: { ...operator, facets: { team: { label: null, order: null, hidden: true, role: null, values: null } } } });
+    expect(within(screen.getByRole("region", { name: "About" })).queryByText("data-platform")).toBeNull();
   });
 
-  it("Esc returns focus to the origin", async () => {
-    const failed = run({ id: "run-2", name: "quiet-heron", state: "FAILED" });
-    renderPage({ runs: [completed, failed], tasksByRun: { "run-2": failedTasks } });
-
-    // Close the auto-opened window first, then reopen it explicitly by clicking a node: that node becomes the
-    // "origin" `returnFocusTo` should send focus back to.
-    fireEvent.keyDown(await screen.findByRole("complementary", { name: (value) => value !== "Details" }), { key: "Escape" });
-    await waitFor(() => expect(screen.queryByRole("complementary", { name: (value) => value !== "Details" })).toBeNull());
-
-    await openProcessBox("Staging · 1 step · Failed");
-    const node = await stepRow("Load");
-    // jsdom, unlike a real browser, does not focus a clicked element on its own: focusing it first is what a
-    // pointer click on a `tabIndex=0` node actually does, and is exactly what `rememberOpener` relies on.
-    node.focus();
-    fireEvent.click(node);
-    const window_ = await screen.findByRole("complementary", { name: (value) => value !== "Details" });
-    expect(window_.textContent).toContain("Staging › Load");
-
-    fireEvent.keyDown(window_, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByRole("complementary", { name: (value) => value !== "Details" })).toBeNull());
-    expect(document.activeElement).toBe(node);
+  it("draws the last runs as links, the newest marked until another one is chosen", async () => {
+    renderPage();
+    const chart = within(await screen.findByRole("list", { name: "Last 12 runs" }));
+    const bars = chart.getAllByRole("link");
+    expect(bars).toHaveLength(3);
+    expect(bars[2]?.getAttribute("href")).toBe("#/etl/runs/run-3");
+    expect(bars[2]?.getAttribute("aria-label")).toMatch(/^dapper-heron · Failed/);
+    expect(bars[2]?.getAttribute("aria-current")).toBe("true");
+    cleanup();
+    renderPage({ selectedRunId: "run-1" });
+    const marked = (await screen.findAllByRole("link", { current: true })).map((link) => link.getAttribute("href"));
+    expect(marked).toEqual(["#/etl/runs/run-1", "#/etl/runs/run-1"]);
   });
 
-  it("Esc inside the process's popover (log window closed) closes it, the process stays selected, and focus goes back to its own box", async () => {
-    const failed = run({ id: "run-2", name: "quiet-heron", state: "FAILED" });
-    renderPage({ runs: [completed, failed], tasksByRun: { "run-2": failedTasks } });
+  it("lists the runs, each a link to its page, who started a manual one included", async () => {
+    renderPage();
+    const table = within(await screen.findByRole("table", { name: "Runs" }));
+    const row = table.getByRole("row", { name: /fuzzy-quail/ });
+    expect(within(row).getByRole("link", { name: "fuzzy-quail" }).getAttribute("href")).toBe("#/etl/runs/run-2");
+    expect(row.textContent).toContain("Completed");
+    expect(row.textContent).toContain("7m 00s");
+    expect(row.textContent).toContain("Manual · ana");
+    // A retried run: the common mark, said in words to a screen reader.
+    const retried = table.getByRole("row", { name: /lively-raven/ });
+    expect(within(retried).getByText("↻ 2").getAttribute("aria-hidden")).toBe("true");
+    expect(within(retried).getByText("after 2 attempts").className).toContain("nt-sr-only");
+  });
 
-    // Close the auto-opened window: focus (and the keydown target below) is then inside the popover alone.
-    fireEvent.keyDown(await screen.findByRole("complementary", { name: (value) => value !== "Details" }), { key: "Escape" });
-    await waitFor(() => expect(screen.queryByRole("complementary", { name: (value) => value !== "Details" })).toBeNull());
-
-    await openProcessBox("Staging · 1 step · Failed");
-    const popover = await screen.findByRole("dialog");
-    fireEvent.keyDown(popover, { key: "Escape" });
-
-    // Back to the graph: the process's own box is what the reader sees again — the graph was never hidden — still
-    // selected, and now focused.
-    const box = await screen.findByRole("button", { name: "Staging · 1 step · Failed" });
+  it("opens the Run-once form once with the values a link carried, StrictMode or not, and has the console drop them", async () => {
+    const onRunOnceTaken = vi.fn();
+    const dependencies = { client: { GET: vi.fn().mockResolvedValue({ data: { runs } }), POST: vi.fn() } } as unknown as Dependencies;
+    const props = { one: etl, dependencies, status: operator, list: listOf(etl), onListChanged: vi.fn(), selectedRunId: null, onRunOnceTaken };
+    const { rerender } = render(<StrictMode>{page({ ...props, runOnce: { ...etl.parameters, feed: "backfill" } })}</StrictMode>);
+    const dialog = await screen.findByRole("dialog", { name: "Run customer_facts once" });
+    expect((within(dialog).getByRole("textbox", { name: "feed" }) as HTMLInputElement).value).toBe("backfill");
+    expect(onRunOnceTaken).toHaveBeenCalled();
+    // The console dropped the values from the URL: the form stays as it was, and once closed it stays closed.
+    rerender(<StrictMode>{page(props)}</StrictMode>);
+    expect(screen.getByRole("dialog", { name: "Run customer_facts once" })).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    rerender(<StrictMode>{page(props)}</StrictMode>);
     expect(screen.queryByRole("dialog")).toBeNull();
-    await waitFor(() => expect(document.activeElement).toBe(box));
+    await screen.findByRole("table", { name: "Runs" });
   });
 
-  it("Esc closes the log window first when it is open and focused, without also closing the popover behind it", async () => {
-    const failed = run({ id: "run-2", name: "quiet-heron", state: "FAILED" });
-    renderPage({ runs: [completed, failed], tasksByRun: { "run-2": failedTasks } });
-
-    await openProcessBox("Staging · 1 step · Failed");
-    fireEvent.click(await stepRow("Load"));
-    const window_ = await screen.findByRole("complementary", { name: (value) => value !== "Details" });
-
-    fireEvent.keyDown(window_, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByRole("complementary", { name: (value) => value !== "Details" })).toBeNull());
-    // The popover is still here — only the window's own Esc cascade ran.
-    expect(screen.getByRole("dialog")).toBeTruthy();
+  it("takes the same values once, even when the console hands them over again as a new object", async () => {
+    const dependencies = { client: { GET: vi.fn().mockResolvedValue({ data: { runs } }), POST: vi.fn() } } as unknown as Dependencies;
+    const props = { one: etl, dependencies, status: operator, list: listOf(etl), onListChanged: vi.fn(), selectedRunId: null, onRunOnceTaken: vi.fn() };
+    const { rerender } = render(page({ ...props, runOnce: { feed: "backfill" } }));
+    const dialog = await screen.findByRole("dialog", { name: "Run customer_facts once" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    // Every parse of the URL is a new object: the same values must not open the form again.
+    rerender(page({ ...props, runOnce: { feed: "backfill" } }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // Once the console has dropped them, a new link with those same values opens the form again.
+    rerender(page(props));
+    rerender(page({ ...props, runOnce: { feed: "backfill" } }));
+    expect(await screen.findByRole("dialog", { name: "Run customer_facts once" })).toBeTruthy();
+    await screen.findByRole("table", { name: "Runs" });
   });
 
-  it("clicking a different process box moves the popover over instead of closing it", async () => {
-    const twoProcessTasks = {
-      attempts: [
+  it("says a link's values were not used where the console may not run ETLs, and has them dropped", async () => {
+    const onRunOnceTaken = vi.fn();
+    const dependencies = { client: { GET: vi.fn().mockResolvedValue({ data: { runs } }), POST: vi.fn() } } as unknown as Dependencies;
+    render(
+      <StrictMode>
+        {page({
+          one: etl,
+          dependencies,
+          status: reader,
+          list: listOf(etl),
+          onListChanged: vi.fn(),
+          selectedRunId: null,
+          onRunOnceTaken,
+          runOnce: { feed: "x" },
+        })}
+      </StrictMode>,
+    );
+    expect(await screen.findByText("This console cannot run ETLs: the values the link carried were not used.")).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(onRunOnceTaken).toHaveBeenCalled();
+    await screen.findByRole("table", { name: "Runs" });
+  });
+
+  it("runs once from the header and opens the launched run", async () => {
+    const POST = vi.fn().mockResolvedValue({ data: launched });
+    renderPage({ POST });
+    fireEvent.click(screen.getByRole("button", { name: "Run once…" }));
+    const dialog = within(await screen.findByRole("dialog", { name: "Run customer_facts once" }));
+    fireEvent.click(dialog.getByRole("button", { name: "Run once" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/etl/runs/run-9"));
+  });
+
+  it("asks for the runs again when the list shows a new run, without blanking what is on screen", async () => {
+    const { GET, showList } = renderPage();
+    await screen.findByRole("table", { name: "Runs" });
+    const asked = () => GET.mock.calls.filter(([path]) => path === "/etl/{name}/runs").length;
+    expect(asked()).toBe(1);
+    showList(listOf({ ...etl }));
+    expect(asked()).toBe(1);
+    const newer = run({ id: "run-4", name: "brisk-otter", state: "RUNNING", start_at: "2026-09-23T04:00:01Z", end_at: null });
+    showList(listOf({ ...etl, last_run: newer }));
+    expect(screen.getByRole("table", { name: "Runs" })).toBeTruthy();
+    await waitFor(() => expect(asked()).toBe(2));
+  });
+
+  it("archives after a short confirmation, and offers to undo it at once", async () => {
+    const mark = { at: "2026-09-22T09:00:00Z", by: null, reason: null };
+    const POST = vi.fn((path: string) => Promise.resolve({ data: { name: "customer_facts", archived: path === "/etl/{name}/archive" ? mark : null } }));
+    const { onListChanged } = await renderLoaded({ POST });
+    fireEvent.click(screen.getByRole("button", { name: "Archive…" }));
+    const dialog = screen.getByRole("dialog", { name: "Archive customer_facts?" });
+    expect(dialog.textContent).toContain("Nothing changes in the orchestrator");
+    expect(dialog.textContent).not.toContain("chain");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Archive" }));
+    await waitFor(() => expect(POST).toHaveBeenCalledWith("/etl/{name}/archive", { params: { path: { name: "customer_facts" } }, body: {} }));
+    const notice = await screen.findByRole("region", { name: "Archived" });
+    expect(onListChanged).toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Archive…" })).toBeNull();
+    fireEvent.click(within(notice).getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(POST).toHaveBeenCalledWith("/etl/{name}/restore", { params: { path: { name: "customer_facts" } } }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Archived" })).toBeNull());
+  });
+
+  it("warns before archiving an ETL in a chain, without stopping it", async () => {
+    const chained: Etl = { ...etl, triggered_by: { etl: "orders_daily", on: "completed", passes: [], sets: {} }, triggers: ["customer_model"] };
+    await renderLoaded({ one: chained, list: listOf(chained) });
+    fireEvent.click(screen.getByRole("button", { name: "Archive…" }));
+    expect(screen.getByRole("dialog", { name: "Archive customer_facts?" }).textContent).toContain(
+      "It is part of a chain with orders_daily, customer_model: archiving it does not stop the automation that links them.",
+    );
+  });
+
+  it("says an archived ETL is archived, by whom, that it ran since, and restores it", async () => {
+    const archived: Etl = {
+      ...etl,
+      archived: { at: "2026-09-21T09:00:00Z", by: "ana", reason: "replaced by customer_facts_v2" },
+      recent: [
         {
-          number: 1,
+          id: "run-3",
           state: "FAILED",
-          started_at: "2026-09-22T06:00:01Z",
-          ended_at: "2026-09-22T06:00:41Z",
-          message: null,
-          processes: [
-            staging,
-            {
-              name: "Publish",
-              task_run_id: "process-2",
-              state: "COMPLETED",
-              start_at: "2026-09-22T06:00:41Z",
-              end_at: "2026-09-22T06:01:00Z",
-              duration_seconds: 19,
-              expected_steps: null,
-              steps: [{ name: "Write", task_run_id: "task-2", state: "COMPLETED", start_at: "2026-09-22T06:00:41Z", end_at: "2026-09-22T06:01:00Z", duration_seconds: 19 }],
-            },
-          ],
+          run_count: 1,
+          expected_start_at: null,
+          start_at: "2026-09-22T04:00:01Z",
+          attempt_started_at: "2026-09-22T04:00:01Z",
+          end_at: null,
+          attempts: null,
         },
       ],
-      expected_steps_known: true,
     };
-    const failed = run({ id: "run-2", name: "quiet-heron", state: "FAILED" });
-    renderPage({ runs: [completed, failed], tasksByRun: { "run-2": twoProcessTasks } });
-
-    await openProcessBox("Staging · 1 step · Failed");
-    expect(await screen.findByRole("dialog", { name: "Staging steps" })).toBeTruthy();
-
-    await openProcessBox("Publish · 1 step · Completed");
-    expect(await screen.findByRole("dialog", { name: "Publish steps" })).toBeTruthy();
-    expect(screen.queryByRole("dialog", { name: "Staging steps" })).toBeNull();
+    const POST = vi.fn().mockResolvedValue({ data: { name: "customer_facts", archived: null } });
+    const { onListChanged } = await renderLoaded({ one: archived, list: listOf(archived), POST });
+    const notice = screen.getByRole("region", { name: "Archived" });
+    expect(notice.textContent).toMatch(/Archived .* by ana · replaced by customer_facts_v2/);
+    expect(notice.textContent).toMatch(/Archived, but ran at/);
+    expect(screen.queryByRole("button", { name: "Archive…" })).toBeNull();
+    fireEvent.click(within(notice).getByRole("button", { name: "Restore" }));
+    await waitFor(() => expect(onListChanged).toHaveBeenCalled());
+    expect(POST).toHaveBeenCalledWith("/etl/{name}/restore", { params: { path: { name: "customer_facts" } } });
   });
 
-  it("clicking the same process box again closes its popover", async () => {
-    const failed = run({ id: "run-2", name: "quiet-heron", state: "FAILED" });
-    renderPage({ runs: [completed, failed], tasksByRun: { "run-2": failedTasks } });
-
-    await openProcessBox("Staging · 1 step · Failed");
-    await screen.findByRole("dialog");
-    await openProcessBox("Staging · 1 step · Failed");
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  it("offers neither Archive nor Restore to someone who may not archive", async () => {
+    await renderLoaded({ status: reader });
+    expect(screen.queryByRole("button", { name: "Archive…" })).toBeNull();
+    cleanup();
+    const archived: Etl = { ...etl, archived: { at: "2026-09-21T09:00:00Z", by: null, reason: null } };
+    await renderLoaded({ one: archived, list: listOf(archived), status: reader });
+    expect(within(screen.getByRole("region", { name: "Archived" })).queryByRole("button")).toBeNull();
   });
 
-  it("uses the log window's own reported height for scroll-padding, not just the CSS-default estimate (item b)", async () => {
-    class FakeResizeObserver implements ResizeObserver {
-      static instances: FakeResizeObserver[] = [];
-      private readonly callback: ResizeObserverCallback;
-      constructor(callback: ResizeObserverCallback) {
-        this.callback = callback;
-        FakeResizeObserver.instances.push(this);
-      }
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-      fire(height: number) {
-        this.callback([{ contentRect: { height } } as ResizeObserverEntry], this);
-      }
-    }
-    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
-    try {
-      const failed = run({ id: "run-2", name: "quiet-heron", state: "FAILED" });
-      renderPage({ runs: [completed, failed], tasksByRun: { "run-2": failedTasks } });
-      await screen.findByRole("complementary", { name: (value) => value !== "Details" });
-
-      const instance = FakeResizeObserver.instances.at(-1);
-      act(() => instance?.fire(640));
-      const graph = screen.getByRole("group", { name: "Pipeline" });
-      const scroller = graph.parentElement as HTMLElement;
-      await waitFor(() => expect(scroller.style.getPropertyValue("--nt-etl-graph-scroll-padding-bottom")).toBe("640px"));
-    } finally {
-      vi.unstubAllGlobals();
-    }
-  });
-});
-
-describe("EtlPage — runs table and pipeline states", () => {
-  it("filters the runs table to Failed / All", async () => {
-    const failed = run({ id: "run-2", name: "quiet-heron", state: "FAILED" });
-    renderPage({ runs: [completed, failed], tasksByRun: { "run-2": failedTasks } });
-    await screen.findByText("old-completion");
-    fireEvent.click(screen.getByRole("button", { name: "Failed" }));
-    expect(screen.queryByText("old-completion")).toBeNull();
-    expect(screen.getAllByText("quiet-heron").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "All" }));
-    expect(screen.getByText("old-completion")).toBeTruthy();
-  });
-
-  it("shows the failed process from the grid (last 20 runs) next to the message, without an extra per-row request", async () => {
-    const failed = run({ id: "run-2", name: "quiet-heron", state: "FAILED", state_message: "shop API returned 503" });
-    renderPage({
-      runs: [completed, failed],
-      tasksByRun: { "run-2": failedTasks },
-      grid: {
-        processes: ["Staging"],
-        truncated: false,
-        runs: [{ id: "run-2", name: "quiet-heron", state: "FAILED", start_at: failed.start_at, duration_seconds: 39, cells: [{ process: "Staging", state: "FAILED", duration_seconds: 39 }] }],
-      },
-    });
-    const row = (await screen.findAllByRole("row", { name: /quiet-heron/ }))[0]!;
-    await waitFor(() => expect(within(row).getByText(/Staging · shop API returned 503/)).toBeTruthy());
-  });
-
-  it("shows 'shape from run X' when nothing has completed yet", async () => {
-    const scheduledRun = run({ id: "run-3", name: "bold-crane", state: "RUNNING" });
-    renderPage({ runs: [scheduledRun], tasksByRun: { "run-3": okTasks } });
-    // Nothing completed: `RUNNING` is still selectable (SCHEDULED is not), so it becomes the default selection.
-    expect(await screen.findByText("Shape from run bold-crane")).toBeTruthy();
-  });
-
-  it("shows a notice with Show latest for a `?run=` that is not among the loaded runs", async () => {
-    window.location.hash = "#/etl/daily-orders?run=ghost-run";
-    renderPage({ runs: [completed] });
-    const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toContain("not among the last");
-    fireEvent.click(within(alert).getByRole("button", { name: "Show latest" }));
-    await waitFor(() => expect(window.location.hash).not.toContain("run="));
-  });
-});
-
-describe("EtlPage — i18n", () => {
-  it("never renders a raw translation key: every etl.page.* string resolves through en.json", async () => {
-    const acceptsProcesses: Etl = { ...etl, accepts_processes: true, schedule_inactive: true, schedule: { ...etl.schedule!, active: false } };
-    const failed = run({ id: "run-2", name: "quiet-heron", state: "FAILED", state_message: "shop API returned 503" });
-    renderPage({ etl: acceptsProcesses, runs: [completed, failed], tasksByRun: { "run-2": failedTasks, "run-1": okTasks } });
-    await screen.findByRole("status", { name: "Needs attention" });
-    await screen.findByRole("complementary", { name: (value) => value !== "Details" });
-    // A missed `t()` call renders its own dotted key (e.g. "etl.page.resumeSchedule") instead of the translated text.
-    const leaks = (document.body.textContent ?? "").match(/\b[a-z][a-zA-Z]*(?:\.[a-zA-Z]+){1,}\b/g) ?? [];
-    expect(leaks.filter((leak) => leak.startsWith("etl."))).toEqual([]);
-  });
-});
-
-describe("processesToRerun", () => {
-  it("returns the failed process and every process after it in the shape", () => {
-    expect(processesToRerun(["Extract", "Staging", "Publish"], "Staging")).toEqual(["Staging", "Publish"]);
-  });
-
-  it("falls back to the failed process alone when it is not part of the shape", () => {
-    expect(processesToRerun(["Extract", "Publish"], "Staging")).toEqual(["Staging"]);
+  it("shows neither the pipeline nor its logs: those belong to a run's own page", async () => {
+    renderPage();
+    await screen.findByRole("table", { name: "Runs" });
+    expect(screen.queryByRole("group", { name: "Pipeline view" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: /Logs/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Details" })).toBeNull();
   });
 });

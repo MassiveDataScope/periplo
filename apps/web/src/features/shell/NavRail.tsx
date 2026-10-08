@@ -1,10 +1,14 @@
 import { useTranslation } from "react-i18next";
 import { Icon, type IconName, type Theme } from "@periplo/core/ui";
 import { usePreferences, type PreferencesStore } from "../../app/preferences";
+import { isEtlRoute } from "../../app/etl-routes";
 import { href, type Route } from "../../app/routes";
+import { useMediaQuery } from "../../app/useMediaQuery";
 import type { Brand } from "../../app/brand";
 import { Logo } from "./Logo";
+import { Wordmark } from "./Wordmark";
 import styles from "./NavRail.module.css";
+import { NARROW_SCREEN, SIDE_COLUMN_ID, useSideColumnOpen } from "./Shell";
 
 export interface NavRailProps {
   readonly preferences: PreferencesStore;
@@ -27,10 +31,8 @@ export interface NavRailProps {
 type SectionKind = "home" | "sql" | "join" | "etl" | "discovery";
 
 /** The routes that live under the ETL section: the list, one deployment, one run. */
-const ETL_KINDS: ReadonlySet<Route["kind"]> = new Set<Route["kind"]>(["etl", "etl-deployment", "etl-run"]);
-
 function sectionOf(route: Route): Route["kind"] {
-  return ETL_KINDS.has(route.kind) ? "etl" : route.kind;
+  return isEtlRoute(route) ? "etl" : route.kind;
 }
 
 const THEME_ICONS: Record<Theme, IconName> = {
@@ -59,7 +61,11 @@ function UnderConstructionItem({ label, accessibleName, hint }: { label: string;
 export function NavRail({ preferences, route, troubled, etl, etlUnderConstruction = false, theme, brand, onThemeToggle, onSearch, onCatalog }: NavRailProps) {
   const { t } = useTranslation();
   const { railCollapsed, catalogColumn } = usePreferences(preferences);
-  const catalogOpen = catalogColumn === "open";
+  // A narrow screen has no room for the names: collapsed there, whatever was chosen on a wide one.
+  const narrow = useMediaQuery(NARROW_SCREEN);
+  const collapsed = narrow || railCollapsed;
+  // As on screen (a narrow screen's overlay); outside a Shell, the preference.
+  const catalogOpen = useSideColumnOpen() ?? catalogColumn === "open";
   const railLabel = railCollapsed ? t("nav.expand") : t("nav.collapse");
   const discoveryLabel = troubled > 0 ? t("nav.discoveryAttention", { count: troubled }) : t("nav.discovery");
 
@@ -73,27 +79,41 @@ export function NavRail({ preferences, route, troubled, etl, etlUnderConstructio
   );
 
   return (
-    <div className={styles.rail} data-collapsed={railCollapsed}>
+    <div className={styles.rail} data-collapsed={collapsed}>
       <a className={styles.brand} href={href({ kind: "home" })} aria-label={t("app.name")} title={t("app.name")}>
-        <Logo size={railCollapsed ? "sm" : "md"} className={styles.logo} />
-        <span className={styles.wordmark}>{t("app.wordmark")}</span>
+        {collapsed ? <Logo size="sm" className={styles.logo} /> : <Wordmark className={styles.wordmark} />}
       </a>
       {brand?.name ? (
         <div className={styles.workspace} title={`${t("nav.workspace")}: ${brand.name}`}>
-          {brand.logoUrl ? <img className={styles.workspaceLogo} src={brand.logoUrl} alt="" /> : <span aria-hidden="true" className={styles.workspaceInitial}>{brand.name.charAt(0)}</span>}
+          {brand.logoUrl ? (
+            <img className={styles.workspaceLogo} src={brand.logoUrl} alt="" />
+          ) : (
+            <span aria-hidden="true" className={styles.workspaceInitial}>
+              {brand.name.charAt(0)}
+            </span>
+          )}
           <span className={styles.label}>{brand.name}</span>
         </div>
       ) : null}
       <nav aria-label={t("nav.sections")} className={styles.items}>
         {section("home", "home", t("nav.home"))}
-        <button type="button" className={styles.item} title={t("nav.catalogHint")} aria-expanded={catalogOpen} aria-controls="catalog-column" onClick={onCatalog}>
+        <button
+          type="button"
+          className={styles.item}
+          title={t("nav.catalogHint")}
+          aria-expanded={catalogOpen}
+          aria-controls={SIDE_COLUMN_ID}
+          onClick={onCatalog}
+        >
           <Icon name="catalog" />
           <span className={styles.label}>{t("nav.catalog")}</span>
         </button>
         {section("sql", "sql", t("nav.sql"))}
         {section("join", "join", t("nav.join"))}
         {etl && !etlUnderConstruction ? section("etl", "pipeline", t("nav.etl")) : null}
-        {etlUnderConstruction ? <UnderConstructionItem label={t("nav.etl")} accessibleName={t("nav.etlUnderConstruction")} hint={t("nav.underConstruction")} /> : null}
+        {etlUnderConstruction ? (
+          <UnderConstructionItem label={t("nav.etl")} accessibleName={t("nav.etlUnderConstruction")} hint={t("nav.underConstruction")} />
+        ) : null}
         {section("discovery", "discovery", discoveryLabel, troubled > 0, t("nav.discovery"))}
       </nav>
       <p className={styles.seal} title={t("nav.readOnlyHint")}>
@@ -110,10 +130,19 @@ export function NavRail({ preferences, route, troubled, etl, etlUnderConstructio
           <Icon name={THEME_ICONS[theme]} />
           <span className={styles.label}>{t("nav.theme", { theme })}</span>
         </button>
-        <button type="button" className={styles.item} aria-label={railLabel} title={railLabel} aria-expanded={!railCollapsed} onClick={() => preferences.update({ railCollapsed: !railCollapsed })}>
-          <Icon name="sidebar" />
-          <span className={styles.label}>{t("nav.collapse")}</span>
-        </button>
+        {narrow ? null : (
+          <button
+            type="button"
+            className={styles.item}
+            aria-label={railLabel}
+            title={railLabel}
+            aria-expanded={!railCollapsed}
+            onClick={() => preferences.update({ railCollapsed: !railCollapsed })}
+          >
+            <Icon name="sidebar" />
+            <span className={styles.label}>{t("nav.collapse")}</span>
+          </button>
+        )}
       </div>
     </div>
   );

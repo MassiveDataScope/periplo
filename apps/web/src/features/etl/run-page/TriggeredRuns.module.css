@@ -1,0 +1,27 @@
+/* What a run started next: one line per downstream ETL, the one that did not run in the warning colour. */
+.triggered {
+  display: grid;
+  gap: var(--nt-space-1-5);
+  justify-items: start;
+}
+
+.triggered > h3 {
+  margin: 0;
+}
+
+.lines {
+  display: grid;
+  gap: var(--nt-space-0-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--nt-font-size-sm);
+}
+
+.waiting {
+  color: var(--nt-color-text-muted);
+}
+
+.missing {
+  color: var(--nt-color-warning);
+}

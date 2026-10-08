@@ -1,0 +1,106 @@
+.section {
+  display: grid;
+  gap: var(--nt-space-2);
+  container-type: inline-size;
+}
+
+.title {
+  margin: 0;
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-xs);
+  font-weight: var(--nt-font-weight-medium);
+  letter-spacing: var(--nt-font-tracking-caps);
+  text-transform: uppercase;
+}
+
+.frame {
+  overflow-x: auto;
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-md);
+}
+
+.table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--nt-font-size-md);
+}
+
+.table th,
+.table td {
+  padding: var(--nt-space-2) var(--nt-space-3);
+  border-block-start: var(--nt-border-width) solid var(--nt-color-border-subtle);
+  font-weight: var(--nt-font-weight-regular);
+  text-align: start;
+  white-space: nowrap;
+}
+
+.table thead th {
+  border-block-start: 0;
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-2xs);
+  font-weight: var(--nt-font-weight-medium);
+  letter-spacing: var(--nt-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+.table [data-align="end"] {
+  text-align: end;
+}
+
+.row:hover {
+  background: var(--nt-color-surface-hover);
+}
+
+.row[data-selected] {
+  background: var(--nt-color-selection);
+}
+
+.name {
+  color: var(--nt-color-text);
+  font-family: var(--nt-font-family-mono);
+  text-decoration: none;
+}
+
+.name:hover {
+  color: var(--nt-color-accent);
+  text-decoration: underline;
+}
+
+.name[aria-current="true"] {
+  font-weight: var(--nt-font-weight-medium);
+}
+
+.when,
+.duration {
+  font-family: var(--nt-font-family-mono);
+  font-feature-settings: var(--nt-font-features-data);
+}
+
+.when,
+.muted {
+  color: var(--nt-color-text-muted);
+}
+
+.muted {
+  font-size: var(--nt-font-size-sm);
+}
+
+/* A narrow pane keeps each run's name, state and length: when it started and its note go (the run's own page and the
+   chart's bars say when) rather than the table scrolling sideways. */
+@container (max-width: 36rem) {
+  .secondary {
+    display: none;
+  }
+
+  .table th,
+  .table td {
+    padding-inline: var(--nt-space-2);
+  }
+
+  .table th[scope="row"] {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}

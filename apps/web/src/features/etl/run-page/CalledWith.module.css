@@ -1,0 +1,73 @@
+/* Called with: how the run was launched, its values as name = value, a changed one beside its usual value. */
+.muted {
+  margin: 0;
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-sm);
+}
+
+.calledWith {
+  display: grid;
+  gap: var(--nt-space-1-5);
+  justify-items: start;
+}
+
+.calledWith > h3 {
+  margin: 0;
+}
+
+.launch {
+  margin: 0;
+  font-size: var(--nt-font-size-sm);
+}
+
+.parameters {
+  display: grid;
+  gap: var(--nt-space-0-5);
+  margin: 0;
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+}
+
+.parameter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--nt-space-1);
+}
+
+.parameter dt {
+  color: var(--nt-color-text-muted);
+}
+
+.parameter dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nt-space-1);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.equals {
+  padding-inline-end: var(--nt-space-1);
+  color: var(--nt-color-text-subtle);
+}
+
+/* A value that is not the schedule's: marked, its usual value beside it. */
+.parameter[data-changed="true"] dd {
+  padding-inline: var(--nt-space-1);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-warning-surface);
+}
+
+.usual {
+  color: var(--nt-color-warning);
+  font-family: var(--nt-font-family-sans);
+  font-size: var(--nt-font-size-xs);
+}
+
+/* A value the chain gave (from the upstream run, or set by the automation): said, in muted words, not as a change. */
+.fromChain {
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family-sans);
+  font-size: var(--nt-font-size-xs);
+}

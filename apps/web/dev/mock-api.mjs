@@ -78,10 +78,132 @@ rebaseToNow(ETL);
 const etlRuns = ETL.runs.map((run) => ({ ...run }));
 const findDeployment = (name) => ETL.deployments.find((deployment) => deployment.name === name);
 const deploymentById = (id) => ETL.deployments.find((deployment) => deployment.id === id);
+// Archived ETLs, by name, as the API's open-core store keeps them: in memory, gone on restart. Nothing changes in the
+// "orchestrator" (the fixture); the list marks them and counts over the active ones alone.
+const archives = new Map();
+const activeDeployments = () => ETL.deployments.filter((deployment) => !archives.has(deployment.name));
 // START_TIME_DESC with the scheduled runs (no start_at) last, as the orchestrator sorts them.
 const byStartDesc = (a, b) => (a.start_at && b.start_at ? b.start_at.localeCompare(a.start_at) : Number(!a.start_at) - Number(!b.start_at));
 const byStartAsc = (a, b) => (a.start_at && b.start_at ? a.start_at.localeCompare(b.start_at) : Number(!a.start_at) - Number(!b.start_at));
 const runsOf = (deploymentId) => etlRuns.filter((run) => run.deployment_id === deploymentId).sort(byStartDesc);
+
+// ---- chained ETLs: "when X completes, run Y" automations ------------------
+// respondio_messages_daily (on a schedule) → respondio_message_nlp_daily → customer_conversations_model_daily,
+// each link passing its window (updated_at_from/updated_at_to). A run an automation created carries the
+// mock-only `automation_id`. Yesterday the last link did not run after its upstream completed (the console says
+// it didn't run); today the middle link completed ten minutes ago and the last has not started yet.
+const DAY_MS = 24 * 60 * 60 * 1000;
+const CHAIN_PASSES = ["updated_at_from", "updated_at_to"];
+const CHAIN_DESCRIPTIONS = [
+  "Pulls the day's Respond.io conversations and messages.",
+  "Classifies each new message: language, intent and sentiment.",
+  "Rebuilds the customer conversations model from the classified messages.",
+];
+const chainDeployments = ["respondio_messages_daily", "respondio_message_nlp_daily", "customer_conversations_model_daily"].map((name, index) => ({
+  id: randomUUID(),
+  name,
+  flow_name: name,
+  description: CHAIN_DESCRIPTIONS[index],
+  paused: false,
+  schedule: index === 0 ? { kind: "cron", cron: "0 3 * * *", interval_seconds: null, timezone: "UTC", active: true } : null,
+  parameters: index === 2 ? { updated_at_from: "${yesterday}", updated_at_to: "${today}", mode: "full" } : { updated_at_from: "${yesterday}", updated_at_to: "${today}" },
+  tags: ["team:conversations", "cadence:daily", "source:respondio"],
+}));
+ETL.deployments.push(...chainDeployments);
+
+// The mock speaks an installation of its own: its tags use prefixes no other installation need share (owner:, system:,
+// writes:, tier:, domain:, every:) and a few free labels, which proves the console knows none of them in advance.
+const MOCK_PREFIXES = { team: "owner", source: "system", target: "writes", stage: "domain", cadence: "every" };
+const MOCK_TIERS = ["gold", "silver", "bronze"];
+const MOCK_LABELS = { customer_facts_daily: ["pii"], returns_reconciliation_daily: ["pii", "finance"], orders_snapshot_daily: ["finance"] };
+ETL.deployments.forEach((deployment, index) => {
+  const prefixOf = (tag) => tag.slice(0, tag.indexOf(":"));
+  deployment.tags = [
+    ...deployment.tags
+      .filter((tag) => tag.includes(":") && MOCK_PREFIXES[prefixOf(tag)] !== undefined)
+      .map((tag) => `${MOCK_PREFIXES[prefixOf(tag)]}:${tag.slice(tag.indexOf(":") + 1)}`),
+    `tier:${MOCK_TIERS[index % MOCK_TIERS.length]}`,
+    ...(MOCK_LABELS[deployment.name] ?? []),
+  ];
+});
+// How this installation names its facets (as PERIPLO_ETL_FACETS would say it): labels, an order, lineage roles, and the
+// values that mean an ETL should be scheduled.
+const MOCK_FACETS = {
+  system: { label: "Source system", order: 1, hidden: false, role: "reads", values: null },
+  writes: { label: "Writes to", order: 2, hidden: false, role: "writes", values: null },
+  owner: { label: "Owner", order: 3, hidden: false, role: null, values: null },
+  every: { label: "Runs", order: 4, hidden: false, role: "expects_schedule", values: ["daily", "hourly"] },
+};
+// The last link also sets a constant of its own, which its card and its runs show as "set by the automation".
+const CHAIN_LINKS = chainDeployments.slice(1).map((downstream, index) => ({
+  automationId: randomUUID(),
+  automationName: `${downstream.name}__automation_1`,
+  upstream: chainDeployments[index],
+  downstream,
+  sets: index === chainDeployments.length - 2 ? { mode: "incremental" } : {},
+}));
+const dateOnly = (ms) => new Date(ms).toISOString().slice(0, 10);
+function seedChainRun(deployment, startMs, minutes, parameters, link) {
+  const start = new Date(startMs).toISOString();
+  const run = {
+    id: randomUUID(),
+    deployment_id: deployment.id,
+    name: `${deployment.name.split("_")[0]}-${Math.random().toString(36).slice(2, 8)}`,
+    state: "COMPLETED",
+    state_message: "All states completed.",
+    expected_start_at: start,
+    start_at: start,
+    end_at: new Date(startMs + minutes * 60_000).toISOString(),
+    duration_seconds: minutes * 60,
+    created_by: link ? link.automationName : "prefect-scheduler",
+    automation_id: link ? link.automationId : null,
+    run_count: 1,
+    retries: 0,
+    retry_delay_seconds: 0,
+    parameters,
+  };
+  etlRuns.push(run);
+  return run;
+}
+for (let day = 6; day >= 0; day -= 1) {
+  // Today's chain started 32 minutes ago: its middle link (9 + 1 + 12 minutes) completed ten minutes ago.
+  const startMs = day === 0 ? Date.now() - 32 * 60_000 : Date.now() - day * DAY_MS - 3 * 60 * 60 * 1000;
+  const parameters = { updated_at_from: dateOnly(startMs - DAY_MS), updated_at_to: dateOnly(startMs) };
+  let previous = seedChainRun(chainDeployments[0], startMs, 9, parameters, null);
+  for (const link of CHAIN_LINKS) {
+    if (day <= 1 && link === CHAIN_LINKS.at(-1)) break;
+    const runParameters = { ...link.downstream.parameters, ...parameters, ...link.sets };
+    previous = seedChainRun(link.downstream, Date.parse(previous.end_at) + 60_000, 12 + 4 * CHAIN_LINKS.indexOf(link), runParameters, link);
+  }
+}
+const chainTriggerOf = (deployment) => {
+  const link = CHAIN_LINKS.find((candidate) => candidate.downstream.id === deployment.id);
+  return link ? { etl: link.upstream.name, on: "completed", passes: [...CHAIN_PASSES], sets: { ...link.sets } } : null;
+};
+const chainTriggersOf = (deployment) =>
+  CHAIN_LINKS.filter((link) => link.upstream.id === deployment.id)
+    .map((link) => link.downstream.name)
+    .sort();
+const runLinkOf = (run) => ({ etl: deploymentById(run.deployment_id)?.name ?? run.deployment_id, run_id: run.id, run_name: run.name });
+// As the API reads it: the upstream's newest run completed before this one, preferring one with the same window.
+function triggeredByRunOf(run) {
+  const link = CHAIN_LINKS.find((candidate) => candidate.automationId === run.automation_id);
+  if (!link) return null;
+  const candidates = runsOf(link.upstream.id).filter((up) => up.state === "COMPLETED" && up.end_at && up.end_at <= run.expected_start_at);
+  const same = candidates.find((up) => CHAIN_PASSES.every((name) => up.parameters?.[name] === run.parameters?.[name]));
+  const chosen = same ?? candidates[0];
+  return chosen ? runLinkOf(chosen) : null;
+}
+// Each downstream ETL's first run its automation created after this one ended.
+function triggeredRunsOf(run) {
+  if (run.state !== "COMPLETED" || !run.end_at) return [];
+  return CHAIN_LINKS.filter((link) => link.upstream.id === run.deployment_id).flatMap((link) => {
+    const started = runsOf(link.downstream.id)
+      .filter((down) => down.automation_id === link.automationId && down.expected_start_at >= run.end_at)
+      .sort(byStartAsc)[0];
+    return started ? [runLinkOf(started)] : [];
+  });
+}
 const FLOW_RUN_KEYS = [
   "id",
   "name",
@@ -101,6 +223,8 @@ const FLOW_RUN_KEYS = [
 // otherwise. `tasksOf` is a function declaration (hoisted), defined further down.
 function flowRunAttempts(run) {
   if (!run.run_count || run.run_count <= 1) return null;
+  // A demo run that says how its attempts went, as Prefect's state history would.
+  if (run.__attempts) return run.__attempts;
   return tasksOf(run).attempts.map((attempt) => ({
     index: attempt.number,
     start_at: attempt.started_at,
@@ -113,10 +237,28 @@ function flowRunAttempts(run) {
 const runUrl = (id) => `${ETL_UI_URL}/runs/flow-run/${id}`;
 const deploymentUrl = (id) => `${ETL_UI_URL}/deployments/deployment/${id}`;
 
+// When the run's current (or last) attempt started, as the API's `attempt_started_at`: a run retried from Prefect's
+// UI keeps its first start as `start_at`, and waits for its next attempt with none.
+const attemptStartOf = (run) => (run.attempt_started_at !== undefined ? run.attempt_started_at : run.start_at);
+// Since when it has waited for its current attempt, as the API's `waiting_since`: a retried run waiting again since its
+// retry (Prefect keeps its first expected start), any other since it was due.
+const waitingSinceOf = (run) => (attemptStartOf(run) === null && run.start_at !== null ? (run.state_since ?? run.expected_start_at) : run.expected_start_at);
+
 function flowRun(run) {
   const base = Object.fromEntries(FLOW_RUN_KEYS.map((key) => [key, run[key]]));
   const scheduled = run.created_by === "prefect-scheduler";
-  return { ...base, trigger: scheduled ? "scheduled" : "manual", external_url: runUrl(run.id), attempts: flowRunAttempts(run) };
+  const trigger = run.automation_id ? "automation" : scheduled ? "scheduled" : "manual";
+  // As the API: an automation's name is never sent as a run's creator (it can name a hidden upstream ETL).
+  const created_by = run.automation_id ? null : base.created_by;
+  return {
+    ...base,
+    attempt_started_at: attemptStartOf(run),
+    waiting_since: waitingSinceOf(run),
+    created_by,
+    trigger,
+    external_url: runUrl(run.id),
+    attempts: flowRunAttempts(run),
+  };
 }
 const lastRunOf = (deploymentId) => runsOf(deploymentId).find((run) => run.state !== "SCHEDULED");
 const recentOf = (deploymentId) =>
@@ -124,8 +266,16 @@ const recentOf = (deploymentId) =>
     .filter((run) => run.state !== "SCHEDULED")
     .sort(byStartAsc)
     .slice(-12)
-    .map((run) => ({ id: run.id, state: run.state, start_at: run.start_at, end_at: run.end_at, attempts: flowRunAttempts(run) }));
-const tagValue = (tags, prefix) => tags.find((tag) => tag.startsWith(prefix))?.slice(prefix.length) ?? null;
+    .map((run) => ({
+      id: run.id,
+      state: run.state,
+      run_count: run.run_count || 1,
+      expected_start_at: run.expected_start_at,
+      start_at: run.start_at,
+      attempt_started_at: attemptStartOf(run),
+      end_at: run.end_at,
+      attempts: flowRunAttempts(run),
+    }));
 
 // A simplification of the API's next_run_at: an interval fires at the next multiple of its length (from
 // the epoch); a cron is read only for its minute/hour, returning the next occurrence of that time of day and
@@ -162,18 +312,21 @@ const etlOf = (deployment) => {
     recent: recentOf(deployment.id),
     next_run_at: nextRunAt(deployment.schedule, deployment.paused),
     schedule_inactive,
-    cadence: tagValue(deployment.tags, "cadence:"),
-    mode: tagValue(deployment.tags, "mode:"),
     accepts_processes: Object.hasOwn(deployment.parameters, "processes"),
     external_url: deploymentUrl(deployment.id),
+    triggered_by: chainTriggerOf(deployment),
+    triggers: chainTriggersOf(deployment),
+    archived: archives.get(deployment.name) ?? null,
   };
 };
 
 function summaryOf() {
-  const deploymentIds = new Set(ETL.deployments.map((deployment) => deployment.id));
+  const deploymentIds = new Set(activeDeployments().map((deployment) => deployment.id));
   const since = Date.now() - SUMMARY_WINDOW_MS;
   const recent24h = etlRuns.filter((run) => deploymentIds.has(run.deployment_id) && run.end_at && Date.parse(run.end_at) >= since);
-  const running = ETL.deployments.filter((deployment) => recentOf(deployment.id).at(-1)?.state === "RUNNING").length;
+  // As the API counts it: ETLs with a run that has started (RUNNING, or PENDING with a start time).
+  const going = (run) => run.state === "RUNNING" || (run.start_at !== null && (run.state === "PENDING" || run.state === "SCHEDULED"));
+  const running = activeDeployments().filter((deployment) => etlRuns.some((run) => run.deployment_id === deployment.id && going(run))).length;
   const failed_24h = Math.min(200, recent24h.filter((run) => run.state === "FAILED" || run.state === "CRASHED").length);
   const completed_24h = Math.min(200, recent24h.filter((run) => run.state === "COMPLETED").length);
   return { running, failed_24h, completed_24h };
@@ -188,6 +341,10 @@ const runDetail = (run) => {
     deployment_name: deployment?.name ?? null,
     flow_name: deployment?.flow_name ?? run.name,
     terminal: TERMINAL_STATES.has(run.state),
+    // When it entered its state, as Prefect's state timestamp: set by a change the mock makes, else its last moment.
+    state_since: run.state_since ?? run.end_at ?? run.start_at ?? run.expected_start_at ?? null,
+    triggered_by_run: triggeredByRunOf(run),
+    triggered_runs: triggeredRunsOf(run),
   };
 };
 
@@ -224,7 +381,12 @@ for (const [runId, runTasks] of Object.entries(ETL.tasks)) {
 
 // Public Step shape only: drops the reads/writes/rows/delta_version kept internally for StepFacts.
 const STEP_KEYS = ["name", "task_run_id", "state", "start_at", "end_at", "duration_seconds"];
-const publicStep = (step) => Object.fromEntries(STEP_KEYS.map((key) => [key, step[key]]));
+const TRY_KEYS = ["index", "task_run_id", "state", "start_at", "end_at", "duration_seconds"];
+// `tries` as the API sends it: each try of a step started again after failing, or null for a step that ran once.
+const publicStep = (step) => ({
+  ...Object.fromEntries(STEP_KEYS.map((key) => [key, step[key]])),
+  tries: step.tries ? step.tries.map((attempt) => Object.fromEntries(TRY_KEYS.map((key) => [key, attempt[key]]))) : null,
+});
 const publicTasks = (runTasks) => ({
   attempts: runTasks.attempts.map((attempt) => ({ ...attempt, processes: attempt.processes.map((process) => ({ ...process, steps: process.steps.map(publicStep) })) })),
   expected_steps_known: runTasks.expected_steps_known,
@@ -263,6 +425,7 @@ function currentOf(run) {
   const step = [...process.steps].reverse().find((s) => s.state === "RUNNING") ?? null;
   return { process: process.name, step: step?.name ?? null, index: index + 1, total: processes.length };
 }
+// As the API: an archived ETL's live runs stay in the list (its own page reads them); only the counts leave it out.
 function runningRunsOf() {
   const running = etlRuns.filter((run) => run.state === "RUNNING" || run.state === "PENDING").sort(byStartDesc);
   const capped = running.slice(0, RUNNING_LIMIT);
@@ -273,8 +436,11 @@ function runningRunsOf() {
       etl: deploymentById(run.deployment_id)?.name ?? run.deployment_id,
       state: run.state,
       start_at: run.start_at,
-      created_by: run.created_by,
-      trigger: run.created_by === "prefect-scheduler" ? "scheduled" : "manual",
+      attempt_started_at: attemptStartOf(run),
+      expected_start_at: run.expected_start_at,
+      waiting_since: waitingSinceOf(run),
+      created_by: run.automation_id ? null : run.created_by,
+      trigger: run.automation_id ? "automation" : run.created_by === "prefect-scheduler" ? "scheduled" : "manual",
       current: currentOf(run),
       typical_seconds: Object.hasOwn(run, "__typical_override") ? run.__typical_override : typicalSecondsOf(run.deployment_id),
     })),
@@ -323,7 +489,7 @@ function historyOf(interval, bucketMs, bucketCount, deploymentIds, upcoming) {
   return { interval, buckets, upcoming, median_seconds: median(durations) };
 }
 function dashboardSummary() {
-  const deploymentIds = new Set(ETL.deployments.map((deployment) => deployment.id));
+  const deploymentIds = new Set(activeDeployments().map((deployment) => deployment.id));
   const upcoming = upcomingOf(deploymentIds);
   return {
     ...summaryOf(),
@@ -382,11 +548,43 @@ const DEFAULT_PROCESS_NAMES = ["StagingProcess", "TransformProcess"];
 
 // A step's own log, always kept task-scoped (`runLogs.tasks`, one entry's own view of itself); on a deployment
 // with a shape (`rich`) the same lines are also folded into the flow-level log, exactly as loom's driver process
-// re-logs what each of its steps logs.
+// re-logs what each of its steps logs: as log records of their own (ids of their own), since the API never
+// answers one record both with and without a task run.
+// A step that failed twice and completed on its third try, as loom records it: each try its own task run, with its own
+// log lines; the step itself carries the last try's task run and state, and spans all three. Returns where it ends.
+const RETRY_DEMO_SECONDS = [12, 14, 18];
+const RETRY_DEMO_GAP_SECONDS = 6;
+function withTries(step, runLogs, deployment, rich) {
+  let at = Date.parse(step.start_at);
+  step.tries = RETRY_DEMO_SECONDS.map((seconds, index) => {
+    const failed = index < RETRY_DEMO_SECONDS.length - 1;
+    const attempt = {
+      index: index + 1,
+      task_run_id: randomUUID(),
+      state: failed ? "FAILED" : "COMPLETED",
+      start_at: new Date(at).toISOString(),
+      end_at: new Date(at + seconds * 1000).toISOString(),
+      duration_seconds: seconds,
+    };
+    at += (seconds + RETRY_DEMO_GAP_SECONDS) * 1000;
+    const lines = failed
+      ? [logEntry(attempt.start_at, 20, `step start step=${step.name} try=${attempt.index}`), logEntry(attempt.end_at, 40, `step failed step=${step.name} error=TimeoutError: the warehouse did not answer in ${seconds}s`)]
+      : stepLogLines({ ...step, start_at: attempt.start_at, end_at: attempt.end_at, task_run_id: attempt.task_run_id }, deployment);
+    runLogs.tasks.set(attempt.task_run_id, lines);
+    if (rich) runLogs.flow.push(...lines.map((line) => ({ ...line, id: randomUUID() })));
+    return attempt;
+  });
+  const last = step.tries.at(-1);
+  step.task_run_id = last.task_run_id;
+  step.end_at = last.end_at;
+  step.duration_seconds = Math.round((Date.parse(last.end_at) - Date.parse(step.start_at)) / 10) / 100;
+  return Date.parse(last.end_at);
+}
+
 function recordStepLogs(runLogs, deployment, step, rich) {
   const lines = stepLogLines(step, deployment);
   if (step.task_run_id) runLogs.tasks.set(step.task_run_id, lines);
-  if (rich) runLogs.flow.push(...lines);
+  if (rich) runLogs.flow.push(...lines.map((line) => ({ ...line, id: randomUUID() })));
 }
 
 // The "process start" line loom logs once per process, flow-level only (there is no per-process log stream): the
@@ -455,10 +653,14 @@ function genericTasks(run, deployment) {
   for (let a = 0; a < attemptsCount; a += 1) {
     const isLast = a === attemptsCount - 1;
     const attemptState = isLast ? run.state : "FAILED";
+    // A run that says how its attempts went (one retried from the UI hours later) runs each one where it ran.
+    const planned = run.__attempts?.[a];
+    if (planned) cursor = Date.parse(planned.start_at);
     const attemptStart = cursor;
+    const attemptMs = planned ? Date.parse(planned.end_at ?? new Date().toISOString()) - attemptStart : perAttemptMs;
     const processes = [];
     const procCount = processNames.length;
-    const stepMs = perAttemptMs / (procCount * 2);
+    const stepMs = Math.max(500, attemptMs) / (procCount * 2);
     for (let p = 0; p < procCount; p += 1) {
       const failHere = isLast && attemptState === "FAILED" && p === procCount - 1;
       const openHere = isLast && openEnded && p === procCount - 1;
@@ -481,8 +683,15 @@ function genericTasks(run, deployment) {
           rows: failThis ? null : 1_000 + s * 10,
           delta_version: failThis ? null : 10 + p + s,
         };
-        recordStepLogs(runLogs, deployment, step, rich);
-        stepIndex.set(step.task_run_id, { step, processName: processNames[p % processNames.length], runId: run.id });
+        // The retried-step demo: this run's second step took three tries, the first two failed (see `withTries`).
+        if (run.__retried_step && p === 0 && s === 1 && step.state === "COMPLETED") {
+          cursor = withTries(step, runLogs, deployment, rich);
+        } else {
+          recordStepLogs(runLogs, deployment, step, rich);
+        }
+        for (const id of step.tries ? step.tries.map((attempt) => attempt.task_run_id) : [step.task_run_id]) {
+          stepIndex.set(id, { step, processName: processNames[p % processNames.length], runId: run.id });
+        }
         steps.push(step);
         if (failThis) break;
       }
@@ -506,7 +715,7 @@ function genericTasks(run, deployment) {
       number: a + 1,
       state: attemptState,
       started_at: new Date(attemptStart).toISOString(),
-      ended_at: isLast ? run.end_at : new Date(cursor).toISOString(),
+      ended_at: isLast ? run.end_at : (planned?.end_at ?? new Date(cursor).toISOString()),
       message: isLast ? run.state_message : "Flow run encountered an exception; retrying",
       processes,
     });
@@ -524,6 +733,8 @@ function tasksOf(run) {
     ensureCuratedLogs(run, runTasks);
     return runTasks;
   }
+  // A run that has not started has run no task yet: nothing to draw, as Prefect has nothing for it.
+  if (run.start_at === null) return { attempts: [], expected_steps_known: false };
   const deployment = deploymentById(run.deployment_id);
   const built = genericTasks(run, deployment);
   tasksStore.set(run.id, built);
@@ -805,6 +1016,136 @@ if (stagingOrders) {
   });
 }
 
+// A run retried from Prefect's UI hours after it failed, running again: the same run id, its first attempt's start
+// kept as `start_at` (6 h ago, failed after 6 min), its second attempt started 3 min ago.
+const suppliersBackfill = findDeployment("suppliers_catalog_backfill_by_month");
+if (suppliersBackfill) {
+  const firstStart = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+  const attemptStart = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+  etlRuns.push({
+    id: randomUUID(),
+    deployment_id: suppliersBackfill.id,
+    name: "retried-from-ui",
+    state: "RUNNING",
+    state_message: null,
+    state_since: attemptStart,
+    expected_start_at: firstStart,
+    start_at: firstStart,
+    attempt_started_at: attemptStart,
+    end_at: null,
+    duration_seconds: 6 * 60,
+    created_by: "ana",
+    run_count: 2,
+    retries: 0,
+    retry_delay_seconds: 0,
+    parameters: suppliersBackfill.parameters,
+    __attempts: [
+      { index: 1, start_at: firstStart, end_at: new Date(Date.parse(firstStart) + 6 * 60 * 1000).toISOString(), state: "FAILED", duration_seconds: 360 },
+      { index: 2, start_at: attemptStart, end_at: null, state: "RUNNING", duration_seconds: null },
+    ],
+  });
+}
+
+// A run stuck submitting in the orchestrator: PENDING with no start time, weeks past its expected start.
+const STUCK_FOR_MS = 7 * 7 * 24 * 60 * 60 * 1000;
+// A second one, on another ETL and stuck for less long, so Needs attention can cancel the stuck runs together.
+const STUCK_TOO_FOR_MS = 3 * 24 * 60 * 60 * 1000;
+const stuckRunOf = (deployment, name, forMs) => ({
+  id: randomUUID(),
+  deployment_id: deployment.id,
+  name,
+  state: "PENDING",
+  state_message: null,
+  expected_start_at: new Date(Date.now() - forMs).toISOString(),
+  start_at: null,
+  end_at: null,
+  duration_seconds: null,
+  created_by: "prefect-scheduler",
+  run_count: 0,
+  retries: 0,
+  retry_delay_seconds: 0,
+  parameters: deployment.parameters,
+});
+const inventoryHourly = findDeployment("inventory_sync_hourly");
+if (inventoryHourly) etlRuns.push(stuckRunOf(inventoryHourly, "stuck-submitting", STUCK_FOR_MS));
+const suppliersCatalog = findDeployment("suppliers_catalog_weekly");
+if (suppliersCatalog) etlRuns.push(stuckRunOf(suppliersCatalog, "stuck-pending", STUCK_TOO_FOR_MS));
+
+// The retried-step demo: inventory_sync_hourly's newest completed run has a step that took three tries.
+const retriedStepRun = runsOf(findDeployment("inventory_sync_hourly")?.id).find((run) => run.state === "COMPLETED");
+if (retriedStepRun) retriedStepRun.__retried_step = true;
+
+// The retried-runs demo: two runs in a row of inventory_sync_hourly, just older than that one, needed 2 and 3 attempts,
+// so its dense strips (the dashboard's Last 12, the 24-hour panel) show two neighbouring retry dots.
+const inventoryRuns = runsOf(findDeployment("inventory_sync_hourly")?.id).filter((run) => run.state !== "SCHEDULED");
+const retriedRunsAt = inventoryRuns.indexOf(retriedStepRun) + 1;
+inventoryRuns.slice(retriedRunsAt, retriedRunsAt + 2).forEach((run, index) => {
+  run.run_count = 3 - index;
+});
+
+// The archive demo: a one-off backfill archived three days ago, and a dev ETL archived two days ago that still runs
+// on its schedule ("Archived, but ran at …").
+archives.set("orders_snapshot_backfill_by_month", { at: new Date(Date.now() - 3 * DAY_MS).toISOString(), by: null, reason: "One-off backfill, done" });
+archives.set("staging_orders_dev", { at: new Date(Date.now() - 2 * DAY_MS).toISOString(), by: null, reason: null });
+
+// Cancel and retry as the API asks Prefect for them (see the API's `run_control`), with the worker played by timers: a
+// started run is stopped a few seconds after it turns CANCELLING; one that never started is CANCELLED at once; a
+// retried run is the same run, scheduled, then running again (one more attempt, its first start kept, as Prefect does),
+// then completed.
+const CANCELLABLE = new Set(["RUNNING", "PENDING", "SCHEDULED", "PAUSED"]);
+const FORCE_CANCEL_AFTER_MS = 10 * 60 * 1000;
+const WORKER_STOPS_AFTER_MS = 4000;
+const RETRY_STARTS_AFTER_MS = 3000;
+const RETRY_RUNS_FOR_MS = 20000;
+
+function setRunState(run, state, message) {
+  run.state = state;
+  run.state_message = message;
+  run.state_since = new Date().toISOString();
+  if (TERMINAL_STATES.has(state)) {
+    run.end_at = run.state_since;
+    run.duration_seconds = run.start_at ? Math.round((Date.parse(run.end_at) - Date.parse(run.start_at)) / 1000) : 0;
+  }
+}
+
+function cancelRun(run, force) {
+  const notCancellable = (message) => ({ code: "etl_run_not_cancellable", message });
+  if (force) {
+    if (run.state !== "CANCELLING") return notCancellable("Only a run stuck cancelling can be forced to cancelled");
+    if (Date.now() - Date.parse(run.state_since ?? 0) < FORCE_CANCEL_AFTER_MS)
+      return notCancellable("A run can be forced once it has been cancelling for 10 minutes");
+    setRunState(run, "CANCELLED", "Cancelled from Periplo");
+    return null;
+  }
+  if (run.state === "CANCELLING") return notCancellable("This run is already being cancelled");
+  if (!CANCELLABLE.has(run.state)) return notCancellable("This run has already finished");
+  if (!run.start_at) {
+    setRunState(run, "CANCELLED", "Cancelled from Periplo");
+    return null;
+  }
+  setRunState(run, "CANCELLING", "Cancelled from Periplo");
+  setTimeout(() => run.state === "CANCELLING" && setRunState(run, "CANCELLED", "Flow run was cancelled."), WORKER_STOPS_AFTER_MS);
+  return null;
+}
+
+function retryRun(run) {
+  if (run.state !== "FAILED" && run.state !== "CRASHED") return { code: "etl_run_not_retryable", message: "Only a failed or crashed run can be retried" };
+  // Its attempts so far, as they went: the next one runs where it starts, not right after them.
+  const earlier = run.__attempts ?? [{ index: 1, start_at: run.start_at, end_at: run.end_at, state: run.state, duration_seconds: run.duration_seconds }];
+  setRunState(run, "SCHEDULED", "Retried from Periplo");
+  run.end_at = null;
+  run.attempt_started_at = null;
+  setTimeout(() => {
+    setRunState(run, "RUNNING", null);
+    run.attempt_started_at = run.state_since;
+    run.__attempts = [...earlier, { index: earlier.length + 1, start_at: run.state_since, end_at: null, state: "RUNNING", duration_seconds: null }];
+    tasksStore.delete(run.id);
+    run.run_count = (run.run_count || 1) + 1;
+    setTimeout(() => run.state === "RUNNING" && setRunState(run, "COMPLETED", "All states completed."), RETRY_RUNS_FOR_MS);
+  }, RETRY_STARTS_AFTER_MS);
+  return null;
+}
+
 // FastAPI answers 422 to a `limit` outside its bounds; the mock does the same.
 const limitOf = (url, max, fallback) => {
   const limit = Number(url.searchParams.get("limit") ?? fallback);
@@ -815,6 +1156,21 @@ const json = (res, status, body, headers = {}) => {
   res.writeHead(status, { "content-type": "application/json", ...headers });
   res.end(JSON.stringify(body));
 };
+// A request's JSON body, handed to `then`; a body that is not JSON answers 422, as FastAPI does.
+const readJson = (req, res, then) => {
+  let raw = "";
+  req.on("data", (chunk) => (raw += chunk));
+  req.on("end", () => {
+    let body;
+    try {
+      body = JSON.parse(raw || "{}");
+    } catch {
+      return fail(res, 422, "validation_error", "Body is not valid JSON");
+    }
+    return then(body);
+  });
+};
+
 const fail = (res, status, code, message, extra = {}) =>
   json(res, status, { detail: { code, message, trace_id: randomUUID(), ...extra } }, status === 429 ? { "retry-after": "1" } : {});
 
@@ -885,6 +1241,8 @@ http
     const etlRunsRoute = /^\/api\/v1\/etl\/([^/]+)\/runs$/.exec(url.pathname);
     const gridRoute = /^\/api\/v1\/etl\/([^/]+)\/grid$/.exec(url.pathname);
     const scheduleRoute = /^\/api\/v1\/etl\/([^/]+)\/schedule\/(resume|pause)$/.exec(url.pathname);
+    const archiveRoute = /^\/api\/v1\/etl\/([^/]+)\/(archive|restore)$/.exec(url.pathname);
+    const controlRoute = /^\/api\/v1\/etl\/runs\/([^/]+)\/(cancel|retry)$/.exec(url.pathname);
 
     if (route === "GET /health/live" || route === "GET /health/ready") return json(res, 200, { status: "ok" });
     if (route === "GET /api/v1/catalog") return json(res, 200, { ...catalog, links: TABLE_META.links });
@@ -924,7 +1282,8 @@ http
         }
       });
     }
-    if (route === "GET /api/v1/etl/status") return json(res, 200, { configured: true, operate_enabled: true });
+    if (route === "GET /api/v1/etl/status")
+      return json(res, 200, { configured: true, operate_enabled: true, archive_enabled: true, archive_mode: "process", facets: MOCK_FACETS });
     if (route === "GET /api/v1/etl") {
       const etls = [...ETL.deployments].sort((a, b) => a.name.localeCompare(b.name) || a.flow_name.localeCompare(b.flow_name)).map(etlOf);
       return json(res, 200, { etls, summary: dashboardSummary(), ...runningRunsOf() });
@@ -967,6 +1326,26 @@ http
       if (limit === null) return fail(res, 422, "validation_error", "limit must be between 1 and 20");
       return json(res, 200, gridOf(deployment, limit));
     }
+    if (controlRoute && req.method === "POST") {
+      const run = etlRuns.find((candidate) => candidate.id === controlRoute[1]);
+      if (!run) return fail(res, 404, "not_found", "Unknown flow run", { entity: "FlowRun", id: controlRoute[1] });
+      return readJson(req, res, (body) => {
+        const refusal = controlRoute[2] === "cancel" ? cancelRun(run, body.force === true) : retryRun(run);
+        if (refusal) return fail(res, 409, refusal.code, refusal.message);
+        return json(res, 202, runDetail(run));
+      });
+    }
+    // As the API: archiving asks the orchestrator only whether it knows the ETL; restoring does not ask it.
+    if (archiveRoute && req.method === "POST") {
+      const name = decodeURIComponent(archiveRoute[1]);
+      if (archiveRoute[2] === "restore") {
+        archives.delete(name);
+        return json(res, 200, { name, archived: null });
+      }
+      if (!findDeployment(name)) return fail(res, 404, "not_found", "Unknown deployment", { entity: "Deployment", id: name });
+      if (!archives.has(name)) archives.set(name, { at: new Date().toISOString(), by: null, reason: null });
+      return json(res, 200, { name, archived: archives.get(name) });
+    }
     if (scheduleRoute) {
       const deployment = findDeployment(decodeURIComponent(scheduleRoute[1]));
       if (!deployment) return fail(res, 404, "not_found", "Unknown deployment", { entity: "Deployment", id: scheduleRoute[1] });
@@ -985,15 +1364,9 @@ http
         return json(res, 200, { runs: nonScheduled.slice(0, limit).map(flowRun) });
       }
       if (req.method === "POST") {
-        let raw = "";
-        req.on("data", (chunk) => (raw += chunk));
-        return req.on("end", () => {
-          try {
-            console.log(`etl.run_requested deployment=${deployment.name}`);
-            json(res, 202, runDetail(createRun(deployment, JSON.parse(raw || "{}").parameters ?? null)));
-          } catch {
-            fail(res, 422, "validation_error", "Body is not valid JSON");
-          }
+        return readJson(req, res, (body) => {
+          console.log(`etl.run_requested deployment=${deployment.name}`);
+          json(res, 202, runDetail(createRun(deployment, body.parameters ?? null)));
         });
       }
     }

@@ -1,0 +1,38 @@
+/* The failure: said once, in the danger ink, the exception whole and scrollable. */
+.failure {
+  display: grid;
+  gap: var(--nt-space-2);
+  padding: var(--nt-space-2) var(--nt-space-3);
+  border-inline-start: var(--nt-size-progress) solid var(--nt-color-danger);
+  background: var(--nt-color-danger-surface);
+}
+
+/* "Killed · memory": the shape of the failure, read before the raw text. */
+.killed {
+  margin: 0;
+  font-size: var(--nt-font-size-xs);
+  font-weight: var(--nt-font-weight-strong);
+  letter-spacing: var(--nt-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+.exception {
+  margin: 0;
+  max-block-size: 16rem;
+  overflow: auto;
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.failureActions {
+  display: flex;
+  gap: var(--nt-space-4);
+}
+
+/* Whether the copy worked: seen beside the button, and heard as a status. */
+.copyOutcome {
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-sm);
+}

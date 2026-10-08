@@ -1,50 +1,51 @@
+import type { ExecutionStatus } from "@periplo/core/ui";
 import type { components } from "../../api/schema";
+import { pad } from "./two-digits";
 
 export type RunState = components["schemas"]["FlowRun"]["state"];
 export type StepState = components["schemas"]["StepState"];
 export type Schedule = components["schemas"]["Schedule"];
 export type Etl = components["schemas"]["Etl"];
-export type RecentRun = components["schemas"]["RecentRun"];
 
-/** True when the ETL is due for a look: its cron is off after a failure, its last run crashed, or it claims a daily cadence with no schedule at all. */
-export function needsAttention(etl: Etl): boolean {
-  return etl.schedule_inactive || etl.last_run?.state === "CRASHED" || (etl.cadence === "daily" && etl.schedule === null);
+/** The schedule does not run on its own: paused by hand, switched off, or switched off by loom after a failure. */
+export function isScheduleOff(etl: Pick<Etl, "paused" | "schedule" | "schedule_inactive">): boolean {
+  return etl.paused || (etl.schedule !== null && !etl.schedule.active) || etl.schedule_inactive;
 }
 
-/** The most recent of the last 12 runs kept in `recent` (oldest to newest), or null when the ETL has never run. */
-export function newestRecent(etl: Pick<Etl, "recent">): RecentRun | null {
-  return etl.recent.length > 0 ? (etl.recent[etl.recent.length - 1] ?? null) : null;
-}
-
-export type Tone = "success" | "danger" | "info" | "neutral";
-
-const TONES: Readonly<Record<StepState, Tone>> = {
-  COMPLETED: "success",
-  FAILED: "danger",
-  CRASHED: "danger",
-  RUNNING: "info",
-  PENDING: "info",
-  SCHEDULED: "info",
-  CANCELLING: "info",
-  CANCELLED: "neutral",
-  PAUSED: "neutral",
-  // A step or process a closed attempt or a terminal flow never got to finish: flagged, not merely neutral.
-  INTERRUPTED: "danger",
+const STATUSES: Readonly<Record<StepState, ExecutionStatus>> = {
+  COMPLETED: "completed",
+  FAILED: "failed",
+  CRASHED: "failed",
+  // A step or process a closed attempt or a terminal flow never got to finish: flagged, not merely stopped.
+  INTERRUPTED: "failed",
+  RUNNING: "running",
+  // Not started yet: a hole where it will run, never progress.
+  SCHEDULED: "scheduled",
+  PENDING: "scheduled",
+  // On its way to being cancelled: it is stopping, not making progress.
+  CANCELLING: "stopped",
+  CANCELLED: "stopped",
+  PAUSED: "stopped",
 };
 
-const TERMINAL: ReadonlySet<RunState> = new Set<RunState>(["COMPLETED", "FAILED", "CANCELLED", "CRASHED"]);
+// A run is never INTERRUPTED; a step or process is, once its attempt closed without it: that never changes again either.
+const TERMINAL: ReadonlySet<StepState> = new Set<StepState>(["COMPLETED", "FAILED", "CANCELLED", "CRASHED", "INTERRUPTED"]);
 
-/** The colour a state dot or badge takes; the same mapping wherever a run or step state is shown. */
-export function toneOf(state: StepState): Tone {
-  return TONES[state];
+/**
+ * How a run, process or step is drawn (colour and the cue beside it): the one mapping from the orchestrator's state,
+ * wherever a state is shown. A not-started state that already has a start time reads as running: the orchestrator
+ * flips the state a moment after the work begins. The start time is required, null only where the data has none,
+ * so a row's dot, mark and bar cannot disagree about the same step.
+ */
+export function statusOf(state: StepState, startAt: string | null): ExecutionStatus {
+  const status = STATUSES[state];
+  return status === "scheduled" && startAt !== null ? "running" : status;
 }
 
-/** A terminal run never changes again, so polling can stop. */
-export function isTerminal(state: RunState): boolean {
+/** A terminal run never changes again, so polling can stop; nor does a terminal process or step, so its bar stops. */
+export function isTerminal(state: StepState): boolean {
   return TERMINAL.has(state);
 }
-
-const pad = (value: number): string => String(value).padStart(2, "0");
 
 /** "12s", "1m 24s", "2h 05m": two units at most, because a run's length is read at a glance. Null when there is nothing to show. */
 export function formatDuration(seconds: number | null): string | null {
@@ -89,4 +90,3 @@ export function describeSchedule(schedule: Schedule | null): ScheduleDescription
       return { kind: "rrule", text: "rrule" };
   }
 }
-

@@ -1,0 +1,4 @@
+/* An archived ETL that still runs: in the warning colour, which its words say too. */
+.warning {
+  color: var(--nt-color-warning);
+}

@@ -1,4 +1,4 @@
-export { Button, type ButtonProps } from "./Button";
+export { Button, ButtonLink, type ButtonLinkProps, type ButtonProps } from "./Button";
 export { Dialog, type DialogProps, type DialogSize } from "./Dialog";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
 export { ErrorNotice, type ErrorNoticeError, type ErrorNoticeProps } from "./ErrorNotice";
@@ -7,6 +7,8 @@ export { Panel, type PanelProps } from "./Panel";
 export { Progress } from "./Progress";
 export { TabPanel, Tabs, type TabItem, type TabsProps } from "./Tabs";
 export { StatusBar, type StatusBarProps, type StatusItem } from "./StatusBar";
+export { StatusSwatch, type ExecutionStatus, type StatusSwatchProps } from "./StatusSwatch";
+export { TitleMark } from "./TitleMark";
 export { TypeBadge, type TypeBadgeProps } from "./TypeBadge";
 export { TYPE_FAMILIES, isIdentifierName, typeFamily, type TypeFamily } from "./type-family";
 export { applyTheme, getStoredTheme, themeBootstrapSnippet, type Theme } from "./theme";

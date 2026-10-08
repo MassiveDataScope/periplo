@@ -30,6 +30,7 @@ from periplo.catalog.ports import Storage, StorageFor
 from periplo.catalog.snapshots import Opener, SnapshotRegistry
 from periplo.credentials import CredentialsGate, ProcessCredentials, check_environment
 from periplo.data_plane import DataPlanes, SinglePlane
+from periplo.etl.adapters.archive_memory import InMemoryArchiveStore
 from periplo.etl.adapters.prefect import PrefectOrchestrator
 from periplo.etl.http import create_router as create_etl_router
 from periplo.etl.ports import Orchestrator
@@ -89,7 +90,9 @@ def create_app(
     tenants = SingleTenant() if extensions.tenants is None else extensions.tenants
     settings = settings or Settings.from_environment(os.environ)
     authorizer = (
-        SwitchAuthorizer(allow_operate=settings.etl_allow_operate)
+        SwitchAuthorizer(
+            allow_operate=settings.etl_allow_operate, allow_archive=settings.etl_archive_allowed
+        )
         if extensions.authorizer is None
         else extensions.authorizer
     )
@@ -151,7 +154,12 @@ def create_app(
         result, RouteSources(python=[CatalogInterface]), title="Periplo", lifespan=lifespan
     )
     app.include_router(create_router(planes, runtime, access=access, credentials=credentials))
-    app.include_router(create_etl_router(orchestrators, access=access))
+    archives = InMemoryArchiveStore() if extensions.archives is None else extensions.archives
+    app.include_router(
+        create_etl_router(
+            orchestrators, access=access, archives=archives, facets=settings.etl_facets
+        )
+    )
     app.add_middleware(ConditionalGetMiddleware)
     # Added after ConditionalGetMiddleware so it wraps outside it (Starlette applies the
     # middleware added last as the outermost layer): identity and tenant are resolved

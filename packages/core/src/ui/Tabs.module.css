@@ -5,6 +5,9 @@
 }
 
 .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nt-space-1-5);
   min-block-size: var(--nt-size-control);
   padding: 0 var(--nt-space-3);
   border: 0;

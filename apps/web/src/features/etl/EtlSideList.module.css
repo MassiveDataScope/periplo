@@ -1,0 +1,173 @@
+/* The ETL section's side column: same frame as the catalog tree's (head with filter, scrolling list below). */
+.column {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  block-size: 100%;
+}
+
+.head {
+  display: grid;
+  gap: var(--nt-space-2);
+  padding: var(--nt-space-3) var(--nt-space-3) var(--nt-space-2);
+  border-block-end: var(--nt-border-width) solid var(--nt-color-border);
+}
+
+.titleRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-inline-end: var(--nt-size-control);
+}
+
+.title {
+  color: var(--nt-color-text);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-md);
+  font-weight: var(--nt-font-weight-strong);
+  text-decoration: none;
+}
+
+.title:hover,
+.title[aria-current="page"] {
+  color: var(--nt-color-accent);
+}
+
+.total,
+.muted,
+.empty {
+  margin: 0;
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+  font-feature-settings: var(--nt-font-features-data);
+}
+
+.empty {
+  padding: var(--nt-space-3);
+}
+
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-1-5);
+  min-block-size: var(--nt-size-control);
+  padding: 0 var(--nt-space-2);
+  border: var(--nt-border-width) solid var(--nt-color-border-strong);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-bg);
+  color: var(--nt-color-text-subtle);
+}
+
+.searchBox:focus-within {
+  border-color: var(--nt-color-focus);
+  outline: var(--nt-border-width) solid var(--nt-color-focus);
+}
+
+.searchBox input {
+  flex: 1;
+  min-inline-size: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--nt-color-text);
+  font: inherit;
+}
+
+.scroll {
+  display: grid;
+  align-content: start;
+  gap: var(--nt-space-3);
+  flex: 1;
+  min-block-size: 0;
+  padding: var(--nt-space-2);
+  overflow: auto;
+}
+
+.group {
+  display: grid;
+  gap: var(--nt-space-0-5);
+}
+
+.groupTitle {
+  margin: 0;
+  padding: 0 var(--nt-space-2) var(--nt-space-1);
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-2xs);
+  font-weight: var(--nt-font-weight-medium);
+  letter-spacing: var(--nt-font-tracking-caps);
+  text-transform: uppercase;
+}
+
+.list {
+  display: grid;
+  gap: var(--nt-space-0-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--nt-space-2);
+  padding: var(--nt-space-1-5) var(--nt-space-2);
+  border-radius: var(--nt-radius-sm);
+  color: var(--nt-color-text);
+  text-decoration: none;
+}
+
+.item:hover {
+  background: var(--nt-color-surface-hover);
+}
+
+.item:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: calc(-1 * var(--nt-focus-width));
+}
+
+.item[aria-current="page"] {
+  background: var(--nt-color-selection);
+  box-shadow: inset var(--nt-focus-width) 0 0 var(--nt-color-accent);
+}
+
+/* Centred on the name's first line. */
+.swatch {
+  flex-shrink: 0;
+  margin-block-start: 0.3em;
+}
+
+.text {
+  display: grid;
+  gap: var(--nt-space-0-5);
+  min-inline-size: 0;
+}
+
+.name {
+  overflow: hidden;
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item[aria-current="page"] .name {
+  font-weight: var(--nt-font-weight-medium);
+}
+
+.line {
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-sm);
+}
+
+/* An ETL that has never run: an empty ring where the state would be, so the names stay aligned. */
+.noState {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  inline-size: 8px;
+  block-size: 8px;
+  margin-block-start: 0.3em;
+  border: var(--nt-border-width) solid var(--nt-color-border-strong);
+  border-radius: var(--nt-radius-full);
+}

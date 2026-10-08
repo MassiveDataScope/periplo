@@ -58,4 +58,11 @@ describe("Tabs", () => {
     fireEvent.click(screen.getByRole("tab", { name: "History" }));
     expect(screen.getByRole("tabpanel", { name: "History" })).toBeTruthy();
   });
+
+  it("draws a tab's mark before its label, out of its accessible name", () => {
+    render(<Tabs label="Attempts" tabs={[{ id: "a1", label: "Attempt 1 · Failed", mark: <b>×</b> }]} selected="a1" onSelect={() => undefined} />);
+    const tab = screen.getByRole("tab", { name: "Attempt 1 · Failed" });
+    expect(tab.textContent).toBe("×Attempt 1 · Failed");
+    expect(tab.querySelector("b")?.parentElement?.getAttribute("aria-hidden")).toBe("true");
+  });
 });

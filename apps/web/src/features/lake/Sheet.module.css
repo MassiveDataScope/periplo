@@ -388,3 +388,23 @@
 .colActions {
   inline-size: 8.5rem;
 }
+
+/* A narrow pane (a phone, or Home beside a wide catalog) keeps each table's name and its actions: the figures go, so
+   the name is never squeezed out or scrolled out of sight. */
+@container (max-width: 36rem) {
+  .colColumns,
+  .colFigure,
+  .colWrite,
+  .table td:not(.starCell, .actions, .empty) {
+    display: none;
+  }
+
+  .table th,
+  .table td {
+    padding: 0 var(--nt-space-2);
+  }
+
+  .colActions {
+    inline-size: 5.5rem;
+  }
+}
