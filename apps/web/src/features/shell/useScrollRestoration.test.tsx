@@ -29,8 +29,7 @@ describe("useScrollRestoration", () => {
     render(<Work />);
     const work = screen.getByRole("main", { name: "Work area" });
     act(() => navigate({ kind: "database", database: "landing_shop" }));
-    work.scrollTop = 640;
-    work.dispatchEvent(new Event("scroll"));
+    scrollTo(work, 640);
 
     act(() => navigate({ kind: "table", database: "landing_shop", table: "orders", tab: "data" }));
     await vi.waitFor(() => expect(work.scrollTop).toBe(0));
@@ -47,8 +46,7 @@ describe("useScrollRestoration", () => {
     const orders = { kind: "table", database: "landing_shop", table: "orders", tab: "data" } as const;
     act(() => navigate(orders));
     act(() => vi.runAllTimers());
-    work.scrollTop = 640;
-    work.dispatchEvent(new Event("scroll"));
+    scrollTo(work, 640);
 
     act(() => replaceRoute({ ...orders, tab: "details" }));
     act(() => vi.runAllTimers());
@@ -60,8 +58,15 @@ describe("useScrollRestoration", () => {
     expect(work.scrollTop).toBe(0);
   });
 
-  /** Scrolls the work area as the user would, so the position is recorded for the entry on screen. */
+  /** Scrolls the work area as the user would, with the wheel, so the position is recorded for the entry on screen. */
   function scrollTo(work: HTMLElement, top: number): void {
+    work.dispatchEvent(new WheelEvent("wheel"));
+    work.scrollTop = top;
+    work.dispatchEvent(new Event("scroll"));
+  }
+
+  /** A scroll the user did not make: the browser clamping a position the view is still too short to reach. */
+  function clampTo(work: HTMLElement, top: number): void {
     work.scrollTop = top;
     work.dispatchEvent(new Event("scroll"));
   }
@@ -98,6 +103,35 @@ describe("useScrollRestoration", () => {
     render(<Work />);
     const work = screen.getByRole("main", { name: "Work area" });
     await vi.waitFor(() => expect(work.scrollTop).toBe(640));
+  });
+
+  /** Leaves the entry at `top` and reloads the tab: the entry keeps its stamp, the page and its work area start over. */
+  function reloadScrolledTo(top: number): HTMLElement {
+    render(<Work />);
+    act(() => navigate({ kind: "database", database: "landing_shop" }));
+    act(() => vi.runAllTimers());
+    scrollTo(screen.getByRole("main", { name: "Work area" }), top);
+    cleanup();
+    appHistory.dispose();
+    appHistory.install();
+    render(<Work />);
+    return screen.getByRole("main", { name: "Work area" });
+  }
+
+  it("keeps the saved position while it is being restored, even when the view is still too short to reach it", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const work = reloadScrolledTo(640);
+    // The view has not filled in yet: the browser clamps the restored position and reports the scroll.
+    clampTo(work, 200);
+    act(() => vi.runAllTimers());
+    clampTo(work, 200);
+    cleanup();
+
+    appHistory.dispose();
+    appHistory.install();
+    render(<Work />);
+    act(() => vi.runAllTimers());
+    expect(screen.getByRole("main", { name: "Work area" }).scrollTop).toBe(640);
   });
 
   it("forgets the positions of the documents whose trails are gone, so session storage does not grow with every reopening", () => {

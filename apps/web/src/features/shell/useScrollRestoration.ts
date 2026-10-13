@@ -24,7 +24,7 @@ function savePositions(positions: Record<string, number>): void {
 /**
  * Keeps the scroll of the work area per history entry: Back, Forward and a reload return to where the
  * user was, a new entry starts at the top, and a replacement in place (a tab, a filter) leaves the scroll alone.
- * Retries stop as soon as the user scrolls, types or touches the page.
+ * Retries stop, and the scroll counts again, as soon as the user scrolls, types or touches the page.
  */
 export function useScrollRestoration(ref: RefObject<HTMLElement | null>): void {
   useEffect(() => {
@@ -32,6 +32,11 @@ export function useScrollRestoration(ref: RefObject<HTMLElement | null>): void {
     if (!element) return;
     const positions = readSessionJson(STORAGE_KEY, isPosition);
     let timers: number[] = [];
+    /**
+     * From a restore until the user takes over, scroll events come from the restore or from the browser
+     * clamping it while the view is still short: none of them is a position to keep.
+     */
+    let restoring = false;
     const cancel = () => {
       for (const timer of timers) window.clearTimeout(timer);
       timers = [];
@@ -39,6 +44,7 @@ export function useScrollRestoration(ref: RefObject<HTMLElement | null>): void {
 
     /** Applies `target` now and again while the view fills in, until the user takes over the scroll. */
     const restore = (target: number) => {
+      restoring = true;
       timers = RETRIES_MS.map((delay) =>
         window.setTimeout(() => {
           element.scrollTop = target;
@@ -47,9 +53,12 @@ export function useScrollRestoration(ref: RefObject<HTMLElement | null>): void {
     };
 
     const onScroll = () => {
-      positions[appHistory.currentEntryKey()] = element.scrollTop;
+      if (!restoring) positions[appHistory.currentEntryKey()] = element.scrollTop;
     };
-    const onUserIntent = () => cancel();
+    const onUserIntent = () => {
+      cancel();
+      restoring = false;
+    };
     const onMove = () => {
       cancel();
       const move = appHistory.lastMove();
