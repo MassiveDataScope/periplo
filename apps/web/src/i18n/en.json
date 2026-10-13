@@ -472,6 +472,8 @@
     "every": "every {{value}}",
     "upstreamFallback": "The ETL orchestrator did not answer",
     "dashboard": {
+      "noValue": "—",
+      "rowChevron": "›",
       "summary": {
         "etls_one": "{{count}} ETL",
         "etls_other": "{{count}} ETLs",
@@ -640,6 +642,14 @@
       "runsAfter": "Runs after <upstream>{{etl}}</upstream> completes",
       "chain": "Chain",
       "chainArrow": "→",
+      "chainRun": {
+        "completed": "last run completed",
+        "failed": "last run failed",
+        "running": "running now",
+        "scheduled": "next run not started yet",
+        "stopped": "last run stopped",
+        "never": "never ran"
+      },
       "thenTriggers": "Then triggers",
       "nextRun": "Next run {{when}}",
       "pausedNothingRuns": "Paused: nothing runs until it is resumed",
@@ -748,6 +758,7 @@
       "fromBeginningCount_one": "The beginning ({{count}} process)",
       "fromBeginningCount_other": "The beginning (all {{count}} processes)",
       "fromFailed": "{{process}}, where the last run failed",
+      "fromGiven": "{{processes}}, as in the run it repeats",
       "same": "Same values as the schedule",
       "differ_one": "{{count}} value differs from the schedule",
       "differ_other": "{{count}} values differ from the schedule",

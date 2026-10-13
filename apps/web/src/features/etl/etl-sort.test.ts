@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { defaultEtlSort } from "../../app/etl-routes";
 import { isExplicitSort, sortEtls, tabSort } from "./etl-sort";
 import type { Etl, FlowRun } from "./useEtl";
@@ -91,6 +91,12 @@ describe("sortEtls with what needs attention first", () => {
 
   it("leads with the ETLs needing attention, each part in the tab's own order", () => {
     expect(names(sortEtls([soon, latest, later], { key: "next", reversed: false }, needs))).toEqual(["a-later", "c-latest", "b-soon"]);
+  });
+
+  it("asks the rule once per ETL, not once per comparison", () => {
+    const asked = vi.fn(needs);
+    sortEtls([soon, latest, later, etl("d-more"), etl("e-more")], { key: "next", reversed: false }, asked);
+    expect(asked).toHaveBeenCalledTimes(5);
   });
 
   it("is the plain order without a rule", () => {

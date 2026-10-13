@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isEmphasised, summarizeStatuses, worseStatus } from "./statuses";
+import { EXECUTION_STATUSES, isEmphasised, summarizeStatuses, worseStatus, worstStatus } from "./statuses";
 
 describe("statuses", () => {
   it("emphasises what failed and what runs — not what stopped, waits or completed", () => {
@@ -18,6 +18,16 @@ describe("statuses", () => {
         expect(worseStatus(worse, better)).toBe(worse);
       }
     }
+  });
+
+  it("names the worst of several statuses, and none of none", () => {
+    expect(worstStatus(["completed", "scheduled", "completed"])).toBe("scheduled");
+    expect(worstStatus(["stopped", "failed", "running"])).toBe("failed");
+    expect(worstStatus([])).toBeNull();
+  });
+
+  it("knows every status once", () => {
+    expect([...EXECUTION_STATUSES].sort()).toEqual(["completed", "failed", "running", "scheduled", "stopped"]);
   });
 
   it("summarises statuses that all agree as that one status", () => {

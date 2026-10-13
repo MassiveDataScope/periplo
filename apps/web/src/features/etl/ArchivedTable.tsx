@@ -1,12 +1,12 @@
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { ErrorNotice } from "@periplo/core/ui";
-import type { Dependencies } from "../../app/dependencies";
 import { href } from "../../app/routes";
 import { archiveWarning } from "./archive";
 import { ArchivedWhen, ArchiveWarningText } from "./ArchiveWords";
+import { useRowAction, type RowAction } from "./row-actions";
 import { useInSection } from "./SectionLinks";
-import { useArchive, type Etl } from "./useEtl";
+import type { Etl } from "./useEtl";
 import type { EtlStatus } from "./useEtlStatus";
 import dashboardStyles from "./EtlDashboard.module.css";
 import homeStyles from "./EtlDashboardHome.module.css";
@@ -16,21 +16,21 @@ interface ArchivedTableProps {
   readonly etls: readonly Etl[];
   /** How many ETLs are archived, filters aside: none at all is said differently from none matching. */
   readonly total: number;
-  readonly dependencies: Dependencies;
-  readonly status: EtlStatus;
-  /** After Restore, so the list shows the ETL back among the active ones. */
-  onChanged(): void;
+  /** Where the API keeps archive marks: in its process only, they last until it restarts. */
+  readonly archiveMode: EtlStatus["archive_mode"];
+  /** Restores an archived ETL among the active ones; undefined where the installation does not allow archiving. */
+  readonly onRestore: RowAction | undefined;
 }
 
 const COLUMNS = 3;
 
 /** The Archived tab: each archived ETL with when and by whom, a word when it still runs, and Restore. */
-export function ArchivedTable({ etls, total, dependencies, status, onChanged }: ArchivedTableProps) {
+export function ArchivedTable({ etls, total, archiveMode, onRestore }: ArchivedTableProps) {
   const { t } = useTranslation();
   if (etls.length === 0 && total > 0) return <p className={dashboardStyles.noMatch}>{t("etl.filters.noMatch")}</p>;
   return (
     <div className={dashboardStyles.frame}>
-      {status.archive_mode === "durable" ? null : <p className={dashboardStyles.hint}>{t("etl.archive.processOnly")}</p>}
+      {archiveMode === "durable" ? null : <p className={dashboardStyles.hint}>{t("etl.archive.processOnly")}</p>}
       <table className={dashboardStyles.table}>
         <thead>
           <tr>
@@ -45,7 +45,7 @@ export function ArchivedTable({ etls, total, dependencies, status, onChanged }: 
         </thead>
         <tbody>
           {etls.map((etl) => (
-            <Row key={etl.name} etl={etl} dependencies={dependencies} canRestore={status.archive_enabled} onChanged={onChanged} />
+            <Row key={etl.name} etl={etl} onRestore={onRestore} />
           ))}
           {etls.length === 0 ? (
             <tr>
@@ -60,20 +60,10 @@ export function ArchivedTable({ etls, total, dependencies, status, onChanged }: 
   );
 }
 
-function Row({
-  etl,
-  dependencies,
-  canRestore,
-  onChanged,
-}: {
-  readonly etl: Etl;
-  readonly dependencies: Dependencies;
-  readonly canRestore: boolean;
-  onChanged(): void;
-}) {
+function Row({ etl, onRestore }: { readonly etl: Etl; readonly onRestore: RowAction | undefined }) {
   const { t } = useTranslation();
   const inSection = useInSection();
-  const { restore, pending, error } = useArchive(dependencies, etl.name, onChanged);
+  const { run: restore, pending, error } = useRowAction(onRestore, etl.name);
   const warning = archiveWarning(etl);
   const nameId = useId();
 
@@ -90,7 +80,7 @@ function Row({
         </th>
         <td>{warning === null ? "—" : <ArchiveWarningText warning={warning} />}</td>
         <td data-align="end" className={dashboardStyles.colActions}>
-          {canRestore ? (
+          {restore !== undefined ? (
             <button
               type="button"
               className={dashboardStyles.ghost}

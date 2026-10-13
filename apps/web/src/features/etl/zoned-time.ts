@@ -25,6 +25,11 @@ function keyOf(date: Date): string {
   return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
 }
 
+/** The time zone this browser keeps its clock on, the one every other time on the console is shown in. */
+export function browserTimeZone(): string {
+  return new Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
 /** Day `key` as a date at UTC midnight: format it with `timeZone: "UTC"` to show that same calendar day. */
 export function dayDate(key: string): Date {
   const [year = 1970, month = 1, day = 1] = key.split("-").map(Number);

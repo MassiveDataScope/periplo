@@ -1,7 +1,6 @@
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { ErrorNotice } from "@periplo/core/ui";
-import type { Dependencies } from "../../app/dependencies";
 import type { EtlSort, EtlSortKey } from "../../app/etl-routes";
 import { href } from "../../app/routes";
 import { formatAge } from "../../i18n/format";
@@ -9,10 +8,10 @@ import { isAscending, runMoment } from "./etl-sort";
 import { lineageOf, type FacetConfigs, type Lineage } from "./facets";
 import { Last12Bars } from "./Last12Bars";
 import { StateMark } from "./parts";
+import { useRowAction, type RowAction } from "./row-actions";
 import { scheduleWords } from "./schedule-text";
 import { useInSection } from "./SectionLinks";
-import { useSchedule, type Etl, type FlowRun, type RunningRun } from "./useEtl";
-import type { EtlStatus } from "./useEtlStatus";
+import type { Etl, FlowRun, RunningRun } from "./useEtl";
 import { MINUTE_MS, useNow } from "./useNow";
 import dashboardStyles from "./EtlDashboard.module.css";
 import homeStyles from "./EtlDashboardHome.module.css";
@@ -23,9 +22,8 @@ interface EtlTableProps {
   /** The tab's ETLs before the filters: an empty table then says the filters match nothing. */
   readonly original: readonly Etl[];
   readonly runningById: ReadonlyMap<string, RunningRun>;
-  readonly dependencies: Dependencies;
-  readonly status: EtlStatus;
-  onChanged(): void;
+  /** Resumes an ETL's inactive schedule; undefined where the installation does not allow operating ETLs. */
+  readonly onResume: RowAction | undefined;
   readonly sort: EtlSort;
   /** The columns the tab can be ordered by; any other header is plain. */
   readonly sortKeys: readonly EtlSortKey[];
@@ -45,7 +43,7 @@ function lineageWords(lineage: Lineage | null): string | null {
 }
 
 /** The active tab's ETLs, one row each: name and schedule, Last 12, last run, next run, and Resume where it applies. */
-export function EtlTable({ etls, original, runningById, dependencies, status, onChanged, sort, sortKeys, onSortChange, facets }: EtlTableProps) {
+export function EtlTable({ etls, original, runningById, onResume, sort, sortKeys, onSortChange, facets }: EtlTableProps) {
   const { t } = useTranslation();
   // The filters letting none of the tab's ETLs through: the status line above says so, and how to get some back.
   if (original.length > 0 && etls.length === 0) return null;
@@ -85,9 +83,7 @@ export function EtlTable({ etls, original, runningById, dependencies, status, on
               key={etl.id}
               etl={etl}
               runningById={runningById}
-              dependencies={dependencies}
-              status={status}
-              onChanged={onChanged}
+              onResume={onResume}
               lineage={lineageOf(etl, facets)}
             />
           ))}
@@ -108,24 +104,19 @@ export function EtlTable({ etls, original, runningById, dependencies, status, on
 function Row({
   etl,
   runningById,
-  dependencies,
-  status,
-  onChanged,
+  onResume,
   lineage,
 }: {
   readonly etl: Etl;
   readonly runningById: ReadonlyMap<string, RunningRun>;
-  readonly dependencies: Dependencies;
-  readonly status: EtlStatus;
-  onChanged(): void;
+  readonly onResume: RowAction | undefined;
   /** What it reads and writes, where the installation's facets say so. */
   readonly lineage: Lineage | null;
 }) {
   const { t, i18n } = useTranslation();
   const inSection = useInSection();
   const now = useNow(MINUTE_MS);
-  const { resume, pending, error } = useSchedule(dependencies, etl.name, onChanged);
-  const showResume = etl.schedule_inactive && status.operate_enabled;
+  const { run: resume, pending, error } = useRowAction(etl.schedule_inactive ? onResume : undefined, etl.name);
   const nameId = useId();
   const flow = lineageWords(lineage);
 
@@ -162,11 +153,11 @@ function Row({
           ) : etl.schedule_inactive ? (
             <span className={dashboardStyles.notScheduled}>{t("etl.notScheduled")}</span>
           ) : (
-            "—"
+            t("etl.dashboard.noValue")
           )}
         </td>
         <td data-align="end" className={dashboardStyles.colActions}>
-          {showResume ? <ResumeButton pending={pending} onResume={() => void resume()} /> : <span className={dashboardStyles.chevron}>›</span>}
+          {resume !== undefined ? <ResumeButton pending={pending} onResume={() => void resume()} /> : <span className={dashboardStyles.chevron}>{t("etl.dashboard.rowChevron")}</span>}
         </td>
       </tr>
       {error ? (
@@ -227,9 +218,9 @@ function ResumeButton({ pending, onResume }: { readonly pending: boolean; onResu
 
 /** How the last run ended and how long ago; a one-line message for a failure or a crash. */
 function LastRun({ run }: { readonly run: FlowRun | null }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const now = useNow(MINUTE_MS);
-  if (run === null) return "—";
+  if (run === null) return t("etl.dashboard.noValue");
   const at = runMoment(run);
   const message = (run.state === "FAILED" || run.state === "CRASHED") && run.state_message ? run.state_message : null;
   return (

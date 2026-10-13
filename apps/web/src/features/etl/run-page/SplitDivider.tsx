@@ -92,7 +92,7 @@ export function SplitDivider({ ratio, max = MAX_SPLIT, label, onChange, onCommit
       data-dragging={dragging}
       onKeyDown={onKeyDown}
       onPointerDown={onPointerDown}
-      onDoubleClick={() => place(DEFAULT_SPLIT)}
+      onDoubleClick={() => place(within(DEFAULT_SPLIT, max))}
     />
   );
 }

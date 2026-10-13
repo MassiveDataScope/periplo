@@ -12,6 +12,7 @@ import {
   useRunControl,
   useSchedule,
   type Etl,
+  type EtlList,
   type FlowRun,
   type RunDetail,
 } from "./useEtl";
@@ -145,6 +146,75 @@ describe("useEtlList", () => {
     expect(result.current.list.kind).toBe("ready");
     await settle();
     expect(result.current.list.kind).toBe("ready");
+  });
+
+  it("never lets a slow older answer replace a newer one", async () => {
+    const older = { etls: [etl], summary, running: [], running_truncated: false };
+    const newer = { etls: [{ ...etl, paused: true }], summary, running: [], running_truncated: false };
+    let answerOlder: (value: { data: typeof older }) => void = () => undefined;
+    const GET = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise((resolve) => (answerOlder = resolve)))
+      .mockResolvedValue({ data: newer });
+    const dependencies = fakeDependencies(GET);
+    const shown: EtlList[] = [];
+    const answerOf = (value: EtlList): string => (value.etls[0]?.paused === true ? "newer" : "older");
+    renderHook(() => {
+      const { list } = useEtlList(dependencies);
+      if (list.kind === "ready" && shown.at(-1) !== list.value) shown.push(list.value);
+      return list;
+    });
+    await tick(POLL_MS * 2);
+    answerOlder({ data: older });
+    await settle();
+    await tick();
+    // Each list in the order it was shown: the older one first, the newer after it, never the older again.
+    expect(shown.map(answerOf)).toEqual(["older", "newer"]);
+  });
+
+  it("leaves no poll behind once unmounted, even with an answer still on its way", async () => {
+    const list = { etls: [etl], summary, running: [], running_truncated: false };
+    let answer: (value: { data: typeof list }) => void = () => undefined;
+    const GET = vi
+      .fn()
+      .mockResolvedValueOnce({ data: list })
+      .mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+    const dependencies = fakeDependencies(GET);
+    const { unmount } = renderHook(() => useEtlList(dependencies));
+    await settle();
+    await tick();
+    expect(GET).toHaveBeenCalledTimes(2);
+    unmount();
+    answer({ data: list });
+    await settle();
+    expect(vi.getTimerCount()).toBe(0);
+    await tick(POLL_MS * 3);
+    expect(GET).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a single poll going after a reload, not one more per reload", async () => {
+    const GET = vi.fn().mockResolvedValue({ data: { etls: [etl], summary, running: [], running_truncated: false } });
+    const dependencies = fakeDependencies(GET);
+    const { result } = renderHook(() => useEtlList(dependencies));
+    await settle();
+    act(() => result.current.reload());
+    await settle();
+    act(() => result.current.reload());
+    await settle();
+    expect(GET).toHaveBeenCalledTimes(3);
+    expect(vi.getTimerCount()).toBe(1);
+    await tick();
+    expect(GET).toHaveBeenCalledTimes(4);
+  });
+
+  it("gives the same reload on every render, so what the dashboard builds on it is not rebuilt per poll", async () => {
+    const GET = vi.fn().mockResolvedValue({ data: { etls: [etl], summary, running: [], running_truncated: false } });
+    const dependencies = fakeDependencies(GET);
+    const { result } = renderHook(() => useEtlList(dependencies));
+    const first = result.current.reload;
+    await settle();
+    await tick();
+    expect(result.current.reload).toBe(first);
   });
 
   it("fails when the API does", async () => {

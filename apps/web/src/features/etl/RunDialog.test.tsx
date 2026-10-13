@@ -1,11 +1,11 @@
 import { ApiError } from "@periplo/core/api";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nextProvider } from "react-i18next";
 import type { Dependencies } from "../../app/dependencies";
 import { createI18n } from "../../i18n";
 import { RunDialog } from "./RunDialog";
-import type { Etl, RunDetail } from "./useEtl";
+import { POLL_MS, type Etl, type RunDetail } from "./useEtl";
 
 const i18n = await createI18n();
 
@@ -199,6 +199,75 @@ describe("RunDialog", () => {
     await waitFor(() => expect(POST).toHaveBeenCalled());
     expect(POST.mock.calls[0]?.[1]).toMatchObject({ body: { parameters: { processes: ["Staging", "Publish"] } } });
     expect(GET).toHaveBeenCalledWith("/etl/{name}/grid", expect.objectContaining({ params: { path: { name: "daily-orders" }, query: { limit: 5 } } }));
+  });
+
+  describe("repeating a run limited to some processes", () => {
+    const grid = {
+      processes: ["Extract", "Staging", "Publish"],
+      truncated: false,
+      runs: [{ id: "run-8", name: "x", state: "COMPLETED", start_at: null, duration_seconds: 1, cells: [] }],
+    };
+    const repeat = (POST: ReturnType<typeof vi.fn>) =>
+      renderDialog({
+        GET: vi.fn().mockResolvedValue({ data: grid }),
+        POST,
+        etl: { ...etl, accepts_processes: true },
+        initialParameters: { ...etl.parameters, processes: ["Staging", "Publish"] },
+      });
+
+    it("starts from that run's processes, shows them as chosen, and sends them", async () => {
+      const POST = vi.fn().mockResolvedValue({ data: launched });
+      const { runOnce } = repeat(POST);
+      const startFrom = (await screen.findByLabelText("Start from")) as HTMLSelectElement;
+      await screen.findByRole("option", { name: "The beginning (all 3 processes)" });
+      expect(startFrom.selectedOptions[0]?.textContent).toBe("Staging, Publish, as in the run it repeats");
+      expect(screen.getByText("1 value differs from the schedule")).toBeTruthy();
+      runOnce();
+      await waitFor(() => expect(POST).toHaveBeenCalled());
+      expect(POST.mock.calls[0]?.[1]).toMatchObject({ body: { parameters: { processes: ["Staging", "Publish"] } } });
+    });
+
+    it("sends the schedule's own values, and no processes of that run, from the beginning", async () => {
+      const POST = vi.fn().mockResolvedValue({ data: launched });
+      const { runOnce } = repeat(POST);
+      fireEvent.change(await screen.findByLabelText("Start from"), { target: { value: "beginning" } });
+      expect(screen.getByText("Same values as the schedule")).toBeTruthy();
+      runOnce();
+      await waitFor(() => expect(POST).toHaveBeenCalled());
+      expect(POST.mock.calls[0]?.[1]).toMatchObject({ body: { parameters: etl.parameters } });
+      expect(POST.mock.calls[0]?.[1]).not.toMatchObject({ body: { parameters: { processes: expect.anything() } } });
+    });
+  });
+
+  it("goes back to the beginning, shown and sent, when a newer grid no longer offers the failure it had picked", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const going = { id: "run-9", name: "z", state: "RUNNING", start_at: "2026-09-23T04:00:00Z", duration_seconds: 1, cells: [] };
+      const failedIn = (process: string) => ({
+        processes: ["Extract", "Staging", "Publish"],
+        truncated: false,
+        runs: [
+          { id: "run-8", name: "x", state: "FAILED", start_at: null, duration_seconds: 1, cells: [{ process, state: "FAILED", duration_seconds: 1 }] },
+          going,
+        ],
+      });
+      const GET = vi.fn().mockResolvedValueOnce({ data: failedIn("Staging") }).mockResolvedValue({ data: failedIn("Publish") });
+      const POST = vi.fn().mockResolvedValue({ data: launched });
+      const { runOnce } = renderDialog({ GET, POST, etl: { ...etl, accepts_processes: true } });
+      const startFrom = (await screen.findByLabelText("Start from")) as HTMLSelectElement;
+      await screen.findByRole("option", { name: "Staging, where the last run failed" });
+      fireEvent.change(startFrom, { target: { value: "failed" } });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(POLL_MS);
+      });
+      await screen.findByRole("option", { name: "Publish, where the last run failed" });
+      expect(startFrom.value).toBe("beginning");
+      runOnce();
+      await waitFor(() => expect(POST).toHaveBeenCalled());
+      expect(POST.mock.calls[0]?.[1]).not.toMatchObject({ body: { parameters: { processes: expect.anything() } } });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("offers the failed process even while a newer run is going, from the newest run that finished", async () => {

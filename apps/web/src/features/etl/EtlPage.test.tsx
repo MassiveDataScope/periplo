@@ -206,7 +206,7 @@ describe("EtlPage", () => {
         .getAttribute("href"),
     ).toBe("#/etl/respondio_messages");
     const chain = within(screen.getByRole("list", { name: "Chain" })).getAllByRole("link");
-    expect(chain.map((link) => link.textContent)).toEqual(["respondio_messages", etl.name]);
+    expect(chain.map((link) => link.getAttribute("title"))).toEqual(["respondio_messages", etl.name]);
   });
 
   it("says a failure paused the schedule, and offers to resume it", async () => {

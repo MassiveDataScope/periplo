@@ -16,6 +16,9 @@ export type RunDetail = components["schemas"]["RunDetail"];
 export type RunLink = components["schemas"]["RunLink"];
 export type LogEntry = components["schemas"]["LogEntry"];
 
+/** The one empty ETL list: the same on every render, so nothing that depends on it sees a change. */
+export const NO_ETLS: readonly Etl[] = [];
+
 /** Cadence of the run and log polls: short enough to feel live, long enough not to hammer the orchestrator. */
 export const POLL_MS = 3_000;
 
@@ -33,7 +36,7 @@ function useVisible(): boolean {
 }
 
 /**
- * The whole list — deployments, the server-computed summary and the live `running` runs — polled every `POLL_MS`
+ * The whole list — deployments, the server-computed summary and the live `running` runs — polled `POLL_MS` after each answer
  * while the tab is visible, so the dashboard's own pulse, running stack and Last 12 bars stay current on their own.
  * A poll or an explicit `reload` never resets to "loading" once a first answer has landed: the list already on
  * screen stays put until the fresh one replaces it, so nothing flashes. Disabled (outside the ETL section), it asks
@@ -52,29 +55,48 @@ export function useEtlList(
   useEffect(() => {
     if (!visible || !enabled) return;
     const abort = new AbortController();
+    let timer: number | undefined;
+    // The next poll is asked only once this one has answered, so a slow answer can never land after a newer one.
     const fetchList = () => {
       client
         .GET("/etl", { signal: abort.signal })
         .then(({ data }) => {
+          // An answer to an effect already cleaned up (a reload, the tab hidden) is not shown.
+          if (abort.signal.aborted) return;
           if (!data) throw new Error("The ETL list response was empty");
           // Unchanged ETLs and runs keep their identity across polls, so memoised rows skip the render.
           setList((current) => ({ kind: "ready", value: stableList(current.kind === "ready" ? current.value : null, data) }));
         })
         .catch((error: unknown) => {
           if (!isAbort(error)) setList((current) => (current.kind === "ready" ? current : failed(error)));
+        })
+        .finally(() => {
+          if (!abort.signal.aborted) timer = window.setTimeout(fetchList, POLL_MS);
         });
     };
     // Immediately on mount, on resume and on an explicit reload: coming back to the tab or acting on a row
     // should show the current list, not one up to POLL_MS old.
     fetchList();
-    const timer = window.setInterval(fetchList, POLL_MS);
     return () => {
-      window.clearInterval(timer);
+      window.clearTimeout(timer);
       abort.abort();
     };
   }, [client, visible, enabled, attempt]);
 
   return { list, reload };
+}
+
+/** Sends one change and answers null once it is made (after `onChanged`), or the error it failed with; an empty
+ * answer is a failure too. */
+export async function changeOutcome(send: () => Promise<{ readonly data?: unknown }>, onChanged: () => void): Promise<ApiError | null> {
+  try {
+    const { data } = await send();
+    if (!data) throw new Error("The response was empty");
+    onChanged();
+    return null;
+  } catch (err: unknown) {
+    return asApiError(err);
+  }
 }
 
 /**
@@ -93,23 +115,26 @@ function useChange(onChanged: () => void): {
     async (send: () => Promise<{ readonly data?: unknown }>): Promise<boolean> => {
       setPending(true);
       setError(null);
-      try {
-        const { data } = await send();
-        if (!data) throw new Error("The response was empty");
-        onChanged();
-        return true;
-      } catch (err: unknown) {
-        setError(asApiError(err));
-        return false;
-      } finally {
-        setPending(false);
-      }
+      const failure = await changeOutcome(send, onChanged);
+      setError(failure);
+      setPending(false);
+      return failure === null;
     },
     [onChanged],
   );
   const reset = useCallback(() => setError(null), []);
   return { pending, error, make, reset };
 }
+
+type Client = Dependencies["client"];
+
+/** The one request for each change to an ETL: every hook that makes one sends it from here. */
+export const etlChange = {
+  resume: (client: Client, name: string) => client.POST("/etl/{name}/schedule/resume", { params: { path: { name } } }),
+  pause: (client: Client, name: string) => client.POST("/etl/{name}/schedule/pause", { params: { path: { name } } }),
+  archive: (client: Client, name: string) => client.POST("/etl/{name}/archive", { params: { path: { name } }, body: {} }),
+  restore: (client: Client, name: string) => client.POST("/etl/{name}/restore", { params: { path: { name } } }),
+};
 
 /** Resumes or pauses one deployment's schedule; `onChanged` once the orchestrator has answered. */
 export function useSchedule(
@@ -119,8 +144,8 @@ export function useSchedule(
 ): { pending: boolean; error: ApiError | null; resume: () => Promise<boolean>; pause: () => Promise<boolean> } {
   const { client } = dependencies;
   const { pending, error, make } = useChange(onChanged);
-  const resume = useCallback(() => make(() => client.POST("/etl/{name}/schedule/resume", { params: { path: { name } } })), [client, make, name]);
-  const pause = useCallback(() => make(() => client.POST("/etl/{name}/schedule/pause", { params: { path: { name } } })), [client, make, name]);
+  const resume = useCallback(() => make(() => etlChange.resume(client, name)), [client, make, name]);
+  const pause = useCallback(() => make(() => etlChange.pause(client, name)), [client, make, name]);
   return { pending, error, resume, pause };
 }
 
@@ -132,8 +157,8 @@ export function useArchive(
 ): { pending: boolean; error: ApiError | null; archive: () => Promise<boolean>; restore: () => Promise<boolean> } {
   const { client } = dependencies;
   const { pending, error, make } = useChange(onChanged);
-  const archive = useCallback(() => make(() => client.POST("/etl/{name}/archive", { params: { path: { name } }, body: {} })), [client, make, name]);
-  const restore = useCallback(() => make(() => client.POST("/etl/{name}/restore", { params: { path: { name } } })), [client, make, name]);
+  const archive = useCallback(() => make(() => etlChange.archive(client, name)), [client, make, name]);
+  const restore = useCallback(() => make(() => etlChange.restore(client, name)), [client, make, name]);
   return { pending, error, archive, restore };
 }
 

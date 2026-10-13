@@ -63,6 +63,7 @@ export function EtlDayPanel({
   ref,
 }: EtlDayPanelProps) {
   const { t } = useTranslation();
+  const headingId = useId();
   // The axis moves on by the minute: a second is far below a pixel on 30 hours, and a steady axis lets idle rows skip
   // re-rendering. Only the note and bar of a run in progress follow the second clock (see DayRow).
   const axisNow = useNow(MINUTE_MS);
@@ -84,9 +85,9 @@ export function EtlDayPanel({
   }
 
   return (
-    <section ref={ref} aria-labelledby="etl-day-heading" className={styles.panel}>
+    <section ref={ref} aria-labelledby={headingId} className={styles.panel}>
       <div className={styles.head}>
-        <h3 id="etl-day-heading" className={`nt-overline ${styles.title}`}>
+        <h3 id={headingId} className={`nt-overline ${styles.title}`}>
           {t("etl.day.heading")}
         </h3>
       </div>

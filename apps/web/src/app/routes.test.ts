@@ -134,18 +134,27 @@ describe("routes", () => {
     expect(viewKey({ ...deployment, q: "stock" })).toBe(href(deployment));
   });
 
-  it("carries the table's order as ?sort=, reversed with a dash, and leaves out each tab's own default", () => {
+  it("carries the table's order as ?sort=, reversed with a dash, and leaves it out only when nobody picked one", () => {
     expect(parseRoute("#/etl?sort=-last")).toEqual({ kind: "etl", filters: { sort: { key: "last", reversed: true } } });
     expect(parseRoute("#/etl?sort=name&tab=on-demand")).toEqual({ kind: "etl", filters: { tab: "on-demand", sort: { key: "name", reversed: false } } });
     expect(parseRoute("#/etl?sort=bogus")).toEqual({ kind: "etl" });
     expect(href(etlRoute({ sort: { key: "last", reversed: true } }))).toBe("#/etl?sort=-last");
-    expect(etlRoute({ sort: defaultEtlSort("scheduled") })).toEqual({ kind: "etl" });
-    expect(etlRoute({ tab: "on-demand", sort: defaultEtlSort("on-demand") })).toEqual({ kind: "etl", filters: { tab: "on-demand" } });
+    expect(etlRoute({})).toEqual({ kind: "etl" });
+    expect(etlRoute({ tab: "on-demand" })).toEqual({ kind: "etl", filters: { tab: "on-demand" } });
     expect(etlRoute({ tab: "on-demand", sort: defaultEtlSort("scheduled") })).toEqual({
       kind: "etl",
       filters: { tab: "on-demand", sort: { key: "next", reversed: false } },
     });
     expect(viewKey(parseRoute("#/etl?q=x&sort=-name"))).toBe("#/etl?sort=-name");
+  });
+
+  it("keeps a picked order that matches the tab's own, so a reload still orders by that column alone", () => {
+    expect(href(etlRoute({ sort: defaultEtlSort("scheduled") }))).toBe("#/etl?sort=next");
+    expect(parseRoute(href(etlRoute({ sort: defaultEtlSort("scheduled") })))).toEqual({ kind: "etl", filters: { sort: { key: "next", reversed: false } } });
+    expect(etlRoute({ tab: "on-demand", sort: defaultEtlSort("on-demand") })).toEqual({
+      kind: "etl",
+      filters: { tab: "on-demand", sort: { key: "last", reversed: false } },
+    });
   });
 
   it("tells the ETL section's routes from every other", () => {
@@ -216,7 +225,7 @@ describe("routes", () => {
   it("carries the Archived tab like On demand", () => {
     expect(href({ kind: "etl", filters: { tab: "archived" } })).toBe("#/etl?tab=archived");
     expect(parseRoute("#/etl?tab=archived")).toEqual({ kind: "etl", filters: { tab: "archived" } });
-    expect(etlRoute({ tab: "archived", sort: defaultEtlSort("archived") })).toEqual({ kind: "etl", filters: { tab: "archived" } });
+    expect(etlRoute({ tab: "archived" })).toEqual({ kind: "etl", filters: { tab: "archived" } });
   });
 
   it("carries the 24-hour panel's grouping in the query, the default What needs me never appearing", () => {

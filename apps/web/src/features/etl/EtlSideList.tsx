@@ -11,7 +11,7 @@ import { scheduleFacetValue, type FacetConfigs } from "./facets";
 import { STATE_LABELS } from "./parts";
 import { scheduleWords } from "./schedule-text";
 import { useInSection } from "./SectionLinks";
-import type { Etl, EtlList } from "./useEtl";
+import { NO_ETLS, type Etl, type EtlList } from "./useEtl";
 import { MINUTE_MS, useNow } from "./useNow";
 import styles from "./EtlSideList.module.css";
 
@@ -34,7 +34,6 @@ interface EtlSideListProps {
   onRetry(): void;
 }
 
-const NO_ETLS: readonly Etl[] = [];
 const NO_FACETS: Pick<EtlFiltersState, "tags" | "state"> = { tags: [], state: [] };
 
 /**

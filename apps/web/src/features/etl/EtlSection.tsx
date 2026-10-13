@@ -14,7 +14,7 @@ import { etlOfRun } from "./etl-of-run";
 import type { FacetConfigs } from "./facets";
 import { RunPage } from "./RunPage";
 import { SectionLinks } from "./SectionLinks";
-import { useEtlList, type Etl, type EtlList } from "./useEtl";
+import { NO_ETLS, useEtlList, type Etl, type EtlList } from "./useEtl";
 import type { EtlStatus } from "./useEtlStatus";
 import { useRunsNow } from "./useRunsNow";
 
@@ -40,8 +40,6 @@ function dropRunOnce(): void {
   const now = parseRoute(window.location.hash);
   if (now.kind === "etl-deployment") replaceRoute({ ...now, runOnce: undefined });
 }
-
-const NO_ETLS: readonly Etl[] = [];
 
 export interface EtlSection {
   readonly route: EtlSectionRoute;

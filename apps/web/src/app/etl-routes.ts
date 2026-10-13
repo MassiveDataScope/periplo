@@ -29,7 +29,7 @@ export interface EtlSort {
   readonly reversed: boolean;
 }
 
-/** Each tab's own order, the one the URL leaves out: what is due soonest on Scheduled, what ran last elsewhere. */
+/** Each tab's own order, the one shown while the URL names none: what is due soonest on Scheduled, what ran last elsewhere. */
 export function defaultEtlSort(tab: EtlTab): EtlSort {
   return { key: tab === "scheduled" ? "next" : "last", reversed: false };
 }
@@ -124,7 +124,7 @@ function listFilter(q: string | null | undefined): string | undefined {
   return q === null || q === undefined || q.trim() === "" ? undefined : q;
 }
 
-/** The dashboard's route for these filters, each left out when empty or at its default: one view, one link. */
+/** The dashboard's route for these filters, each left out when empty or at its default (an order only when none was picked): one view, one link. */
 export function etlRoute(filters: EtlRouteFilters): EtlListRoute {
   const { q, tags, state, tab, group, open, sort } = filters;
   const kept: EtlRouteFilters = {
@@ -134,7 +134,8 @@ export function etlRoute(filters: EtlRouteFilters): EtlListRoute {
     ...(namedTab(tab) !== undefined ? { tab } : {}),
     ...(group !== undefined && group !== GROUP_BY_NEEDS ? { group } : {}),
     ...(open !== undefined && open.length > 0 ? { open } : {}),
-    ...(sort !== undefined && sortParam(sort) !== sortParam(defaultEtlSort(tab ?? "scheduled")) ? { sort } : {}),
+    // A picked order stays even when it is the tab's own: it orders by its column alone, not what needs attention first.
+    ...(sort !== undefined ? { sort } : {}),
   };
   return Object.keys(kept).length > 0 ? { kind: "etl", filters: kept } : { kind: "etl" };
 }
