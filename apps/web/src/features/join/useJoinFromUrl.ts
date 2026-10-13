@@ -46,7 +46,8 @@ function specOf(def: JoinDefinition): string | undefined {
  * out (a table that could not be read, a key that no longer holds, a restore that threw) leaves the URL as
  * it was until the join is edited, so a reload can still restore what this one could not. A spec that does
  * not decode never will, so it is replaced like any other. An edit whose spec would not read back is not
- * written: the URL keeps the last one that does, and the notice says so.
+ * written: the URL keeps the last one that does, and the notice says so. While a link is being restored,
+ * edits to the join it replaces are not written, so the link wins and is not lost.
  */
 export function useJoinFromUrl(
   tableFacts: TableFactsStore,
@@ -59,6 +60,8 @@ export function useJoinFromUrl(
   const [notice, setNotice] = useState<JoinRestoreNotice | null>(null);
   /** The spec this page last wrote to the URL; null until it has written one. */
   const written = useRef<{ readonly spec: string | undefined } | null>(null);
+  /** A link is being restored: edits made meanwhile belong to the join it replaces, so none is written over it. */
+  const restoring = useRef(false);
 
   useEffect(() => {
     if (!base || (written.current !== null && written.current.spec === spec)) return;
@@ -69,12 +72,14 @@ export function useJoinFromUrl(
       return;
     }
     const settle = (restored: JoinDefinition, lost: JoinRestoreNotice | null) => {
+      restoring.current = false;
       // Recorded as already written, so the effect below does not replace the link with what is left of it.
       if (lost) written.current = { spec: specOf(restored) };
       setDefState(restored);
       setNotice(lost);
     };
     let cancelled = false;
+    restoring.current = true;
     void (async () => {
       const read = new Map<string, JoinTableRead>();
       await Promise.all(
@@ -98,11 +103,12 @@ export function useJoinFromUrl(
     })();
     return () => {
       cancelled = true;
+      restoring.current = false;
     };
   }, [base, spec, tableFacts]);
 
   useEffect(() => {
-    if (!def) return;
+    if (!def || restoring.current) return;
     const next = specOf(def);
     // Compared with what this page wrote, not with the URL: a link opened over it is restored above, not overwritten.
     if (written.current !== null && written.current.spec === next) return;

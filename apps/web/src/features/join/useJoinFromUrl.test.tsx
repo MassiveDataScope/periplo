@@ -4,7 +4,7 @@ import type { TableFactsStore } from "../../api/table-facts";
 import { href, replaceRoute } from "../../app/routes";
 import { addTable, setKind, setOutput, type JoinTable } from "./join-model";
 import { encodeJoinSpec, restoreJoin } from "./join-spec";
-import { readJoinTable } from "./join-tables";
+import { readJoinTable, type JoinTableRead } from "./join-tables";
 import { useJoinFromUrl } from "./useJoinFromUrl";
 
 const failure = new Error("restore failed");
@@ -90,6 +90,27 @@ describe("useJoinFromUrl", () => {
     await waitFor(() => expect(result.current.notice).toBeNull());
     act(() => result.current.setDef((current) => (current ? setKind(current, "o2", "inner") : current)));
     await waitFor(() => expect(window.location.hash).not.toBe(LINK));
+    unmount();
+  });
+
+  it("lets a link opened over the join win over edits made while it is still being restored", async () => {
+    let finishRead: (read: JoinTableRead) => void = () => undefined;
+    vi.mocked(readJoinTable).mockImplementation(() => new Promise((resolve) => (finishRead = resolve)));
+    const onSpecChange = vi.fn();
+    const { result, rerender, unmount } = renderHook(({ spec }: { readonly spec: string | undefined }) => useJoinFromUrl(STORE, ORDER, spec, onSpecChange), {
+      initialProps: { spec: undefined as string | undefined },
+    });
+    await waitFor(() => expect(result.current.def?.joins).toEqual([]));
+
+    // A link arrives; before its tables read, the join on screen is edited.
+    rerender({ spec: SPEC });
+    act(() => result.current.setDef((current) => (current ? setOutput(current, "o", []) : current)));
+    act(() => result.current.setDef((current) => (current ? addTable(current, { ...ORDERS, table: "order_lines" }) : current)));
+    expect(onSpecChange).not.toHaveBeenCalled();
+
+    await act(async () => finishRead({ kind: "ready", table: ORDERS }));
+    await waitFor(() => expect(result.current.def?.joins.map((step) => step.table.table)).toEqual(["orders"]));
+    expect(onSpecChange).not.toHaveBeenCalled();
     unmount();
   });
 
