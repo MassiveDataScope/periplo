@@ -43,8 +43,9 @@ type EtlSection = Loadable<EtlStatus> | { readonly kind: "under-construction" };
 const ETL_UNDER_CONSTRUCTION_SECTION: EtlSection = { kind: "under-construction" };
 
 // The ETL section's screens are a chunk of their own, fetched the first time one of its routes renders.
-const EtlColumn = lazy(() => import("../features/etl/EtlViews").then((views) => ({ default: views.EtlColumn })));
-const EtlView = lazy(() => import("../features/etl/EtlViews").then((views) => ({ default: views.EtlView })));
+const loadEtlViews = () => import("../features/etl/EtlViews");
+const EtlColumn = lazy(() => loadEtlViews().then((views) => ({ default: views.EtlColumn })));
+const EtlView = lazy(() => loadEtlViews().then((views) => ({ default: views.EtlView })));
 
 interface AppProps {
   readonly dependencies: Dependencies;
