@@ -73,6 +73,20 @@ describe("CatalogTree folding", () => {
     expect(screen.getByRole("treeitem", { name: /landing_shop/ }).getAttribute("aria-expanded")).toBe("false");
   });
 
+  it("does not reopen a branch folded by hand when the catalog refreshes with the same keys", async () => {
+    const { rerender, i18n, preferences } = await renderTree(tableRoute("landing_shop", "order"));
+    fireEvent.click(screen.getByRole("button", { name: "Fold or unfold landing_shop" }));
+
+    // A poll brings a new catalog object with the same layers, databases and tables.
+    const refreshed: Catalog = { ...structuredClone(catalog), published_at: "2026-01-10T09:00:00Z" };
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <CatalogTree catalog={refreshed} route={tableRoute("landing_shop", "order")} preferences={preferences} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByRole("treeitem", { name: /landing_shop/ }).getAttribute("aria-expanded")).toBe("false");
+  });
+
   it("unfolds a branch folded by hand when the route moves to another table inside it", async () => {
     const { rerender, i18n, preferences } = await renderTree(tableRoute("landing_shop", "order"));
     fireEvent.click(screen.getByRole("button", { name: "Fold or unfold landing_shop" }));
