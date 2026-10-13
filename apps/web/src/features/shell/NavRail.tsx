@@ -17,8 +17,6 @@ export interface NavRailProps {
   readonly troubled: number;
   /** Whether the ETL integration is configured; without it the section does not exist. */
   readonly etl: boolean;
-  /** When set, the ETL entry shows disabled, with no href. */
-  readonly etlUnderConstruction?: boolean;
   readonly theme: Theme;
   /** The company running this installation, shown under the product mark. */
   readonly brand?: Brand;
@@ -42,23 +40,10 @@ const THEME_ICONS: Record<Theme, IconName> = {
 };
 
 /**
- * A disabled entry: still in the rail and reachable by keyboard, so it can be announced, but without
- * an href it cannot be followed. `role="link"` keeps it among its sibling sections.
- */
-function UnderConstructionItem({ label, accessibleName, hint }: { label: string; accessibleName: string; hint: string }) {
-  return (
-    <a className={styles.item} role="link" tabIndex={0} aria-disabled="true" aria-label={accessibleName} title={hint}>
-      <Icon name="construction" />
-      <span className={styles.label}>{label}</span>
-    </a>
-  );
-}
-
-/**
  * The product's sections, as a rail. The catalog is not a section: it is the column beside the rail,
  * and its entry here only brings it forward and focuses its filter.
  */
-export function NavRail({ preferences, route, troubled, etl, etlUnderConstruction = false, theme, brand, onThemeToggle, onSearch, onCatalog }: NavRailProps) {
+export function NavRail({ preferences, route, troubled, etl, theme, brand, onThemeToggle, onSearch, onCatalog }: NavRailProps) {
   const { t } = useTranslation();
   const { railCollapsed, catalogColumn } = usePreferences(preferences);
   // A narrow screen has no room for the names: collapsed there, whatever was chosen on a wide one.
@@ -110,10 +95,7 @@ export function NavRail({ preferences, route, troubled, etl, etlUnderConstructio
         </button>
         {section("sql", "sql", t("nav.sql"))}
         {section("join", "join", t("nav.join"))}
-        {etl && !etlUnderConstruction ? section("etl", "pipeline", t("nav.etl")) : null}
-        {etlUnderConstruction ? (
-          <UnderConstructionItem label={t("nav.etl")} accessibleName={t("nav.etlUnderConstruction")} hint={t("nav.underConstruction")} />
-        ) : null}
+        {etl ? section("etl", "pipeline", t("nav.etl")) : null}
         {section("discovery", "discovery", discoveryLabel, troubled > 0, t("nav.discovery"))}
       </nav>
       <p className={styles.seal} title={t("nav.readOnlyHint")}>

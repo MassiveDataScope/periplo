@@ -15,7 +15,6 @@ vi.mock("../features/etl/EtlViews", async (original) => {
   loaded.etlViews = true;
   return original();
 });
-vi.mock("./sections", () => ({ ETL_UNDER_CONSTRUCTION: false }));
 
 const routes: Record<string, () => Response> = {
   "GET /api/v1/catalog": () => Response.json(catalogFixture),

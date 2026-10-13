@@ -6,7 +6,7 @@ import { tableKey } from "../features/catalog-tree/catalog-model";
 import { useCatalogData } from "../features/catalog-tree/useCatalogData";
 import { DiscoveryView } from "../features/discovery/DiscoveryView";
 import { etlColumnTexts, useEtlSection } from "../features/etl/EtlSection";
-import { useEtlStatus, type EtlStatus } from "../features/etl/useEtlStatus";
+import { useEtlStatus } from "../features/etl/useEtlStatus";
 import { Home } from "../features/home/Home";
 import { DatabasePage } from "../features/lake/DatabasePage";
 import { LayerPage } from "../features/lake/LayerPage";
@@ -17,11 +17,9 @@ import { Logo } from "../features/shell/Logo";
 import { NavRail } from "../features/shell/NavRail";
 import { PageErrorBoundary } from "../features/shell/PageErrorBoundary";
 import { Shell, type ShellHandle } from "../features/shell/Shell";
-import { UnderConstruction } from "../features/shell/UnderConstruction";
 import { JoinStart } from "../features/join/JoinStart";
 import { JoinWorkspace } from "../features/join/JoinWorkspace";
 import { TablePage } from "../features/table/TablePage";
-import type { Loadable } from "../api/loadable";
 import { previewSql } from "../api/sql";
 import { BRAND } from "./brand";
 import type { Dependencies } from "./dependencies";
@@ -29,7 +27,6 @@ import { useBackDestination } from "./leave";
 import { usePreferences, type PreferencesStore } from "./preferences";
 import { isEtlRoute } from "./etl-routes";
 import { navigate, replaceRoute, useHashRoute, viewKey } from "./routes";
-import { ETL_UNDER_CONSTRUCTION } from "./sections";
 import styles from "./App.module.css";
 
 const NEXT_THEME: Record<Theme, Theme> = {
@@ -37,10 +34,6 @@ const NEXT_THEME: Record<Theme, Theme> = {
   light: "dark",
   dark: "system",
 };
-
-type EtlSection = Loadable<EtlStatus> | { readonly kind: "under-construction" };
-
-const ETL_UNDER_CONSTRUCTION_SECTION: EtlSection = { kind: "under-construction" };
 
 // The ETL section's screens are a chunk of their own, fetched the first time one of its routes renders.
 const loadEtlViews = () => import("../features/etl/EtlViews");
@@ -53,27 +46,16 @@ interface AppProps {
 }
 
 /**
- * Picks the console once, so `useEtlStatus` never mounts and never calls the ETL API when it is under construction.
- *
  * Precondition: `appHistory.install()` (app/history.ts) has run before the first render, as `main` does, so the
  * trail hears every hashchange before any view. Without it the registry throws in development and tests; tests
  * install it the same way (`openTab` in App.test.tsx).
  */
-export function App(props: AppProps) {
-  return ETL_UNDER_CONSTRUCTION ? <Console {...props} etl={ETL_UNDER_CONSTRUCTION_SECTION} /> : <ConsoleWithEtl {...props} />;
-}
-
-function ConsoleWithEtl(props: AppProps) {
-  const etl = useEtlStatus(props.dependencies);
-  return <Console {...props} etl={etl} />;
-}
-
-function Console({ dependencies, preferences, etl }: AppProps & { readonly etl: EtlSection }) {
+export function App({ dependencies, preferences }: AppProps) {
   const { t } = useTranslation();
   const route = useHashRoute();
   const back = useBackDestination(route);
   const { catalog, sources, discovering, reload, rediscover } = useCatalogData(dependencies);
-  const etlUnderConstruction = etl.kind === "under-construction";
+  const etl = useEtlStatus(dependencies);
   const etlStatus = etl.kind === "ready" && etl.value.configured ? etl.value : null;
   const etlConfigured = etlStatus !== null;
   const onEtlRoute = isEtlRoute(route);
@@ -197,7 +179,6 @@ function Console({ dependencies, preferences, etl }: AppProps & { readonly etl: 
             route={route}
             troubled={troubled}
             etl={etlConfigured}
-            etlUnderConstruction={etlUnderConstruction}
             theme={theme}
             brand={BRAND}
             onThemeToggle={() => {
@@ -311,7 +292,6 @@ function Console({ dependencies, preferences, etl }: AppProps & { readonly etl: 
               onSqlChange={setSql}
             />
           ) : null}
-          {onEtlRoute && etlUnderConstruction ? <UnderConstruction section={t("nav.etl")} /> : null}
           {onEtlRoute && etl.kind === "loading" ? <Progress label={t("etl.loading")} /> : null}
           {onEtlRoute && etl.kind === "failed" ? <ErrorNotice title={t("etl.loadFailed")} error={etl.error} /> : null}
           {etlSection !== null ? (
