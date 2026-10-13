@@ -66,7 +66,10 @@ describe("App's ETL section", () => {
     await screen.findByRole("link", { name: "ETL" });
     expect(loaded.etlViews).toBe(false);
 
-    act(() => void ((window.location.hash = "#/etl"), window.dispatchEvent(new HashChangeEvent("hashchange"))));
+    act(() => {
+      window.location.hash = "#/etl";
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
     await screen.findByRole("heading", { name: "ETL", level: 2 });
     expect(loaded.etlViews).toBe(true);
   });
