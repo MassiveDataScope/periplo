@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { addTable, buildJoinSql, setKind, setOutput, startJoin, type JoinTable } from "./join-model";
-import { MAX_IDENTIFIER_LENGTH, MAX_PAIRS_PER_STEP, MAX_SPEC_LENGTH, MAX_STEPS, decodeJoinSpec, encodeJoinSpec, restoreJoin } from "./join-spec";
+import { MAX_PAIRS_PER_STEP, addTable, buildJoinSql, setKind, setOutput, startJoin, type JoinTable } from "./join-model";
+import { MAX_IDENTIFIER_LENGTH, MAX_SPEC_LENGTH, MAX_STEPS, decodeJoinSpec, encodeJoinSpec, restoreJoin } from "./join-spec";
 
 const ORDERS: JoinTable = {
   database: "landing_shop",

@@ -177,16 +177,30 @@ export function startJoin(base: JoinTable): JoinDefinition {
   return { base, joins: [], output: { [baseAlias({ base })]: defaultOutput(base, []) } };
 }
 
-/** Pairs two columns of tables already in the join; the pair always belongs to the later table's step, `left` naming the earlier one. A no-op on the same table (nothing to pair a column with itself). */
+/** The most pairs one step's key may hold: a link carrying more reads as broken, so the join never holds more. */
+export const MAX_PAIRS_PER_STEP = 16;
+
+function holdsPair(step: JoinStep, left: JoinPairSide, right: string): boolean {
+  return step.pairs.some((pair) => pair.left.alias === left.alias && pair.left.column === left.column && pair.right === right);
+}
+
+/**
+ * Pairs two columns of tables already in the join; the pair always belongs to the later table's step, `left` naming the
+ * earlier one. A no-op on the same table (nothing to pair a column with itself), for a pair the step already holds, and
+ * once the step holds `MAX_PAIRS_PER_STEP` pairs.
+ */
 export function pairColumns(def: JoinDefinition, a: JoinPairSide, b: JoinPairSide): JoinDefinition {
   const order = orderedAliases(def);
   const ia = order.indexOf(a.alias);
   const ib = order.indexOf(b.alias);
   if (ia === -1 || ib === -1 || ia === ib) return def;
   const [earlier, later] = ia < ib ? [a, b] : [b, a];
+  const step = def.joins.find((candidate) => candidate.alias === later.alias);
+  if (!step || step.pairs.length >= MAX_PAIRS_PER_STEP || holdsPair(step, earlier, later.column)) return def;
+  const left: JoinPairSide = { alias: earlier.alias, column: earlier.column };
   return {
     ...def,
-    joins: def.joins.map((step) => (step.alias === later.alias ? { ...step, pairs: [...step.pairs, { left: earlier, right: later.column }] } : step)),
+    joins: def.joins.map((candidate) => (candidate === step ? { ...candidate, pairs: [...candidate.pairs, { left, right: later.column }] } : candidate)),
   };
 }
 

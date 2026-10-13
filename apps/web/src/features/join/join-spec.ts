@@ -1,9 +1,7 @@
-import { baseAlias, canPair, defaultOutput, joinedTables, tableAlias, type JoinDefinition, type JoinKind, type JoinPairRef, type JoinStep, type JoinTable } from "./join-model";
+import { MAX_PAIRS_PER_STEP, baseAlias, canPair, defaultOutput, joinedTables, tableAlias, type JoinDefinition, type JoinKind, type JoinPairRef, type JoinStep, type JoinTable } from "./join-model";
 
 /** The most tables a join may add to its base: the workspace stops there, and a longer link reads as broken rather than costing a catalog read each. */
 export const MAX_STEPS = 16;
-/** The most pairs one step's key may hold in a link. */
-export const MAX_PAIRS_PER_STEP = 16;
 /** The longest database, table, alias or column name a link may carry. */
 export const MAX_IDENTIFIER_LENGTH = 255;
 /** The longest spec, in base64url characters, that is decoded at all. */

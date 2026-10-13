@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { decodeJoinSpec, encodeJoinSpec } from "./join-spec";
 import {
+  MAX_PAIRS_PER_STEP,
   addTable,
   buildCheckJoinSql,
   buildJoinSql,
@@ -245,6 +247,21 @@ describe("pairColumns / removePair / removeTable / setOutput / setKind / keysOf"
     const expected = { left: { alias: "o", column: "order_id" }, right: "order_id" };
     expect(forward.joins[1]!.pairs).toEqual([expected]);
     expect(backward.joins[1]!.pairs).toEqual([expected]);
+  });
+
+  it("ignores a pair the step already holds", () => {
+    const def = twoTable();
+    const again = pairColumns(def, { alias: "o", column: "customer_id" }, { alias: "c", column: "customer_id" });
+    expect(again.joins[0]!.pairs).toEqual(def.joins[0]!.pairs);
+  });
+
+  it("stops adding pairs to a step at the most a link carries, and such a join still round-trips through the URL", () => {
+    const wide: JoinTable = { database: "d", table: "wide", columns: Array.from({ length: MAX_PAIRS_PER_STEP + 2 }, (_, index) => ({ name: `k${index}_id`, type: "int64" })) };
+    const other: JoinTable = { ...wide, table: "other" };
+    let def = addTable(startJoin(wide), other);
+    for (const column of wide.columns) def = pairColumns(def, { alias: "w", column: column.name }, { alias: "o", column: column.name });
+    expect(def.joins[0]!.pairs).toHaveLength(MAX_PAIRS_PER_STEP);
+    expect(decodeJoinSpec(encodeJoinSpec(def))?.steps[0]?.on).toHaveLength(MAX_PAIRS_PER_STEP);
   });
 
   it("does nothing pairing a column with one of its own table", () => {
