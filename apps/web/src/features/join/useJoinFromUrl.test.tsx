@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TableFactsStore } from "../../api/table-facts";
+import { appHistory } from "../../app/history";
 import { href, replaceRoute } from "../../app/routes";
 import { addTable, setKind, setOutput, type JoinTable } from "./join-model";
 import { encodeJoinSpec, restoreJoin } from "./join-spec";
@@ -33,9 +34,11 @@ function writeLink(spec: string | undefined): void {
 
 beforeEach(() => {
   window.location.hash = LINK;
+  appHistory.install();
 });
 
 afterEach(() => {
+  appHistory.dispose();
   vi.mocked(readJoinTable).mockReset();
   vi.restoreAllMocks();
 });

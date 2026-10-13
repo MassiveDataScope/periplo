@@ -26,8 +26,9 @@ import type { Loadable } from "../api/loadable";
 import { previewSql } from "../api/sql";
 import { BRAND } from "./brand";
 import type { Dependencies } from "./dependencies";
+import { useBackDestination } from "./leave";
 import { usePreferences, type PreferencesStore } from "./preferences";
-import { href, navigate, replaceRoute, useHashRoute, usePreviousRoute, type Route } from "./routes";
+import { href, navigate, replaceRoute, useHashRoute, type Route } from "./routes";
 import { ETL_UNDER_CONSTRUCTION } from "./sections";
 import styles from "./App.module.css";
 
@@ -48,7 +49,13 @@ interface AppProps {
   readonly preferences: PreferencesStore;
 }
 
-/** Picks the console once, so `useEtlStatus` never mounts and never calls the ETL API when it is under construction. */
+/**
+ * Picks the console once, so `useEtlStatus` never mounts and never calls the ETL API when it is under construction.
+ *
+ * Precondition: `appHistory.install()` (app/history.ts) has run before the first render, as `main` does, so the
+ * trail hears every hashchange before any view. Without it the registry throws in development and tests; tests
+ * install it the same way (`openTab` in App.test.tsx).
+ */
 export function App(props: AppProps) {
   return ETL_UNDER_CONSTRUCTION ? <Console {...props} etl={ETL_UNDER_CONSTRUCTION_SECTION} /> : <ConsoleWithEtl {...props} />;
 }
@@ -61,7 +68,7 @@ function ConsoleWithEtl(props: AppProps) {
 function Console({ dependencies, preferences, etl }: AppProps & { readonly etl: EtlSection }) {
   const { t } = useTranslation();
   const route = useHashRoute();
-  const previous = usePreviousRoute(route);
+  const back = useBackDestination(route);
   const { catalog, sources, discovering, reload, rediscover } = useCatalogData(dependencies);
   const etlUnderConstruction = etl.kind === "under-construction";
   const etlStatus = etl.kind === "ready" && etl.value.configured ? etl.value : null;
@@ -77,7 +84,8 @@ function Console({ dependencies, preferences, etl }: AppProps & { readonly etl: 
 
   // Without the integration the ETL routes do not exist: anyone landing on one goes Home.
   useEffect(() => {
-    if (etlRoute && etl.kind === "ready" && !etl.value.configured) navigate({ kind: "home" });
+    // A redirect replaces the entry: Back must not land on the ETL route only to be sent away again.
+    if (etlRoute && etl.kind === "ready" && !etl.value.configured) replaceRoute({ kind: "home" }, { newView: true });
   }, [etlRoute, etl]);
 
   const openTable = route.kind === "table" ? tableKey({ database: route.database, name: route.table }) : null;
@@ -241,7 +249,7 @@ function Console({ dependencies, preferences, etl }: AppProps & { readonly etl: 
             database={route.database}
             table={route.table}
             tab={route.tab}
-            back={previous}
+            back={back}
           />
         ) : null}
         {route.kind === "join" && (!route.database || !route.table) ? <JoinStart catalog={catalog.kind === "ready" ? catalog.value : null} suggested={[...favourites, ...recents]} /> : null}
@@ -255,7 +263,7 @@ function Console({ dependencies, preferences, etl }: AppProps & { readonly etl: 
             table={route.table}
             arm={route.arm}
             spec={route.spec}
-            back={previous}
+            back={back}
             onOpenInEditor={(joinSql) => {
               setSql(joinSql);
               navigate({ kind: "sql" });

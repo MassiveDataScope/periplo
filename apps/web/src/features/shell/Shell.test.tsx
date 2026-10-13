@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nextProvider } from "react-i18next";
+import { appHistory } from "../../app/history";
 import { createPreferences } from "../../app/preferences";
 import { createI18n } from "../../i18n";
 import { NavRail } from "./NavRail";
@@ -12,7 +13,12 @@ beforeAll(() => {
   Object.defineProperty(window, "innerWidth", { configurable: true, value: 1440 });
   vi.stubGlobal("matchMedia", (query: string) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {} }));
 });
-afterEach(cleanup);
+// The work area restores its scroll from the trail, which `main` installs before the console renders.
+beforeEach(() => appHistory.install());
+afterEach(() => {
+  cleanup();
+  appHistory.dispose();
+});
 
 async function renderShell(preferences = createPreferences(undefined)) {
   render(

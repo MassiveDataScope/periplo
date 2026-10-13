@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { useTranslation } from "react-i18next";
 import { settled, useQuerySession } from "@periplo/core/api/react";
 import type { ResultBuffer } from "@periplo/core/arrow";
-import { Button, ErrorNotice, Progress, typeFamily } from "@periplo/core/ui";
+import { Button, ButtonLink, ErrorNotice, Progress, typeFamily } from "@periplo/core/ui";
 import type { Dependencies } from "../../app/dependencies";
 import type { PreferencesStore } from "../../app/preferences";
-import { href, navigate, type Route } from "../../app/routes";
+import { leaveOnClick } from "../../app/leave";
+import { placeName } from "../../app/place-name";
+import { href, type Route } from "../../app/routes";
 import type { Catalog } from "../catalog-tree/catalog-model";
 import { ResultPane } from "../table/data/ResultPane";
 import { TableHeader } from "../table/TableHeader";
@@ -125,7 +127,6 @@ function ownerOf(def: JoinDefinition, a: JoinPairSide, b: JoinPairSide): JoinPai
  */
 export function JoinWorkspace({ dependencies, preferences, catalog, database, table, arm, spec, back, onOpenInEditor, onSpecChange }: JoinWorkspaceProps) {
   const { t, i18n } = useTranslation();
-  const [backTo] = useState(back);
   const facts = useTableFacts(dependencies, database, table, ["detail", "stats", "history"]);
   const detail = useMemo(() => facts.detail ?? { kind: "loading" as const }, [facts.detail]);
 
@@ -273,6 +274,8 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
   }, [collapsed, armed, drag, built, builtCheck]);
 
   const crumbs = crumbsFor(catalog, database, table, { database: true });
+  // Closing the join returns to its base table: one step back when the join was opened from there.
+  const tableRoute: Route = { kind: "table", database, table, tab: "data" };
   const stats = facts.stats?.kind === "ready" ? facts.stats.value : null;
 
   const chainLabel = def ? [def.base.table, ...def.joins.map((step) => step.table.table)].join(" ⟕ ") : table;
@@ -298,14 +301,16 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
     <div className={styles.page}>
       <TableHeader
         crumbs={crumbs}
-        back={backTo ? { href: href(backTo), label: table } : null}
+        back={back ? { route: back, label: placeName(back, t) } : null}
         title={t("join.workspaceTitle", { table })}
         freshness={facts.freshness}
         stats={stats}
         columns={detail.kind === "ready" ? detail.value.fields.length : null}
         version={detail.kind === "ready" ? detail.value.delta_version : null}
       >
-        <Button onClick={() => navigate({ kind: "table", database, table, tab: "data" })}>{t("join.close")}</Button>
+        <ButtonLink href={href(tableRoute)} onClick={leaveOnClick(tableRoute)}>
+          {t("join.close")}
+        </ButtonLink>
       </TableHeader>
 
       <p aria-live="polite" className={styles.srOnly}>
@@ -320,9 +325,9 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
         <div className={styles.strip}>
           <span className={styles.mono}>{t("join.stripLabel", { chain: chainLabel })}</span>
           <Button onClick={() => setCollapsed(false)}>{t("join.editJoin")}</Button>
-          <Button aria-label={t("join.close")} onClick={() => navigate({ kind: "table", database, table, tab: "data" })}>
+          <ButtonLink aria-label={t("join.close")} href={href(tableRoute)} onClick={leaveOnClick(tableRoute)}>
             ×
-          </Button>
+          </ButtonLink>
         </div>
       ) : null}
 

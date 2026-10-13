@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 // The hook syncs `window.location.hash` through `replaceRoute`; the reducer and selectors underneath are plain data in, data out.
 import { act, cleanup, renderHook } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { appHistory } from "../../app/history";
 import { href } from "../../app/routes";
 import {
   initialRunSelectionState,
@@ -154,8 +155,10 @@ describe("neighborRun", () => {
 });
 
 describe("useRunSelection", () => {
+  beforeEach(() => appHistory.install());
   afterEach(() => {
     cleanup();
+    appHistory.dispose();
     window.location.hash = "";
   });
 

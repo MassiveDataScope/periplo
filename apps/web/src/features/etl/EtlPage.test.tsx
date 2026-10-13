@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nextProvider } from "react-i18next";
 import type { Dependencies } from "../../app/dependencies";
+import { appHistory } from "../../app/history";
 import { createI18n } from "../../i18n";
 import type { Catalog } from "../catalog-tree/catalog-model";
 import { EtlPage, processesToRerun } from "./EtlPage";
@@ -34,6 +35,7 @@ beforeAll(() => {
 // opening. A fixed non-zero rect for every element is enough to exercise the popover here — its own geometry is
 // covered by `ProcessPopover.test.tsx`'s dedicated tests for `positionProcessPopover`.
 beforeEach(() => {
+  appHistory.install();
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({
     top: 100,
     left: 100,
@@ -49,6 +51,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  appHistory.dispose();
   window.location.hash = "";
   vi.restoreAllMocks();
 });
