@@ -186,9 +186,11 @@ function createHistoryRegistry(): HistoryRegistry {
       current = 0;
       entries = {};
       reachedBy = "new";
+      keptDocuments = new Set();
     },
     sync(replacedAs) {
       whenInstalled("sync", () => {
+        // In production `whenInstalled` does not throw, so a sync before install must still do nothing here.
         if (installed) update(replacedAs);
       });
     },

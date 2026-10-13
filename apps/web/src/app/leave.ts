@@ -3,10 +3,13 @@ import { isPlainLeftClick } from "./clicks";
 import { appHistory } from "./history";
 import { parseRoute, replaceRoute, sameView, type Route } from "./routes";
 
+function routeOfHash(hash: string | null): Route | null {
+  return hash === null ? null : parseRoute(hash);
+}
+
 /** Where this tab was before the current entry, as a route; null on a fresh open or a direct link. */
 export function previousRoute(): Route | null {
-  const hash = appHistory.previousHash();
-  return hash === null ? null : parseRoute(hash);
+  return routeOfHash(appHistory.previousHash());
 }
 
 /**
@@ -25,7 +28,7 @@ export function goBackTo(destination: Route): void {
  */
 export function useBackDestination(route: Route): Route | null {
   const previous = useSyncExternalStore(appHistory.subscribe, appHistory.previousHash);
-  return (previous === null ? null : parseRoute(previous)) ?? parentOf(route);
+  return routeOfHash(previous) ?? parentOf(route);
 }
 
 /**
