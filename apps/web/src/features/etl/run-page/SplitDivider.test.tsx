@@ -81,4 +81,11 @@ describe("SplitDivider", () => {
     fireEvent.keyDown(divider, { key: "ArrowUp" });
     expect(onChange).toHaveBeenLastCalledWith(0.35);
   });
+
+  it("goes back no lower than where the timeline ends on a double click, when that is above its default", () => {
+    const { divider, onChange, onCommit } = renderDivider(0.3, 0.4);
+    fireEvent.doubleClick(divider);
+    expect(onChange).toHaveBeenLastCalledWith(0.4);
+    expect(onCommit).toHaveBeenLastCalledWith(0.4);
+  });
 });
