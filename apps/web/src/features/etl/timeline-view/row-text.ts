@@ -3,8 +3,7 @@ import type { TFunction } from "i18next";
 import type { TranslationKey } from "../../../i18n";
 import { formatDuration } from "../run-state";
 import type { DurationLabel, GapRow, GroupRow, ProcessRow, StepRow, TimelineRow, TryRow } from "../timeline/rows";
-import { worseStatus, type StatusSummary } from "../timeline/statuses";
-import { EXECUTION_STATUSES } from "./row-status";
+import { EXECUTION_STATUSES, worseStatus, type StatusSummary } from "../timeline/statuses";
 
 /**
  * The words of the timeline's rows: each row's name, and the label beside its bar as parts the screen joins with

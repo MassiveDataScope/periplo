@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { scheduleStrip, type StripInput } from "./schedule-strip";
+import { summaryStatus } from "./timeline-view/row-status";
 import type { FlowRun } from "./useEtl";
 
 // Tuesday 6 October 2026, 12:00 UTC.
@@ -28,6 +29,14 @@ describe("scheduleStrip", () => {
     expect(days.find((day) => day.key === "2026-10-05")?.outcome).toBe("completed");
     expect(days.find((day) => day.key === "2026-10-04")?.outcome).toBe("failed");
     expect(days.find((day) => day.key === "2026-10-03")?.outcome).toBe("none");
+  });
+
+  it("ranks a day's runs as the timeline ranks a group's: a completed run beside one still scheduled reads as scheduled", () => {
+    const waiting = { state: "SCHEDULED" as const, start_at: null, expected_start_at: "2026-10-05T18:00:00Z" };
+    const days = scheduleStrip({ ...base, runs: [ran("2026-10-05", "COMPLETED"), waiting] });
+    const outcome = days.find((day) => day.key === "2026-10-05")?.outcome;
+    expect(outcome).toBe("scheduled");
+    expect(outcome).toBe(summaryStatus({ uniform: null, counts: { completed: 1, scheduled: 1 } }));
   });
 
   it("says a past day is unknown when it is older than the runs fetched", () => {

@@ -2,6 +2,7 @@ import type { ExecutionStatus } from "@periplo/core/ui";
 import { cronRunsOn } from "./cron-days";
 import { dailyFireAt, scheduleTimeZone } from "./schedule-clock";
 import { statusOf, type Schedule } from "./run-state";
+import { worstStatus } from "./timeline/statuses";
 import type { FlowRun } from "./useEtl";
 import { addDays, dayKey } from "./zoned-time";
 
@@ -31,13 +32,6 @@ export interface StripInput {
 const DAYS_BACK = 7;
 const DAYS_AHEAD = 7;
 const SECONDS_PER_DAY = 86_400;
-
-/** Worst first: a day with a failure and a success reads as failed. */
-const SEVERITY: Readonly<Record<ExecutionStatus, number>> = { failed: 4, running: 3, stopped: 2, completed: 1, scheduled: 0 };
-
-function worst(statuses: readonly ExecutionStatus[]): ExecutionStatus | null {
-  return statuses.reduce<ExecutionStatus | null>((acc, status) => (acc === null || SEVERITY[status] > SEVERITY[acc] ? status : acc), null);
-}
 
 /** The days an interval longer than a day lands on, stepping from the next run; shorter ones run every day. */
 function intervalDays(intervalSeconds: number, nextRunAt: string | null, until: string, timeZone: string): ReadonlySet<string> | "every" | null {
@@ -95,7 +89,8 @@ export function scheduleStrip({ schedule, paused, nextRunAt, runs, knownSince, n
 
   return Array.from({ length: DAYS_BACK + DAYS_AHEAD }, (_, index): StripDay => {
     const key = addDays(today, index - DAYS_BACK);
-    const result = worst(statusesByDay.get(key) ?? []);
+    // The worst of its runs, ranked as everywhere else: a day with a failure and a success reads as failed.
+    const result = worstStatus(statusesByDay.get(key) ?? []);
     if (key < today) {
       const outcome: DayOutcome = result ?? (oldestKnown !== null && key < oldestKnown ? "unknown" : "none");
       return { key, when: "past", outcome, ahead: false };
