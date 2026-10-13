@@ -1,5 +1,5 @@
-import type { Environment } from "vitest/environments";
-import { builtinEnvironments } from "vitest/environments";
+import type { Environment } from "vitest/runtime";
+import { builtinEnvironments } from "vitest/runtime";
 
 /**
  * jsdom replaces AbortController/AbortSignal with its own classes, which
@@ -8,7 +8,7 @@ import { builtinEnvironments } from "vitest/environments";
  */
 export default <Environment>{
   name: "jsdom-with-node-fetch",
-  transformMode: "web",
+  viteEnvironment: "client",
   async setup(global, options) {
     const { AbortController, AbortSignal } = global;
     const environment = await builtinEnvironments.jsdom.setup(global, options);
