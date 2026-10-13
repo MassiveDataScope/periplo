@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ErrorNotice, Progress, applyTheme, getStoredTheme, type Theme } from "@periplo/core/ui";
 import { CatalogTree } from "../features/catalog-tree/CatalogTree";
 import { tableKey } from "../features/catalog-tree/catalog-model";
 import { useCatalogData } from "../features/catalog-tree/useCatalogData";
 import { DiscoveryView } from "../features/discovery/DiscoveryView";
-import { EtlColumn, etlColumnTexts, EtlView, useEtlSection } from "../features/etl/EtlSection";
+import { etlColumnTexts, useEtlSection } from "../features/etl/EtlSection";
 import { useEtlStatus, type EtlStatus } from "../features/etl/useEtlStatus";
 import { Home } from "../features/home/Home";
 import { DatabasePage } from "../features/lake/DatabasePage";
@@ -41,6 +41,10 @@ const NEXT_THEME: Record<Theme, Theme> = {
 type EtlSection = Loadable<EtlStatus> | { readonly kind: "under-construction" };
 
 const ETL_UNDER_CONSTRUCTION_SECTION: EtlSection = { kind: "under-construction" };
+
+// The ETL section's screens are a chunk of their own, fetched the first time one of its routes renders.
+const EtlColumn = lazy(() => import("../features/etl/EtlViews").then((views) => ({ default: views.EtlColumn })));
+const EtlView = lazy(() => import("../features/etl/EtlViews").then((views) => ({ default: views.EtlView })));
 
 interface AppProps {
   readonly dependencies: Dependencies;
@@ -209,7 +213,10 @@ function Console({ dependencies, preferences, etl }: AppProps & { readonly etl: 
         column={
           <PageErrorBoundary resetKey={viewKey(route)} label={etlSection !== null ? t("etl.side.failed") : t("shell.catalogFailed")}>
             {etlSection !== null ? (
-              <EtlColumn section={etlSection} searchRef={filterRef} />
+              // The work area's fallback announces the load; the column does not say it twice.
+              <Suspense fallback={null}>
+                <EtlColumn section={etlSection} searchRef={filterRef} />
+              </Suspense>
             ) : (
               <>
                 {catalog.kind === "loading" ? (
@@ -306,7 +313,11 @@ function Console({ dependencies, preferences, etl }: AppProps & { readonly etl: 
           {onEtlRoute && etlUnderConstruction ? <UnderConstruction section={t("nav.etl")} /> : null}
           {onEtlRoute && etl.kind === "loading" ? <Progress label={t("etl.loading")} /> : null}
           {onEtlRoute && etl.kind === "failed" ? <ErrorNotice title={t("etl.loadFailed")} error={etl.error} /> : null}
-          {etlSection !== null ? <EtlView section={etlSection} searchRef={filterRef} dependencies={dependencies} /> : null}
+          {etlSection !== null ? (
+            <Suspense fallback={<Progress label={t("etl.loading")} />}>
+              <EtlView section={etlSection} searchRef={filterRef} dependencies={dependencies} />
+            </Suspense>
+          ) : null}
           {route.kind === "discovery" ? (
             <DiscoveryView
               sources={sources}
