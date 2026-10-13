@@ -1,6 +1,7 @@
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import type { Dependencies } from "../../app/dependencies";
+import { sameJson } from "../../app/json-object";
 import { failedStart } from "./run-parameters";
 import { useRunGrid } from "./useRunGrid";
 import styles from "./RunDialog.module.css";
@@ -8,6 +9,8 @@ import styles from "./RunDialog.module.css";
 interface StartFromFieldProps {
   readonly dependencies: Dependencies;
   readonly etlName: string;
+  /** The processes of the run the form repeats, when they are not the schedule's: offered as a start of their own. */
+  readonly given: readonly string[] | null;
   /** The processes the run is limited to, or null to run from the beginning. */
   readonly value: readonly string[] | null;
   readonly disabled: boolean;
@@ -18,14 +21,17 @@ interface StartFromFieldProps {
  * newest one that finished (`failedStart`'s own rule). */
 const RECENT_RUNS = 5;
 
-/** "Start from": the beginning, or the process where the newest finished run failed (and every process after it). Mounted only
- * for an ETL that accepts a list of processes, so nothing else asks for its grid. */
-export function StartFromField({ dependencies, etlName, value, disabled, onChange }: StartFromFieldProps) {
+/** "Start from": the beginning, the processes of the run being repeated, or the process where the newest finished run
+ * failed (and every process after it). Mounted only for an ETL that accepts a list of processes, so nothing else asks
+ * for its grid. */
+export function StartFromField({ dependencies, etlName, given, value, disabled, onChange }: StartFromFieldProps) {
   const { t } = useTranslation();
   const id = useId();
   const { grid, reload } = useRunGrid(dependencies, etlName, RECENT_RUNS);
   const failed = grid.kind === "ready" ? failedStart(grid.value) : null;
   const count = grid.kind === "ready" ? grid.value.processes.length : 0;
+  const choice = value === null ? "beginning" : failed !== null && sameJson(value, failed.processes) ? "failed" : "given";
+  const choose = (next: string): void => onChange(next === "failed" && failed !== null ? failed.processes : next === "given" ? given : null);
   return (
     <div className={styles.field}>
       <label htmlFor={id} className={styles.fieldLabel}>
@@ -35,10 +41,11 @@ export function StartFromField({ dependencies, etlName, value, disabled, onChang
         id={id}
         className={styles.input}
         disabled={disabled}
-        value={value === null ? "beginning" : "failed"}
-        onChange={(event) => onChange(event.target.value === "failed" && failed !== null ? failed.processes : null)}
+        value={choice}
+        onChange={(event) => choose(event.target.value)}
       >
         <option value="beginning">{count > 0 ? t("etl.runOnce.fromBeginningCount", { count }) : t("etl.runOnce.fromBeginning")}</option>
+        {given !== null ? <option value="given">{t("etl.runOnce.fromGiven", { processes: given.join(", ") })}</option> : null}
         {failed !== null ? <option value="failed">{t("etl.runOnce.fromFailed", { process: failed.process })}</option> : null}
       </select>
       {grid.kind === "loading" ? <p className={styles.note}>{t("etl.runOnce.lookingForFailure")}</p> : null}

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Button, Dialog, ErrorNotice } from "@periplo/core/ui";
 import type { Dependencies } from "../../app/dependencies";
 import { asApiError, isAbort } from "../../api/loadable";
+import { sameJson } from "../../app/json-object";
 import { ParameterField } from "./ParameterField";
 import { buildParameters, differingKeys, draftOf, formFields, isChanged, type FormField } from "./run-parameters";
 import { StartFromField } from "./StartFromField";
@@ -49,16 +50,29 @@ interface FormSetup {
   /** Values no field shows (the processes list "Start from" owns), sent as they were. */
   readonly kept: Readonly<Record<string, unknown>>;
   readonly drafts: Readonly<Record<string, string>>;
+  /** The processes the run starts limited to: those of the run it repeats when they are not the schedule's, else null. */
+  readonly startFrom: readonly string[] | null;
+}
+
+/** A value that is a list of process names, or null. */
+function processList(value: unknown): readonly string[] | null {
+  return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : null;
 }
 
 function setUp(etl: Etl, initialParameters: Record<string, unknown> | undefined): FormSetup {
   const start = initialParameters ?? etl.parameters;
   const owned = etl.accepts_processes ? [PROCESSES] : [];
   const fields = formFields(etl.parameters, start, owned);
+  const given = etl.accepts_processes ? processList(start[PROCESSES]) : null;
+  // Another run's own processes become "Start from"'s choice, so the form shows what it sends; the beginning then
+  // sends the schedule's.
+  const startFrom = given !== null && !sameJson(given, etl.parameters[PROCESSES]) ? given : null;
+  const keptFrom = startFrom === null ? start : etl.parameters;
   return {
     fields,
-    kept: Object.fromEntries(Object.entries(start).filter(([name]) => owned.includes(name))),
+    kept: Object.fromEntries(Object.entries(keptFrom).filter(([name]) => owned.includes(name))),
     drafts: Object.fromEntries(fields.map((field) => [field.name, draftOf(field.start)])),
+    startFrom,
   };
 }
 
@@ -70,7 +84,7 @@ function RunOnceForm({ dependencies, etl, titleId, initialParameters, onClose, o
   const jsonId = useId();
   const [setup] = useState(() => setUp(etl, initialParameters));
   const [drafts, setDrafts] = useState(setup.drafts);
-  const [startFrom, setStartFrom] = useState<readonly string[] | null>(null);
+  const [startFrom, setStartFrom] = useState<readonly string[] | null>(setup.startFrom);
   const [showJson, setShowJson] = useState(false);
   const [failure, setFailure] = useState<ApiError | null>(null);
   const [pending, setPending] = useState(false);
@@ -134,7 +148,14 @@ function RunOnceForm({ dependencies, etl, titleId, initialParameters, onClose, o
           );
         })}
         {etl.accepts_processes ? (
-          <StartFromField dependencies={dependencies} etlName={etl.name} value={startFrom} disabled={pending} onChange={setStartFrom} />
+          <StartFromField
+            dependencies={dependencies}
+            etlName={etl.name}
+            given={setup.startFrom}
+            value={startFrom}
+            disabled={pending}
+            onChange={setStartFrom}
+          />
         ) : null}
         {showJson ? (
           <section id={jsonId} aria-label={t("etl.runOnce.jsonLabel")}>

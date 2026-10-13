@@ -748,6 +748,7 @@
       "fromBeginningCount_one": "The beginning ({{count}} process)",
       "fromBeginningCount_other": "The beginning (all {{count}} processes)",
       "fromFailed": "{{process}}, where the last run failed",
+      "fromGiven": "{{processes}}, as in the run it repeats",
       "same": "Same values as the schedule",
       "differ_one": "{{count}} value differs from the schedule",
       "differ_other": "{{count}} values differ from the schedule",

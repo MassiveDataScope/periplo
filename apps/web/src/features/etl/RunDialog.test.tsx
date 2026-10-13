@@ -201,6 +201,44 @@ describe("RunDialog", () => {
     expect(GET).toHaveBeenCalledWith("/etl/{name}/grid", expect.objectContaining({ params: { path: { name: "daily-orders" }, query: { limit: 5 } } }));
   });
 
+  describe("repeating a run limited to some processes", () => {
+    const grid = {
+      processes: ["Extract", "Staging", "Publish"],
+      truncated: false,
+      runs: [{ id: "run-8", name: "x", state: "COMPLETED", start_at: null, duration_seconds: 1, cells: [] }],
+    };
+    const repeat = (POST: ReturnType<typeof vi.fn>) =>
+      renderDialog({
+        GET: vi.fn().mockResolvedValue({ data: grid }),
+        POST,
+        etl: { ...etl, accepts_processes: true },
+        initialParameters: { ...etl.parameters, processes: ["Staging", "Publish"] },
+      });
+
+    it("starts from that run's processes, shows them as chosen, and sends them", async () => {
+      const POST = vi.fn().mockResolvedValue({ data: launched });
+      const { runOnce } = repeat(POST);
+      const startFrom = (await screen.findByLabelText("Start from")) as HTMLSelectElement;
+      await screen.findByRole("option", { name: "The beginning (all 3 processes)" });
+      expect(startFrom.selectedOptions[0]?.textContent).toBe("Staging, Publish, as in the run it repeats");
+      expect(screen.getByText("1 value differs from the schedule")).toBeTruthy();
+      runOnce();
+      await waitFor(() => expect(POST).toHaveBeenCalled());
+      expect(POST.mock.calls[0]?.[1]).toMatchObject({ body: { parameters: { processes: ["Staging", "Publish"] } } });
+    });
+
+    it("sends the schedule's own values, and no processes of that run, from the beginning", async () => {
+      const POST = vi.fn().mockResolvedValue({ data: launched });
+      const { runOnce } = repeat(POST);
+      fireEvent.change(await screen.findByLabelText("Start from"), { target: { value: "beginning" } });
+      expect(screen.getByText("Same values as the schedule")).toBeTruthy();
+      runOnce();
+      await waitFor(() => expect(POST).toHaveBeenCalled());
+      expect(POST.mock.calls[0]?.[1]).toMatchObject({ body: { parameters: etl.parameters } });
+      expect(POST.mock.calls[0]?.[1]).not.toMatchObject({ body: { parameters: { processes: expect.anything() } } });
+    });
+  });
+
   it("offers the failed process even while a newer run is going, from the newest run that finished", async () => {
     const grid = {
       processes: ["Extract", "Staging"],
