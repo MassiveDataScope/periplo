@@ -22,6 +22,16 @@ describe("useEtlRowActions", () => {
     expect(both.result.current.restore).toBeTypeOf("function");
   });
 
+  it("keeps the same actions across renders while what they depend on stays the same", () => {
+    const dependencies = dependenciesWith(vi.fn());
+    const onChanged = vi.fn();
+    const { result, rerender } = renderHook(({ status }) => useEtlRowActions(dependencies, status, onChanged), { initialProps: { status: allowed } });
+    const first = result.current;
+    rerender({ status: { ...allowed } });
+    expect(result.current).toBe(first);
+    expect(result.current.resume).toBe(first.resume);
+  });
+
   it("resumes an ETL's schedule, then says the list changed and answers no error", async () => {
     const POST = vi.fn().mockResolvedValue({ data: {} });
     const onChanged = vi.fn();

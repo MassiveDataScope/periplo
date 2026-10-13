@@ -207,6 +207,16 @@ describe("useEtlList", () => {
     expect(GET).toHaveBeenCalledTimes(4);
   });
 
+  it("gives the same reload on every render, so what the dashboard builds on it is not rebuilt per poll", async () => {
+    const GET = vi.fn().mockResolvedValue({ data: { etls: [etl], summary, running: [], running_truncated: false } });
+    const dependencies = fakeDependencies(GET);
+    const { result } = renderHook(() => useEtlList(dependencies));
+    const first = result.current.reload;
+    await settle();
+    await tick();
+    expect(result.current.reload).toBe(first);
+  });
+
   it("fails when the API does", async () => {
     const error = new ApiError({ status: 502, code: "etl_upstream", message: "Prefect did not answer" });
     const dependencies = fakeDependencies(vi.fn().mockRejectedValue(error));
