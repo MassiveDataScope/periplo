@@ -3975,6 +3975,7 @@ async def test_retry_proposes_awaiting_retry_on_the_same_run() -> None:
         }
     ]
     assert (detail.id, detail.state) == (CONTROL_ID, "SCHEDULED")
+    assert not [path for path in fake.paths() if path.endswith("/create_flow_run")]
 
 
 @pytest.mark.asyncio
