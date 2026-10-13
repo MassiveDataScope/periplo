@@ -111,7 +111,7 @@ function letterOf(table: string): string {
 }
 
 /** A short alias a person would pick: the table's initial, numbered only when it clashes with one already taken. */
-function tableAlias(table: JoinTable, taken: ReadonlySet<string>): string {
+export function tableAlias(table: JoinTable, taken: ReadonlySet<string>): string {
   const letter = letterOf(table.table);
   if (!taken.has(letter)) return letter;
   let n = 2;
@@ -153,8 +153,7 @@ function bestPair(def: JoinDefinition, table: JoinTable): JoinPairRef | null {
 
 /**
  * Adds a table to a join: gives it a fresh alias, proposes the single likeliest key against any table already
- * present (none when no column looks like one), and starts its output with every column except the one that
- * proposed key would show a second time.
+ * present (none when no column looks like one), and starts its output with `defaultOutput`.
  */
 export function addTable(def: JoinDefinition, table: JoinTable, kind: JoinKind = "left"): JoinDefinition {
   const taken = new Set(aliasesInOrder(def));
@@ -163,30 +162,45 @@ export function addTable(def: JoinDefinition, table: JoinTable, kind: JoinKind =
   // join on columns that are not the relation and silently drop rows. More keys are paired by hand.
   const best = bestPair(def, table);
   const pairs: readonly JoinPairRef[] = best ? [best] : [];
-  const keys = new Set(pairs.map((pair) => pair.right));
   const step: JoinStep = { alias, table, kind, pairs };
-  return {
-    ...def,
-    joins: [...def.joins, step],
-    output: { ...def.output, [alias]: table.columns.map((column) => column.name).filter((name) => !keys.has(name)) },
-  };
+  return { ...def, joins: [...def.joins, step], output: { ...def.output, [alias]: defaultOutput(table, pairs) } };
+}
+
+/** The columns a table starts with in the output: every one except the keys of its own pairs, which the table it joins onto already shows. */
+export function defaultOutput(table: JoinTable, pairs: readonly JoinPairRef[]): readonly string[] {
+  const keys = new Set(pairs.map((pair) => pair.right));
+  return table.columns.map((column) => column.name).filter((name) => !keys.has(name));
 }
 
 /** Where a join workspace starts: just the base table, every one of its columns in the output. */
 export function startJoin(base: JoinTable): JoinDefinition {
-  return { base, joins: [], output: { [baseAlias({ base })]: base.columns.map((column) => column.name) } };
+  return { base, joins: [], output: { [baseAlias({ base })]: defaultOutput(base, []) } };
 }
 
-/** Pairs two columns of tables already in the join; the pair always belongs to the later table's step, `left` naming the earlier one. A no-op on the same table (nothing to pair a column with itself). */
+/** The most pairs one step's key may hold: a link carrying more reads as broken, so the join never holds more. */
+export const MAX_PAIRS_PER_STEP = 16;
+
+function holdsPair(step: JoinStep, left: JoinPairSide, right: string): boolean {
+  return step.pairs.some((pair) => pair.left.alias === left.alias && pair.left.column === left.column && pair.right === right);
+}
+
+/**
+ * Pairs two columns of tables already in the join; the pair always belongs to the later table's step, `left` naming the
+ * earlier one. A no-op on the same table (nothing to pair a column with itself), for a pair the step already holds, and
+ * once the step holds `MAX_PAIRS_PER_STEP` pairs.
+ */
 export function pairColumns(def: JoinDefinition, a: JoinPairSide, b: JoinPairSide): JoinDefinition {
   const order = orderedAliases(def);
   const ia = order.indexOf(a.alias);
   const ib = order.indexOf(b.alias);
   if (ia === -1 || ib === -1 || ia === ib) return def;
   const [earlier, later] = ia < ib ? [a, b] : [b, a];
+  const step = def.joins.find((candidate) => candidate.alias === later.alias);
+  if (!step || step.pairs.length >= MAX_PAIRS_PER_STEP || holdsPair(step, earlier, later.column)) return def;
+  const left: JoinPairSide = { alias: earlier.alias, column: earlier.column };
   return {
     ...def,
-    joins: def.joins.map((step) => (step.alias === later.alias ? { ...step, pairs: [...step.pairs, { left: earlier, right: later.column }] } : step)),
+    joins: def.joins.map((candidate) => (candidate === step ? { ...candidate, pairs: [...candidate.pairs, { left, right: later.column }] } : candidate)),
   };
 }
 
