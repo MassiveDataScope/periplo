@@ -55,4 +55,15 @@ describe("reloadOnStaleChunk", () => {
     fail();
     expect(reload).not.toHaveBeenCalled();
   });
+  it("does not reload when the tab's storage refuses to keep the guard, as nothing could stop a loop", () => {
+    const full = {
+      getItem: () => null,
+      setItem: () => {
+        throw new DOMException("full", "QuotaExceededError");
+      },
+    };
+    const { reload, fail } = setup(full);
+    fail();
+    expect(reload).not.toHaveBeenCalled();
+  });
 });

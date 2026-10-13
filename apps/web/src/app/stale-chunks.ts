@@ -23,7 +23,11 @@ export function reloadOnStaleChunk({ target, storage, reload, now }: StaleChunkO
     if (!storage) return;
     const reloadedAt = Number(storage.getItem(RELOADED_AT_KEY));
     if (Number.isFinite(reloadedAt) && now() - reloadedAt < RELOAD_GUARD_MS) return;
-    storage.setItem(RELOADED_AT_KEY, String(now()));
+    try {
+      storage.setItem(RELOADED_AT_KEY, String(now()));
+    } catch {
+      return; // a full or blocked storage cannot keep the guard, so no reload: the boundaries show the error
+    }
     reload();
   };
   target.addEventListener("vite:preloadError", onPreloadError);
