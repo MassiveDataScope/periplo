@@ -472,6 +472,8 @@
     "every": "every {{value}}",
     "upstreamFallback": "The ETL orchestrator did not answer",
     "dashboard": {
+      "noValue": "—",
+      "rowChevron": "›",
       "summary": {
         "etls_one": "{{count}} ETL",
         "etls_other": "{{count}} ETLs",

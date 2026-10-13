@@ -153,11 +153,11 @@ function Row({
           ) : etl.schedule_inactive ? (
             <span className={dashboardStyles.notScheduled}>{t("etl.notScheduled")}</span>
           ) : (
-            "—"
+            t("etl.dashboard.noValue")
           )}
         </td>
         <td data-align="end" className={dashboardStyles.colActions}>
-          {resume !== undefined ? <ResumeButton pending={pending} onResume={() => void resume()} /> : <span className={dashboardStyles.chevron}>›</span>}
+          {resume !== undefined ? <ResumeButton pending={pending} onResume={() => void resume()} /> : <span className={dashboardStyles.chevron}>{t("etl.dashboard.rowChevron")}</span>}
         </td>
       </tr>
       {error ? (
@@ -218,9 +218,9 @@ function ResumeButton({ pending, onResume }: { readonly pending: boolean; onResu
 
 /** How the last run ended and how long ago; a one-line message for a failure or a crash. */
 function LastRun({ run }: { readonly run: FlowRun | null }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const now = useNow(MINUTE_MS);
-  if (run === null) return "—";
+  if (run === null) return t("etl.dashboard.noValue");
   const at = runMoment(run);
   const message = (run.state === "FAILED" || run.state === "CRASHED") && run.state_message ? run.state_message : null;
   return (
