@@ -47,8 +47,9 @@ export function FacetListbox({ label, options, selected, onChange, autoFocus = f
   function onKeyDown(event: KeyboardEvent<HTMLUListElement>): void {
     const last = shown.length - 1;
     const moves: Record<string, () => number> = {
-      ArrowDown: () => (active === null ? 0 : Math.min(last, active + 1)),
-      ArrowUp: () => (active === null ? 0 : Math.max(0, active - 1)),
+      // From the value shown as active: a search may have left fewer values than the one last moved to.
+      ArrowDown: () => (currentIndex === null ? 0 : Math.min(last, currentIndex + 1)),
+      ArrowUp: () => (currentIndex === null ? 0 : Math.max(0, currentIndex - 1)),
       Home: () => 0,
       End: () => last,
     };
