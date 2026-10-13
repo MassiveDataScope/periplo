@@ -7,8 +7,8 @@ import { readJoinTable, type JoinTableRead } from "./join-tables";
 /**
  * What the workspace says about the link of its join: the link it came from could not be read, or parts of it
  * were left out, or the join as edited no longer fits in a link. `unreadable` names (`database.table`) the tables
- * that could not be loaded right now; `tables` counts the other tables left out (gone from the catalog, or named
- * twice in the link).
+ * that could not be loaded right now; `tables` counts the other tables left out: gone from the catalog, or (only in
+ * a hand-written link) named twice.
  */
 export type JoinRestoreNotice =
   | ({ readonly kind: "dropped"; readonly unreadable: readonly string[] } & DroppedFromSpec)

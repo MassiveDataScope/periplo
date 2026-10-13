@@ -16,7 +16,7 @@ describe("RestoreNotice", () => {
       </I18nextProvider>,
     );
     expect(screen.getByRole("status").textContent).toBe(
-      "1 table of this join could not be read and was left out. 2 keys of this join no longer match their tables and were left out.",
+      "1 table of this join no longer exists in the catalog and was left out. 2 keys of this join no longer match their tables and were left out.",
     );
     cleanup();
     render(
