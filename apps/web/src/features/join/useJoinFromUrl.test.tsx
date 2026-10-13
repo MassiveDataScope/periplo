@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TableFactsStore } from "../../api/table-facts";
-import { href } from "../../app/routes";
+import { href, replaceRoute } from "../../app/routes";
 import { addTable, setKind, type JoinTable } from "./join-model";
 import { encodeJoinSpec, restoreJoin } from "./join-spec";
 import { readJoinTable } from "./join-tables";
@@ -26,6 +26,11 @@ const SPEC = encodeJoinSpec({
 });
 const LINK = href({ kind: "join", database: ORDER.database, table: ORDER.table, spec: SPEC });
 
+/** What App hands the workspace: the spec replaces the one in the URL. */
+function writeLink(spec: string | undefined): void {
+  replaceRoute({ kind: "join", database: ORDER.database, table: ORDER.table, ...(spec ? { spec } : {}) });
+}
+
 beforeEach(() => {
   window.location.hash = LINK;
 });
@@ -42,7 +47,7 @@ describe("useJoinFromUrl", () => {
       throw failure;
     });
     const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const { result, unmount } = renderHook(() => useJoinFromUrl(STORE, ORDER, SPEC));
+    const { result, unmount } = renderHook(() => useJoinFromUrl(STORE, ORDER, SPEC, writeLink));
     await waitFor(() => expect(result.current.notice).toEqual({ kind: "broken" }));
     expect(result.current.def?.joins).toEqual([]);
     expect(logged).toHaveBeenCalledWith(expect.any(String), failure);
@@ -52,7 +57,7 @@ describe("useJoinFromUrl", () => {
 
   it("keeps the link as it was when a table could not be loaded, names that table, and rewrites the link once the join is edited", async () => {
     vi.mocked(readJoinTable).mockResolvedValue({ kind: "unreadable" });
-    const { result, unmount } = renderHook(() => useJoinFromUrl(STORE, ORDER, SPEC));
+    const { result, unmount } = renderHook(() => useJoinFromUrl(STORE, ORDER, SPEC, writeLink));
     await waitFor(() => expect(result.current.notice).toEqual({ kind: "dropped", tables: 0, keys: 0, unreadable: ["landing_shop.orders"] }));
     expect(result.current.def?.joins).toEqual([]);
     expect(window.location.hash).toBe(LINK);
@@ -65,7 +70,7 @@ describe("useJoinFromUrl", () => {
 
   it("counts a table the catalog no longer has apart from one that could not be loaded, and keeps the link", async () => {
     vi.mocked(readJoinTable).mockResolvedValue({ kind: "missing" });
-    const { result, unmount } = renderHook(() => useJoinFromUrl(STORE, ORDER, SPEC));
+    const { result, unmount } = renderHook(() => useJoinFromUrl(STORE, ORDER, SPEC, writeLink));
     await waitFor(() => expect(result.current.notice).toEqual({ kind: "dropped", tables: 1, keys: 0, unreadable: [] }));
     expect(window.location.hash).toBe(LINK);
     unmount();
@@ -73,7 +78,7 @@ describe("useJoinFromUrl", () => {
 
   it("restores every table that reads, with no notice", async () => {
     vi.mocked(readJoinTable).mockResolvedValue({ kind: "ready", table: ORDERS });
-    const { result, unmount } = renderHook(() => useJoinFromUrl(STORE, ORDER, SPEC));
+    const { result, unmount } = renderHook(() => useJoinFromUrl(STORE, ORDER, SPEC, writeLink));
     await waitFor(() => expect(result.current.def?.joins).toHaveLength(1));
     expect(result.current.notice).toBeNull();
     unmount();

@@ -27,7 +27,7 @@ import { previewSql } from "../api/sql";
 import { BRAND } from "./brand";
 import type { Dependencies } from "./dependencies";
 import { usePreferences, type PreferencesStore } from "./preferences";
-import { href, navigate, useHashRoute, usePreviousRoute, type Route } from "./routes";
+import { href, navigate, replaceRoute, useHashRoute, usePreviousRoute, type Route } from "./routes";
 import { ETL_UNDER_CONSTRUCTION } from "./sections";
 import styles from "./App.module.css";
 
@@ -253,6 +253,7 @@ function Console({ dependencies, preferences, etl }: AppProps & { readonly etl: 
               setSql(joinSql);
               navigate({ kind: "sql" });
             }}
+            onSpecChange={(nextSpec) => replaceRoute({ kind: "join", database: route.database, table: route.table, ...(nextSpec ? { spec: nextSpec } : {}) })}
           />
         ) : null}
         {route.kind === "database" && catalog.kind === "ready" ? (

@@ -57,6 +57,8 @@ export interface JoinWorkspaceProps {
   readonly back: Route | null;
   /** Hands the join's SQL to the free SQL workspace, the same way Home and the database page do. */
   onOpenInEditor(sql: string): void;
+  /** Replaces the join's spec in the URL in place (none for the base table alone), without a new history entry. */
+  onSpecChange(spec: string | undefined): void;
 }
 
 const MAX_CHOICES = 8;
@@ -123,14 +125,14 @@ function ownerOf(def: JoinDefinition, a: JoinPairSide, b: JoinPairSide): JoinPai
  * and a live SQL receipt. Owns its own query sessions (Run and Check are independent), so it survives
  * leaving the table's Data tab.
  */
-export function JoinWorkspace({ dependencies, preferences, catalog, database, table, arm, spec, back, onOpenInEditor }: JoinWorkspaceProps) {
+export function JoinWorkspace({ dependencies, preferences, catalog, database, table, arm, spec, back, onOpenInEditor, onSpecChange }: JoinWorkspaceProps) {
   const { t, i18n } = useTranslation();
   const [backTo] = useState(back);
   const facts = useTableFacts(dependencies, database, table, ["detail", "stats", "history"]);
   const detail = useMemo(() => facts.detail ?? { kind: "loading" as const }, [facts.detail]);
 
   const base = useMemo<JoinTable | null>(() => (detail.kind === "ready" ? { database, table, columns: detail.value.fields } : null), [detail, database, table]);
-  const { def, setDef, notice: restoreNotice } = useJoinFromUrl(dependencies.tableFacts, base, spec);
+  const { def, setDef, notice: restoreNotice } = useJoinFromUrl(dependencies.tableFacts, base, spec, onSpecChange);
   const [armed, setArmed] = useState<Armed | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   /** Pair keys (`alias:column`) that `addTable` proposed, untouched since: dashed in the band and the wires. */

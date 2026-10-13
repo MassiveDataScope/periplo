@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { TableFactsStore } from "../../api/table-facts";
-import { replaceRoute } from "../../app/routes";
 import { startJoin, type JoinDefinition, type JoinTable } from "./join-model";
 import { decodeJoinSpec, encodeJoinSpec, restoreJoin, type DroppedFromSpec, type JoinSpecStep } from "./join-spec";
 import { readJoinTable, type JoinTableRead } from "./join-tables";
@@ -46,7 +45,13 @@ function specOf(def: JoinDefinition): string | undefined {
  * it was until the join is edited, so a reload can still restore what this one could not. A spec that does
  * not decode never will, so it is replaced like any other.
  */
-export function useJoinFromUrl(tableFacts: TableFactsStore, base: JoinTable | null, spec: string | undefined): JoinFromUrl {
+export function useJoinFromUrl(
+  tableFacts: TableFactsStore,
+  base: JoinTable | null,
+  spec: string | undefined,
+  /** Puts a new spec in the URL in place of the current one (none for a join of the base table alone). */
+  onSpecChange: (spec: string | undefined) => void,
+): JoinFromUrl {
   const [def, setDefState] = useState<JoinDefinition | null>(null);
   const [notice, setNotice] = useState<JoinRestoreNotice | null>(null);
   /** The spec this page last wrote to the URL; null until it has written one. */
@@ -99,8 +104,8 @@ export function useJoinFromUrl(tableFacts: TableFactsStore, base: JoinTable | nu
     // Compared with what this page wrote, not with the URL: a link opened over it is restored above, not overwritten.
     if (written.current !== null && written.current.spec === next) return;
     written.current = { spec: next };
-    if (next !== spec) replaceRoute({ kind: "join", database: def.base.database, table: def.base.table, ...(next ? { spec: next } : {}) });
-  }, [def, spec]);
+    if (next !== spec) onSpecChange(next);
+  }, [def, spec, onSpecChange]);
 
   const setDef = useCallback<Dispatch<SetStateAction<JoinDefinition | null>>>((update) => {
     setNotice(null);
