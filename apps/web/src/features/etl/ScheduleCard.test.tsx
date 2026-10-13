@@ -1,5 +1,5 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nextProvider } from "react-i18next";
 import { createI18n } from "../../i18n";
 import { chainOf } from "./chain";
@@ -8,7 +8,18 @@ import type { Etl, RecentRun } from "./useEtl";
 
 const i18n = await createI18n();
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
+
+/** Puts the browser on `timeZone`'s clock, as a reader there would have it. */
+function browserOn(timeZone: string): void {
+  const resolved = Intl.DateTimeFormat.prototype.resolvedOptions;
+  vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockImplementation(function (this: Intl.DateTimeFormat) {
+    return { ...resolved.call(this), timeZone };
+  });
+}
 
 const etl: Etl = {
   id: "dep-1",
@@ -52,10 +63,25 @@ describe("ScheduleCard", () => {
     expect(screen.getAllByText(/0 4 1,15 \* 1/)).toHaveLength(1);
   });
 
-  it("says the time on the team's clock, on the next day when it already is there", () => {
+  it("says the time on the reader's own clock, on the next day when it already is there", () => {
+    browserOn("Europe/Madrid");
     renderCard(etl);
     expect(screen.getByText("Daily at 23:00 (America/New_York)")).toBeTruthy();
     expect(screen.getByText("05:00 the next day in Madrid")).toBeTruthy();
+  });
+
+  it("counts on whatever clock the browser keeps, not on one written in the code", () => {
+    browserOn("Asia/Tokyo");
+    renderCard(etl);
+    expect(screen.getByText("12:00 the next day in Tokyo")).toBeTruthy();
+    expect(screen.queryByText(/Madrid/)).toBeNull();
+  });
+
+  it("adds no second clock when the browser keeps the schedule's own time zone", () => {
+    browserOn("America/New_York");
+    renderCard(etl);
+    expect(screen.getByText("Daily at 23:00 (America/New_York)")).toBeTruthy();
+    expect(screen.queryByText(/^\d{2}:\d{2}( the next day| the day before)? in /)).toBeNull();
   });
 
   it("adds no note for a time zone every clock knows", () => {

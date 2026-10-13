@@ -13,11 +13,9 @@ import { describeCron } from "./schedule-words";
 import { ScheduleDays } from "./ScheduleDays";
 import { useInSection } from "./SectionLinks";
 import type { Etl, FlowRun } from "./useEtl";
+import { browserTimeZone } from "./zoned-time";
 import link from "./inline-link.module.css";
 import styles from "./ScheduleCard.module.css";
-
-/** The team's own clock: a schedule kept in another time zone also says what time that is there. */
-const TEAM_TIME_ZONE = "Europe/Madrid";
 
 const CLOCK_IN: Readonly<Record<ClockIn["dayShift"], TranslationKey>> = {
   [-1]: "etl.page.clockInDayBefore",
@@ -36,7 +34,7 @@ interface ScheduleCardProps {
 }
 
 /**
- * When the ETL runs: in words, on the team's clock, the cron itself in small, and seven days back and seven ahead. A
+ * When the ETL runs: in words, on the reader's own clock when the schedule keeps another, the cron itself in small, and seven days back and seven ahead. A
  * chained ETL runs after its upstream completes: its days ahead are those of the schedule that paces the chain, and
  * the chain itself follows; then what this ETL starts next, when the chain cannot show it (it starts several).
  */
@@ -52,7 +50,8 @@ export function ScheduleCard({ etl, chain, runs, knownSince, now }: ScheduleCard
     knownSince,
     now,
   });
-  const teamClock = scheduleClockIn(etl.schedule, now, TEAM_TIME_ZONE);
+  const localZone = browserTimeZone();
+  const localClock = scheduleClockIn(etl.schedule, now, localZone);
   // The cron in small only beside its words: one shown as written is not repeated.
   const cron = etl.schedule?.kind === "cron" && etl.schedule.cron !== null && describeCron(etl.schedule.cron) !== null ? etl.schedule.cron : null;
   return (
@@ -66,10 +65,10 @@ export function ScheduleCard({ etl, chain, runs, knownSince, now }: ScheduleCard
           )}
         </span>
         {etl.schedule !== null && scheduleTimeZone(etl.schedule) === null ? <span className={styles.note}>{t("etl.page.zoneNotRecognised")}</span> : null}
-        {teamClock !== null || cron !== null ? (
+        {localClock !== null || cron !== null ? (
           <span className={styles.muted}>
-            {teamClock !== null ? <span>{t(CLOCK_IN[teamClock.dayShift], { time: teamClock.time, place: placeOf(TEAM_TIME_ZONE) })}</span> : null}
-            {teamClock !== null && cron !== null ? " · " : null}
+            {localClock !== null ? <span>{t(CLOCK_IN[localClock.dayShift], { time: localClock.time, place: placeOf(localZone) })}</span> : null}
+            {localClock !== null && cron !== null ? " · " : null}
             {cron !== null ? <code className={styles.code}>{cron}</code> : null}
           </span>
         ) : null}
