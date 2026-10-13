@@ -86,6 +86,27 @@ describe("useScrollRestoration", () => {
     await vi.waitFor(() => expect(work.scrollTop).toBe(0));
   });
 
+  it("forgets the positions of the documents whose trails are gone, so session storage does not grow with every reopening", () => {
+    for (const hash of ["#/sql", "#/discovery", "#/etl", "#/d/a", "#/d/b", "#/d/c", "#/d/d"]) {
+      appHistory.dispose();
+      window.history.replaceState(null, "", hash);
+      appHistory.install();
+      render(<Work />);
+      act(() => navigate({ kind: "database", database: "landing_shop" }));
+      scrollTo(screen.getByRole("main", { name: "Work area" }), 640);
+      cleanup();
+    }
+    const documentOf = (key: string) => key.slice(0, key.lastIndexOf(":"));
+    const scrolled = new Set(Object.keys(JSON.parse(sessionStorage.getItem("periplo.scroll") ?? "{}") as object).map(documentOf));
+    const trails = new Set(
+      Object.keys(sessionStorage)
+        .filter((key) => key.startsWith("periplo.history."))
+        .map((key) => key.slice("periplo.history.".length)),
+    );
+    expect(trails.size).toBe(5);
+    expect(scrolled).toEqual(trails);
+  });
+
   it("starts a new entry from scratch, even in the place of a scrolled entry it cut off", async () => {
     render(<Work />);
     const work = screen.getByRole("main", { name: "Work area" });

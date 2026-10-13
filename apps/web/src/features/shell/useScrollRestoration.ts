@@ -12,8 +12,12 @@ function isPosition(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-/** Positions live on in memory for this page when the storage is full or blocked. */
-function savePositions(positions: Readonly<Record<string, number>>): void {
+/**
+ * Drops the positions of documents whose trails are gone, then stores the rest. Positions live on in
+ * memory for this page when the storage is full or blocked.
+ */
+function savePositions(positions: Record<string, number>): void {
+  for (const key of Object.keys(positions)) if (!appHistory.keepsEntry(key)) delete positions[key];
   writeSessionJson(STORAGE_KEY, positions);
 }
 
