@@ -11,14 +11,14 @@
 # those two results onto a slim Python. No node, npm, uv, lock files or compilers ship.
 #
 # Base images are pinned by tag. For bit-for-bit reproducible builds pin them by digest
-# too, e.g. `--build-arg PYTHON_IMAGE=python:3.14.7-slim-bookworm@sha256:82bc…ff56`, and
+# too, e.g. `--build-arg PYTHON_IMAGE=python:3.14.8-slim-bookworm@sha256:48b1…0f83`, and
 # let Dependabot or Renovate bump tag and digest together. Digests of the tags below, as
-# of 2026-09-25 (multi-arch index):
-#   python:3.14.7-slim-bookworm   sha256:82bc3c539b8813ada9d68c63b40158fa002f7f33de9bf3312a3dfdc0620dff56
+# of 2026-10-13 for Python, 2026-09-25 for the rest (multi-arch index):
+#   python:3.14.8-slim-bookworm   sha256:48b13b003dda20b16f9442b8475aa05fe21bf6579a8c881db92ffb4d8fd20f83
 #   node:22.23.3-bookworm-slim    sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c
 #   ghcr.io/astral-sh/uv:0.9.30   sha256:538e0b39736e7feae937a65983e49d2ab75e1559d35041f9878b7b7e51de91e4
 
-ARG PYTHON_IMAGE=python:3.14.7-slim-bookworm
+ARG PYTHON_IMAGE=python:3.14.8-slim-bookworm
 ARG NODE_IMAGE=node:22.23.3-bookworm-slim
 ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.9.30
 
