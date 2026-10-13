@@ -59,5 +59,6 @@ function comparator({ key, reversed }: EtlSort): (a: Etl, b: Etl) => number {
 export function sortEtls(etls: readonly Etl[], sort: EtlSort, first: ((etl: Etl) => boolean) | null = null): Etl[] {
   const byColumn = comparator(sort);
   if (first === null) return [...etls].sort(byColumn);
-  return [...etls].sort((a, b) => Number(first(b)) - Number(first(a)) || byColumn(a, b));
+  const leading = new Set(etls.filter(first));
+  return [...etls].sort((a, b) => Number(leading.has(b)) - Number(leading.has(a)) || byColumn(a, b));
 }
