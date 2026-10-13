@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { EmptyState, Icon } from "@periplo/core/ui";
+import { EmptyState, Icon, TitleMark } from "@periplo/core/ui";
 import type { Brand } from "../../app/brand";
 import type { Dependencies } from "../../app/dependencies";
 import { usePreferences, type PreferencesStore } from "../../app/preferences";
@@ -139,7 +139,10 @@ export function Home({ catalog, preferences, dependencies, brand, troubledSource
       <header className={styles.header}>
         {brand.logoUrl ? <img className={styles.brandLogo} src={brand.logoUrl} alt="" /> : <Logo size="lg" className={styles.homeLogo} />}
         <div>
-          <h2 className={styles.title}>{brand.name ? t("home.brandLake", { brand: brand.name }) : t("home.yourLake")}</h2>
+          <h2 className={styles.title}>
+            {brand.name ? t("home.brandLake", { brand: brand.name }) : t("home.yourLake")}
+            <TitleMark />
+          </h2>
           <p className={styles.summary}>
             <span>{t("catalog.tableCount", { count: catalog.tables.length })}</span>
             {catalog.group_by[0] ? <span> · {t("home.grouped", { count: strata.length, label: catalog.group_by[0] })}</span> : null}

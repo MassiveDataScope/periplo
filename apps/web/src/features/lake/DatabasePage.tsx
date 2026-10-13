@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { TitleMark } from "@periplo/core/ui";
 import type { Dependencies } from "../../app/dependencies";
 import { href } from "../../app/routes";
 import { formatCount } from "../../i18n/format";
@@ -43,7 +44,10 @@ export function DatabasePage({ dependencies, catalog, database, onQuery }: Datab
         {path.length > 0 ? <span aria-hidden="true">› </span> : null}
         <span aria-current="page">{database}</span>
       </nav>
-      <h2 className={styles.title}>{database}</h2>
+      <h2 className={styles.title}>
+        {database}
+        <TitleMark />
+      </h2>
       <dl className={styles.figures}>
         <div>
           <dt>{t("sheet.tables")}</dt>

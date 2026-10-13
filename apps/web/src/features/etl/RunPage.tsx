@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { ErrorNotice, Progress, StatusBar, type StatusBarProps } from "@periplo/core/ui";
+import { ErrorNotice, Progress, StatusBar, TitleMark, type StatusBarProps } from "@periplo/core/ui";
 import type { Dependencies } from "../../app/dependencies";
 import { href } from "../../app/routes";
 import type { Catalog } from "../catalog-tree/catalog-model";
@@ -264,7 +264,10 @@ function Detail({ dependencies, run, catalog, tasks, onReloadTasks }: DetailProp
   return (
     <>
       <header className={styles.header}>
-        <h2 className={styles.name}>{run.name}</h2>
+        <h2 className={styles.name}>
+          {run.name}
+          <TitleMark />
+        </h2>
         {run.deployment_name !== null ? (
           <a className={styles.deployment} href={href({ kind: "etl-deployment", name: run.deployment_name })}>
             {run.deployment_name}
