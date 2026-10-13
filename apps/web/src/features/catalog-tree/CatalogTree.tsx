@@ -100,14 +100,20 @@ export function CatalogTree({ catalog, route, preferences, filterRef, onInsert }
   const filtering = query !== "";
   const tree = useMemo(() => buildExplorerTree(catalog, { groupBy: catalog.group_by, search: query }), [catalog, query]);
 
-  // Folded by hand, opened by the route: a route's own keys are only ever added, so the analyst's fold
-  // of a branch survives until a route re-adds a key inside it.
-  const [openKeys, setOpenKeys] = useState<ReadonlySet<string>>(() => new Set(branchKeys(catalog, route)));
+  // The join workspace marks the base table's branch too: it is still that table's page, just in a different mode.
+  const selectedTable = (route.kind === "table" || route.kind === "join") && route.database && route.table ? `${route.database}.${route.table}` : null;
+
+  // Folded by hand, opened by the route: the route's branch keys are only ever added, and only when the route
+  // moves to another node, so the analyst's fold survives until then. Compared by value: the route is a new
+  // object on every render of the app, not only on navigation.
   const routeBranch = useMemo(() => branchKeys(catalog, route), [catalog, route]);
-  useEffect(() => {
-    if (routeBranch.length === 0) return;
-    setOpenKeys((current) => new Set([...current, ...routeBranch]));
-  }, [routeBranch]);
+  const [openKeys, setOpenKeys] = useState<ReadonlySet<string>>(() => new Set(routeBranch));
+  const branchId = [...routeBranch, selectedTable ?? ""].join("\n");
+  const [openedBranch, setOpenedBranch] = useState(branchId);
+  if (openedBranch !== branchId) {
+    setOpenedBranch(branchId);
+    if (routeBranch.length > 0) setOpenKeys((current) => new Set([...current, ...routeBranch]));
+  }
   const toggle = (key: string) => {
     setOpenKeys((current) => {
       const next = new Set(current);
@@ -117,8 +123,6 @@ export function CatalogTree({ catalog, route, preferences, filterRef, onInsert }
     });
   };
 
-  // The join workspace marks the base table's branch too: it is still that table's page, just in a different mode.
-  const selectedTable = (route.kind === "table" || route.kind === "join") && route.database && route.table ? `${route.database}.${route.table}` : null;
   const currentDatabase = route.kind === "database" ? route.database : null;
   const currentLayer = route.kind === "layer" ? route.layer : undefined;
 
@@ -197,9 +201,11 @@ export function CatalogTree({ catalog, route, preferences, filterRef, onInsert }
 
   // Roving focus: one row is the tab stop; arrows move it, Enter opens, ← → fold, * unfolds all siblings, letters seek.
   const listRef = useRef<HTMLDivElement>(null);
-  const [focusedKey, setFocusedKey] = useState<string | null>(null);
+  const [chosenKey, setChosenKey] = useState<string | null>(null);
+  // A row filtered or folded away hands the tab stop to the current row, else the first.
+  const focusedKey = rows.some((row) => row.key === chosenKey) ? chosenKey : (rows.find((row) => row.current)?.key ?? rows[0]?.key ?? null);
   const focusRow = (key: string) => {
-    setFocusedKey(key);
+    setChosenKey(key);
     listRef.current?.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"] [data-name]`)?.focus();
   };
   const activate = (row: Row) => {
@@ -252,9 +258,6 @@ export function CatalogTree({ catalog, route, preferences, filterRef, onInsert }
       }
     }
   };
-  useEffect(() => {
-    if (focusedKey === null || !rows.some((row) => row.key === focusedKey)) setFocusedKey(rows.find((row) => row.current)?.key ?? rows[0]?.key ?? null);
-  }, [rows, focusedKey]);
   useEffect(() => {
     listRef.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView?.({ block: "nearest" });
   }, [route]);
@@ -382,7 +385,7 @@ export function CatalogTree({ catalog, route, preferences, filterRef, onInsert }
                   title={row.kind === "layer" ? undefined : row.label}
                   draggable={row.insertName !== undefined && onInsert !== undefined}
                   onDragStart={(event) => row.insertName && event.dataTransfer.setData("text/plain", row.insertName)}
-                  onFocus={() => setFocusedKey(row.key)}
+                  onFocus={() => setChosenKey(row.key)}
                   onClick={(event) => {
                     if (onInsert && row.insertName) {
                       event.preventDefault();

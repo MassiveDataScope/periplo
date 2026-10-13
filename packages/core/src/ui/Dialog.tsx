@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import styles from "./Dialog.module.css";
 
 export interface DialogSize {
@@ -31,7 +31,9 @@ export interface DialogProps {
 export function Dialog({ open, titleId, anchor = "center", size, className, children, onClose }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   // Imperative by nature: a dialog is only modal, focus-trapped and inert-behind when `showModal()` opened it.
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Icon, TypeBadge, isIdentifierName, typeFamily } from "@periplo/core/ui";
 import type { TranslationKey } from "../../i18n";
@@ -80,6 +80,8 @@ export function TableCard({
   // That default holds until touched — `manualView` is the toggle's own memory, cleared once the last pair
   // goes and there is nothing left to be compact about.
   const [manualView, setManualView] = useState<"compact" | "open" | null>(null);
+  // Checked while rendering: a pair shows on both of its cards, so either one can lose its last pair from the other's band.
+  if (band.length === 0 && manualView !== null) setManualView(null);
   const view = manualView ?? (band.length === 0 ? "open" : "compact");
   const [tab, setTab] = useState<"selected" | "others">("selected");
   const [roving, setRoving] = useState(0);
@@ -102,11 +104,6 @@ export function TableCard({
       .filter((column) => canPair(armed.type, column.type) && (column.name === armed.column || isIdentifierName(column.name) || isIdentifierName(armed.column)))
       .slice(0, LIKELY_MATCHES);
   }, [armed, armedHere, listed]);
-
-  // A card with no pair has nothing to do compact: it opens itself the moment its last pair is removed (D1).
-  useEffect(() => {
-    if (band.length === 0 && manualView !== null) setManualView(null);
-  }, [band.length, manualView]);
 
   const move = (next: number) => {
     const bounded = Math.max(0, Math.min(shown.length - 1, next));

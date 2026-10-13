@@ -136,6 +136,20 @@ describe("LogViewer", () => {
     expect(screen.getByText("2 of 2")).toBeTruthy();
   });
 
+  it("reflects a query committed elsewhere in the search box and starts again at its first match", () => {
+    const { rerender, props } = renderViewer({ logs: ready([entry(1, { message: "boom one" }), entry(2, { message: "boom two" })]), q: "boom" });
+    fireEvent.click(screen.getByRole("button", { name: "Next match" }));
+    expect(screen.getByText("2 of 2")).toBeTruthy();
+
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <LogViewer {...props} q="oo" />
+      </I18nextProvider>,
+    );
+    expect((screen.getByLabelText("Search logs") as HTMLInputElement).value).toBe("oo");
+    expect(screen.getByText("1 of 2")).toBeTruthy();
+  });
+
   it("wraps every occurrence of the query in <mark>, literally even when it contains regex special characters", () => {
     const { container } = renderViewer({ logs: ready([entry(1, { message: "path a.b( is odd, a.b( again" })]), q: "a.b(" });
     const marks = container.querySelectorAll("mark");

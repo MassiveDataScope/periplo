@@ -19,10 +19,12 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function Probe({ onAxis }: { onAxis(axis: MeasuredAxis): void }) {
-  const axis = useMeasuredAxis();
-  onAxis(axis);
-  return <div ref={axis.ref} style={{ font: "12px monospace" }} />;
+type Measure = Omit<MeasuredAxis, "ref">;
+
+function Probe({ onAxis }: { onAxis(axis: Measure): void }) {
+  const { ref, width, font } = useMeasuredAxis();
+  onAxis({ width, font });
+  return <div ref={ref} style={{ font: "12px monospace" }} />;
 }
 
 describe("useMeasuredAxis", () => {
@@ -30,7 +32,7 @@ describe("useMeasuredAxis", () => {
     vi.stubGlobal("ResizeObserver", FakeResizeObserver);
     let width = 640;
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(() => new DOMRect(0, 0, width, 20));
-    let seen: MeasuredAxis | null = null;
+    let seen: Measure | null = null;
     const { unmount } = render(<Probe onAxis={(axis) => (seen = axis)} />);
     expect(seen).toMatchObject({ width: 640, font: expect.stringContaining("12px") });
     width = 320;

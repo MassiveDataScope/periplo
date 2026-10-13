@@ -127,6 +127,8 @@ export function DistributionTab({ dependencies, database, table, fields, stats }
     if (chosen?.phase !== "profile" || !resultSettled || !resource || rows === 0) return;
     const read = (index: number) => Number(resource.cell(0, index).fullText());
     const profile = { total: read(0), filled: read(1), distinct: read(2) };
+    // The profile is read from the query session's result buffer, an external store, once its run has settled.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setChosen({ ...chosen, profile, phase: cardinality(profile) === "low" ? "chart" : "held", generation: null });
   }, [chosen, resultSettled, resource, rows]);
 

@@ -38,8 +38,8 @@ function Axis({ ref, ticks }: { readonly ref: (node: HTMLElement | null) => void
 /** One attempt's processes and steps on a time axis fitted to the width: the axis on top, the rows as a treegrid. */
 export function RunTimeline({ attempt, live, view, actions }: RunTimelineProps) {
   const { t } = useTranslation();
-  const axis = useMeasuredAxis();
-  const timeline = useTimeline(attempt, live, { ...view, width: axis.width });
+  const { ref: axisRef, width: axisWidth, font } = useMeasuredAxis();
+  const timeline = useTimeline(attempt, live, { ...view, width: axisWidth });
   return (
     <div className={styles.timeline}>
       <div className={styles.head}>
@@ -50,9 +50,9 @@ export function RunTimeline({ attempt, live, view, actions }: RunTimelineProps) 
             </button>
           ) : null}
         </span>
-        <Axis ref={axis.ref} ticks={timeline.ticks} />
+        <Axis ref={axisRef} ticks={timeline.ticks} />
       </div>
-      <TimelineGrid timeline={timeline} axisWidth={axis.width} font={axis.font} selectedStep={view.selectedStep} actions={actions} />
+      <TimelineGrid timeline={timeline} axisWidth={axisWidth} font={font} selectedStep={view.selectedStep} actions={actions} />
     </div>
   );
 }
