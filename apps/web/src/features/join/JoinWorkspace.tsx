@@ -140,7 +140,7 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
   /** Open or closed by hand; until then, open while the join has no other table to show. */
   const [pickerChoice, setPickerOpen] = useState<boolean | null>(null);
   const [collapsed, setCollapsed] = useState(false);
-  const [checkState, setCheckState] = useState<CheckJoinState>("idle");
+  const [checkPhase, setCheckPhase] = useState<Exclude<CheckJoinState, "done" | "unavailable">>("idle");
   const [checkGeneration, setCheckGeneration] = useState<number | null>(null);
   const claimedArm = useRef(false);
   const boardRef = useRef<HTMLDivElement>(null);
@@ -169,12 +169,10 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
     return readCheckJoin(rowsOf(checkSession.resource, checkSession.state.rows), def?.joins.map((step) => step.alias) ?? []);
   }, [checkSettled, checkSession.state, checkSession.resource, def]);
 
-  useEffect(() => {
-    if (checkSettled && checkSession.state.kind === "completed") setCheckState("done");
-  }, [checkSettled, checkSession.state]);
+  const checkState: CheckJoinState = checkPhase === "running" && checkSettled && checkSession.state.kind === "completed" ? "done" : checkPhase;
 
   const markStale = () => {
-    setCheckState((current) => (current === "done" ? "stale" : current));
+    if (checkState === "done") setCheckPhase("stale");
   };
 
   const mutate = (change: (current: JoinDefinition) => JoinDefinition) => {
@@ -224,7 +222,7 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
     if (!builtCheck.ok) return;
     const generation = checkSession.run(builtCheck.sql);
     setCheckGeneration(generation);
-    setCheckState("running");
+    setCheckPhase("running");
   };
 
   const onDragStart = (ref: Armed, point: { readonly x: number; readonly y: number }) => {

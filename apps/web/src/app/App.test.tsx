@@ -397,6 +397,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Edit join" }));
     fireEvent.click(screen.getByRole("button", { name: "Remove the pair o.order_id = o2.order_id" }));
     expect((screen.getByRole("button", { name: "Run join" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(within(screen.getByRole("region", { name: "Check join" })).getByText("The join changed since the last check.")).toBeTruthy();
 
     // Pairing again, keyboard only: Enter arms the first column, Enter on its match completes the pair.
     // order_id fell out of the band and, since it was never added back to "orders"'s output, it now
@@ -911,6 +912,7 @@ describe("App", () => {
 
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
     const again = within(screen.getByRole("dialog", { name: "Command palette" })).getByRole("combobox");
+    expect((again as HTMLInputElement).value).toBe("");
     fireEvent.change(again, { target: { value: "open sql" } });
     fireEvent.keyDown(again, { key: "Enter" });
     expect(window.location.hash).toBe("#/sql");

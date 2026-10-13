@@ -44,11 +44,17 @@ export function CommandPalette({ ref, catalog, actions, onOpenTable }: CommandPa
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // Every opening starts afresh, however it was opened (shortcut or handle).
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (open) {
+      setQuery("");
+      setActive(0);
+    }
+  }
   useEffect(() => {
-    if (!open) return;
-    setQuery("");
-    setActive(0);
-    inputRef.current?.focus();
+    if (open) inputRef.current?.focus();
   }, [open]);
 
   const items = useMemo(() => {

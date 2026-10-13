@@ -182,8 +182,13 @@ export function LogViewer({ logs, q, onQueryChange, minLevel, onMinLevelChange, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft]);
 
-  // A query committed elsewhere (e.g. the window resets it) is reflected back into the draft.
-  useEffect(() => setDraft(q), [q]);
+  // A query committed elsewhere (e.g. the window resets it) is reflected back into the draft; a new query starts at its first match.
+  const [prevQ, setPrevQ] = useState(q);
+  if (prevQ !== q) {
+    setPrevQ(q);
+    setDraft(q);
+    setMatchIndex(0);
+  }
 
   const rows = useMemo(() => groupRows(logs.entries), [logs.entries]);
 
@@ -195,7 +200,6 @@ export function LogViewer({ logs, q, onQueryChange, minLevel, onMinLevelChange, 
     return logs.entries.filter((entry) => !entry.noise && entry.message.toLowerCase().includes(needle)).map((entry) => entry.id);
   }, [logs.entries, q]);
 
-  useEffect(() => setMatchIndex(0), [q]);
   const clampedIndex = matches.length === 0 ? 0 : Math.min(matchIndex, matches.length - 1);
   const currentMatchId = matches[clampedIndex];
 
