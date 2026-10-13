@@ -27,6 +27,7 @@ const noopUnsubscribe = () => undefined;
  */
 export function useQuerySession<Resource>(factory: () => QuerySession<Resource>): QuerySessionView<Resource> {
   const factoryRef = useRef(factory);
+  // A passive effect is enough here, unlike Dialog's layout effect: the only reader is the effect below, which runs after it.
   useEffect(() => {
     factoryRef.current = factory;
   });
