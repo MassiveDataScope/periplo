@@ -1208,6 +1208,25 @@ describe("App", () => {
     expect(link.getAttribute("aria-current")).toBe("page");
   });
 
+  it("shows the ETL section loading, and no dashboard, while the ETL status is still on its way", async () => {
+    openTab("#/etl");
+    renderApp(fakeApi({ "GET /api/v1/etl/status": () => new Promise<Response>(() => undefined) }));
+    await screen.findByRole("tree", { name: "Tables" });
+    expect(screen.getByRole("progressbar", { name: "Loading ETLs" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "ETL", level: 2 })).toBeNull();
+    expect(window.location.hash).toBe("#/etl");
+  });
+
+  it("says the ETLs could not be loaded, and shows no dashboard, when the ETL status call fails", async () => {
+    openTab("#/etl");
+    renderApp(fakeApi({ "GET /api/v1/etl/status": () => new Response("<html>502</html>", { status: 502 }) }));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("The ETLs could not be loaded");
+    expect(screen.queryByRole("progressbar", { name: "Loading ETLs" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "ETL", level: 2 })).toBeNull();
+    expect(window.location.hash).toBe("#/etl");
+  });
+
   it("keeps the ETLs in the side column across the section, the one on screen marked, each a link to the next", async () => {
     // A run the list knows: on its page the side list marks its ETL.
     const knownRun = { id: "run-known", state: "COMPLETED", start_at: null, end_at: null, attempts: null };
