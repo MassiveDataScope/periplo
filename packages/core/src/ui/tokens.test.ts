@@ -100,6 +100,10 @@ describe("design tokens", () => {
     expectContrast("--nt-color-state-slow", ["--nt-color-bg", "--nt-color-surface"], 4.5);
   });
 
+  it("draws the stopped state's outline and stop square (border-strong) at >= 3:1 on bg, surface and surface-sunken", () => {
+    expectContrast("--nt-color-border-strong", ["--nt-color-bg", "--nt-color-surface", "--nt-color-surface-sunken"], 3);
+  });
+
   it("draws the failed state's cross in the page background, visible (>= 3:1) on the failed fill", () => {
     expectContrast("--nt-color-bg", ["--nt-color-state-failed"], 3);
   });
