@@ -1,5 +1,3 @@
-process.env.TZ = "UTC";
-
 import { ApiError } from "@periplo/core/api";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
