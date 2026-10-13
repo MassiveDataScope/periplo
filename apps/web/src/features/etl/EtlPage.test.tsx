@@ -239,6 +239,10 @@ describe("EtlPage", () => {
   });
 
   it("puts the schedule in words, in Madrid's time, with the cron and fourteen days around today", async () => {
+    const resolved = Intl.DateTimeFormat.prototype.resolvedOptions;
+    vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockImplementation(function (this: Intl.DateTimeFormat) {
+      return { ...resolved.call(this), timeZone: "Europe/Madrid" };
+    });
     await renderLoaded();
     const schedule = within(screen.getByRole("region", { name: "Schedule" }));
     expect(schedule.getByText("Daily at 04:00 (UTC)")).toBeTruthy();
