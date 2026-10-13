@@ -115,21 +115,34 @@ function RunBar({ bar, selected }: { readonly bar: LastRunBar; readonly selected
   );
 }
 
-/** The day each bar ran, its month only where the month changes: decoration, the bar's own name says it in full. */
+interface DayLabel {
+  readonly key: LastRunBar["run"]["id"];
+  readonly label: string;
+}
+
+/** The day each bar ran, its month only where the month changes. */
+function dayLabels(bars: readonly LastRunBar[], language: string): DayLabel[] {
+  const withMonth = new Intl.DateTimeFormat(language, { month: "short", day: "numeric" });
+  const dayOnly = new Intl.DateTimeFormat(language, { day: "numeric" });
+  const labels: DayLabel[] = [];
+  let lastMonth: number | null = null;
+  for (const bar of bars) {
+    const at = bar.run.start_at ?? bar.run.expected_start_at;
+    const date = at === null ? null : new Date(at);
+    labels.push({ key: bar.run.id, label: date === null ? "" : date.getMonth() === lastMonth ? dayOnly.format(date) : withMonth.format(date) });
+    lastMonth = date?.getMonth() ?? lastMonth;
+  }
+  return labels;
+}
+
+/** Decoration under the bars: each bar's own name says its day in full. */
 function DayLabels({ bars }: { readonly bars: readonly LastRunBar[] }) {
   const { i18n } = useTranslation();
-  const withMonth = new Intl.DateTimeFormat(i18n.language, { month: "short", day: "numeric" });
-  const dayOnly = new Intl.DateTimeFormat(i18n.language, { day: "numeric" });
-  let lastMonth: number | null = null;
   return (
     <ol aria-hidden="true" className={styles.days}>
-      {bars.map((bar) => {
-        const at = bar.run.start_at ?? bar.run.expected_start_at;
-        const date = at === null ? null : new Date(at);
-        const label = date === null ? "" : date.getMonth() === lastMonth ? dayOnly.format(date) : withMonth.format(date);
-        lastMonth = date?.getMonth() ?? lastMonth;
-        return <li key={bar.run.id}>{label}</li>;
-      })}
+      {dayLabels(bars, i18n.language).map(({ key, label }) => (
+        <li key={key}>{label}</li>
+      ))}
     </ol>
   );
 }

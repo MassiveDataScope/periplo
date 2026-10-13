@@ -1,7 +1,7 @@
 import { PostgreSQL, sql } from "@codemirror/lang-sql";
 import { EditorView, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
-import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
+import { useEffect, useImperativeHandle, useLayoutEffect, useRef, type Ref } from "react";
 import { catalogCompletionSource, type SqlCompletion } from "./sql-completion";
 import styles from "./QueryWorkspace.module.css";
 
@@ -24,10 +24,12 @@ export function QueryEditor({ ref, value, label, completion = null, onChange, on
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const handlers = useRef({ onChange, onRun });
-  handlers.current = { onChange, onRun };
   // Read through a ref: the catalog arriving late must not rebuild the editor and lose the cursor.
   const completionRef = useRef(completion);
-  completionRef.current = completion;
+  useLayoutEffect(() => {
+    handlers.current = { onChange, onRun };
+    completionRef.current = completion;
+  });
 
   useEffect(() => {
     if (!hostRef.current) return;

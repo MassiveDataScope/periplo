@@ -342,7 +342,7 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
           />
 
           <div className={styles.board} ref={boardRef} onPointerMove={onBoardPointerMove} onPointerUp={() => setDrag(null)}>
-            <Connectors board={boardRef} nodes={bandNodes.current} links={links} live={liveWire} />
+            <Connectors board={boardRef} nodes={bandNodes} links={links} live={liveWire} />
             {joinedTables(def).map((entry2) => {
               const step = def.joins.find((candidate) => candidate.alias === entry2.alias);
               const output = new Set(def.output[entry2.alias] ?? []);

@@ -21,7 +21,7 @@ export interface LiveWire {
 export interface ConnectorsProps {
   readonly board: RefObject<HTMLDivElement | null>;
   /** Every band row's DOM node, keyed `alias:column`, kept live by the cards themselves. */
-  readonly nodes: ReadonlyMap<string, HTMLElement>;
+  readonly nodes: RefObject<ReadonlyMap<string, HTMLElement>>;
   readonly links: readonly ConnectorLink[];
   /** The wire being dragged right now, in viewport coordinates; absent when nothing is being dragged. */
   readonly live: LiveWire | null;
@@ -56,8 +56,8 @@ export function Connectors({ board, nodes, links, live }: ConnectorsProps) {
       const boardRect = boardEl.getBoundingClientRect();
       const next: Path[] = [];
       for (const link of links) {
-        const from = nodes.get(link.fromKey);
-        const to = nodes.get(link.toKey);
+        const from = nodes.current.get(link.fromKey);
+        const to = nodes.current.get(link.toKey);
         if (!from || !to) continue;
         const a = from.getBoundingClientRect();
         const b = to.getBoundingClientRect();

@@ -49,7 +49,7 @@ export const DayRow = memo(function DayRow({ etl, runs, due, axisWindow }: DayRo
   const inSection = useInSection();
   const { live } = runs;
   const bars = useMemo(() => etlBars(etl, live, due, axisWindow), [etl, live, due, axisWindow]);
-  const roving = useRovingFocus(
+  const { containerRef, tabIndexOf, onItemFocus, onKeyDown } = useRovingFocus(
     bars.map((bar) => bar.key),
     latestRunKey(bars),
   );
@@ -68,9 +68,9 @@ export const DayRow = memo(function DayRow({ etl, runs, due, axisWindow }: DayRo
         <LineNote line={etlLine(etl, runs)} now={axisWindow.now} />
         {historyIsPartial(etl, axisWindow) ? <span className={styles.note}>{t("etl.day.partial", { count: RECENT_RUNS })}</span> : null}
       </span>
-      <DayTrack ref={roving.containerRef} role="group" aria-label={t("etl.day.runs", { etl: etl.name })} onKeyDown={roving.onKeyDown}>
+      <DayTrack ref={containerRef} role="group" aria-label={t("etl.day.runs", { etl: etl.name })} onKeyDown={onKeyDown}>
         {bars.map((bar) => {
-          const stop: TabStop = { tabIndex: roving.tabIndexOf(bar.key), onFocus: () => roving.onItemFocus(bar.key) };
+          const stop: TabStop = { tabIndex: tabIndexOf(bar.key), onFocus: () => onItemFocus(bar.key) };
           return live !== undefined && bar.runId === live.id ? (
             <LiveBarMark key={bar.key} etl={etl.name} bar={bar} axisWindow={axisWindow} stop={stop} />
           ) : (

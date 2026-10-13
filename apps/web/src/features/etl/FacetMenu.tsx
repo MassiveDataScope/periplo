@@ -16,7 +16,6 @@ export interface FacetMenuSpec {
 function useDisclosure(): {
   readonly open: boolean;
   toggle(): void;
-  close(): void;
   readonly triggerRef: RefObject<HTMLButtonElement | null>;
   readonly panelRef: RefObject<HTMLDivElement | null>;
 } {
@@ -46,24 +45,25 @@ function useDisclosure(): {
   }, [open]);
 
   const toggle = useCallback(() => setOpen((current) => !current), []);
-  const close = useCallback(() => setOpen(false), []);
-  return { open, toggle, close, triggerRef, panelRef };
+  return { open, toggle, triggerRef, panelRef };
 }
 
 /** A popover under its own button: a facet's list, or More's. */
 function Popover({
-  disclosure,
+  open,
+  panelRef,
   label,
   className,
   children,
 }: {
-  readonly disclosure: ReturnType<typeof useDisclosure>;
+  readonly open: boolean;
+  readonly panelRef: RefObject<HTMLDivElement | null>;
   readonly label: string;
   readonly className?: string;
   readonly children: ReactNode;
 }) {
-  return disclosure.open ? (
-    <div ref={disclosure.panelRef} role="dialog" aria-label={label} className={[styles.popover, className].filter(Boolean).join(" ")}>
+  return open ? (
+    <div ref={panelRef} role="dialog" aria-label={label} className={[styles.popover, className].filter(Boolean).join(" ")}>
       {children}
     </div>
   ) : null;
@@ -84,19 +84,19 @@ function pickedList(spec: FacetMenuSpec): string {
  * under it. */
 export function FacetMenu({ spec }: { readonly spec: FacetMenuSpec }) {
   const { t } = useTranslation();
-  const disclosure = useDisclosure();
+  const { open, toggle, triggerRef, panelRef } = useDisclosure();
   const picked = spec.selected.length;
   return (
     <div className={styles.popoverWrap}>
       <span className={styles.facetButton} data-picked={picked > 0 || undefined}>
         <button
           type="button"
-          ref={disclosure.triggerRef}
+          ref={triggerRef}
           className={styles.filterButton}
-          aria-expanded={disclosure.open}
+          aria-expanded={open}
           aria-haspopup="listbox"
           aria-label={picked === 0 ? spec.label : t("etl.filters.facetPicked", { facet: spec.label, count: picked, values: pickedList(spec) })}
-          onClick={disclosure.toggle}
+          onClick={toggle}
         >
           <span className={styles.buttonText}>{picked === 0 ? spec.label : `${spec.label}: ${pickedWords(spec)}`}</span>
         </button>
@@ -106,7 +106,7 @@ export function FacetMenu({ spec }: { readonly spec: FacetMenuSpec }) {
           </button>
         ) : null}
       </span>
-      <Popover disclosure={disclosure} label={spec.label}>
+      <Popover open={open} panelRef={panelRef} label={spec.label}>
         <FacetListbox label={spec.label} options={spec.options} selected={spec.selected} onChange={spec.onChange} autoFocus />
       </Popover>
     </div>
@@ -116,21 +116,14 @@ export function FacetMenu({ spec }: { readonly spec: FacetMenuSpec }) {
 /** The facets past the first few, under one button: each its own list. */
 export function MoreFacets({ specs }: { readonly specs: readonly FacetMenuSpec[] }) {
   const { t } = useTranslation();
-  const disclosure = useDisclosure();
+  const { open, toggle, triggerRef, panelRef } = useDisclosure();
   const picked = specs.reduce((sum, spec) => sum + spec.selected.length, 0);
   return (
     <div className={styles.popoverWrap}>
-      <button
-        type="button"
-        ref={disclosure.triggerRef}
-        className={styles.filterButton}
-        aria-expanded={disclosure.open}
-        aria-haspopup="dialog"
-        onClick={disclosure.toggle}
-      >
+      <button type="button" ref={triggerRef} className={styles.filterButton} aria-expanded={open} aria-haspopup="dialog" onClick={toggle}>
         {picked === 0 ? t("etl.filters.more") : t("etl.filters.morePicked", { count: picked })}
       </button>
-      <Popover disclosure={disclosure} label={t("etl.filters.moreLabel")} className={styles.morePopover}>
+      <Popover open={open} panelRef={panelRef} label={t("etl.filters.moreLabel")} className={styles.morePopover}>
         {specs.map((spec) => (
           <section key={spec.key} className={styles.facetSection}>
             <h3 className={styles.facetHeading}>{spec.label}</h3>
