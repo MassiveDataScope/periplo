@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nextProvider } from "react-i18next";
 import type { Dependencies } from "../../app/dependencies";
 import { GROUP_BY_NEEDS } from "../../app/etl-routes";
+import { appHistory } from "../../app/history";
 import { href } from "../../app/routes";
 import { createI18n } from "../../i18n";
 import { EtlDashboard } from "./EtlDashboard";
@@ -14,11 +15,13 @@ const i18n = await createI18n();
 
 afterEach(() => {
   cleanup();
+  appHistory.dispose();
   vi.useRealTimers();
 });
 
 beforeEach(() => {
   window.location.hash = "";
+  appHistory.install();
 });
 
 const runAt = (hoursFromNow: number, state: FlowRun["state"] = "COMPLETED") => ({

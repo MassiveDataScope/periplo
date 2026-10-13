@@ -16,7 +16,10 @@ type HistoryMove = "new" | "traversal" | "replace";
 type ReplacementMove = Extract<HistoryMove, "new" | "replace">;
 
 interface HistoryRegistry {
-  /** Stamps the entry the browser is on and follows its hashchanges; a second call does nothing. */
+  /**
+   * Stamps the entry the browser is on and follows its hashchanges; a second call does nothing. Every method but
+   * `subscribe` and `dispose` throws before it in development and tests.
+   */
   install(): void;
   /**
    * The test reset: stops following the browser and forgets the trail in memory, while session storage keeps
@@ -31,6 +34,8 @@ interface HistoryRegistry {
   subscribe(listener: () => void): () => void;
   /** Names the entry the browser is on across every document of this tab, for state kept per entry (`document:index`). */
   currentEntryKey(): string;
+  /** Whether state kept under an entry key belongs to a document whose trail is still kept, so its owner can drop the rest. */
+  keepsEntry(key: string): boolean;
   /** How the current entry was reached, so a view can restore its scroll on Back and start at the top on a new entry. */
   lastMove(): HistoryMove;
   /** The hash of the entry before this one, in this tab; null on a fresh open or a direct link. */
@@ -74,8 +79,8 @@ function isTurn(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value);
 }
 
-/** Marks `id` as the document in use and forgets the trails of all but the most recently used ones. */
-function keepRecentDocuments(id: string): void {
+/** Marks `id` as the document in use, forgets the trails of all but the most recently used ones, and returns the kept ones. */
+function keepRecentDocuments(id: string): ReadonlySet<string> {
   const used = readSessionJson(DOCUMENTS_KEY, isTurn);
   used[id] = Math.max(0, ...Object.values(used)) + 1;
   const kept = Object.entries(used)
@@ -83,6 +88,15 @@ function keepRecentDocuments(id: string): void {
     .slice(0, KEPT_DOCUMENTS);
   for (const stale of Object.keys(used)) if (!kept.some(([keptId]) => keptId === stale)) removeSessionJson(storageKey(stale));
   writeSessionJson(DOCUMENTS_KEY, Object.fromEntries(kept));
+  return new Set(kept.map(([keptId]) => keptId));
+}
+
+function entryKey(document: string, index: number): string {
+  return `${document}:${index}`;
+}
+
+function documentOfEntryKey(key: string): string {
+  return key.slice(0, key.lastIndexOf(":"));
 }
 
 function createHistoryRegistry(): HistoryRegistry {
@@ -92,6 +106,8 @@ function createHistoryRegistry(): HistoryRegistry {
   let entries: Record<string, string> = {};
   let reachedBy: HistoryMove = "new";
   let installed = false;
+  /** The documents whose trails `keepRecentDocuments` kept when this registry last changed document. */
+  let keptDocuments: ReadonlySet<string> = new Set();
   const listeners = new Set<() => void>();
 
   /**
@@ -126,7 +142,7 @@ function createHistoryRegistry(): HistoryRegistry {
       current = stamp.index;
       reachedBy = "traversal";
     }
-    if (trailDocument !== documentId) keepRecentDocuments(trailDocument);
+    if (trailDocument !== documentId) keptDocuments = keepRecentDocuments(trailDocument);
     documentId = trailDocument;
     entries[current] = hash;
     // When the storage is full or blocked, the trail lives on in memory for this page.
@@ -146,6 +162,15 @@ function createHistoryRegistry(): HistoryRegistry {
     update();
   }
 
+  /**
+   * Before `install()` the trail is empty and hears no hashchange, so every answer would be wrong without a
+   * sign: in development and tests that is an error; in production the caller gets the empty trail.
+   */
+  function whenInstalled<T>(method: string, read: () => T): T {
+    if (!installed && import.meta.env.DEV) throw new Error(`appHistory.${method}() called before appHistory.install()`);
+    return read();
+  }
+
   return {
     install() {
       if (installed) return;
@@ -160,17 +185,22 @@ function createHistoryRegistry(): HistoryRegistry {
       current = 0;
       entries = {};
       reachedBy = "new";
+      keptDocuments = new Set();
     },
     sync(replacedAs) {
-      if (installed) update(replacedAs);
+      whenInstalled("sync", () => {
+        // In production `whenInstalled` does not throw, so a sync before install must still do nothing here.
+        if (installed) update(replacedAs);
+      });
     },
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    currentEntryKey: () => `${documentId ?? ""}:${current}`,
-    lastMove: () => reachedBy,
-    previousHash: () => entries[current - 1] ?? null,
+    currentEntryKey: () => whenInstalled("currentEntryKey", () => entryKey(documentId ?? "", current)),
+    keepsEntry: (key) => whenInstalled("keepsEntry", () => keptDocuments.has(documentOfEntryKey(key))),
+    lastMove: () => whenInstalled("lastMove", () => reachedBy),
+    previousHash: () => whenInstalled("previousHash", () => entries[current - 1] ?? null),
   };
 }
 

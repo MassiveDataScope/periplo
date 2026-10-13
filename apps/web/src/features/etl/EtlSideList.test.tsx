@@ -1,9 +1,10 @@
 import { ApiError } from "@periplo/core/api";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nextProvider } from "react-i18next";
 import type { Loadable } from "../../api/loadable";
 import { etlListQuery, withEtlListQuery } from "../../app/etl-routes";
+import { appHistory } from "../../app/history";
 import { href, replaceRoute, useHashRoute } from "../../app/routes";
 import { createI18n } from "../../i18n";
 import { EtlSideList } from "./EtlSideList";
@@ -14,8 +15,12 @@ import { useRunsNow } from "./useRunsNow";
 
 const i18n = await createI18n();
 
+// `replaceRoute` syncs the trail, which `main` installs before the console renders.
+beforeEach(() => appHistory.install());
+
 afterEach(() => {
   cleanup();
+  appHistory.dispose();
   vi.useRealTimers();
 });
 

@@ -25,7 +25,7 @@ import type { Loadable } from "../api/loadable";
 import { previewSql } from "../api/sql";
 import { BRAND } from "./brand";
 import type { Dependencies } from "./dependencies";
-import { backDestination } from "./leave";
+import { useBackDestination } from "./leave";
 import { usePreferences, type PreferencesStore } from "./preferences";
 import { isEtlRoute } from "./etl-routes";
 import { navigate, replaceRoute, useHashRoute, viewKey } from "./routes";
@@ -49,8 +49,10 @@ interface AppProps {
 
 /**
  * Picks the console once, so `useEtlStatus` never mounts and never calls the ETL API when it is under construction.
- * Precondition: `appHistory.install()` has run before the first render (as `main` does), or "Back to …" and Close
- * always fall back to the view's parent.
+ *
+ * Precondition: `appHistory.install()` (app/history.ts) has run before the first render, as `main` does, so the
+ * trail hears every hashchange before any view. Without it the registry throws in development and tests; tests
+ * install it the same way (`openTab` in App.test.tsx).
  */
 export function App(props: AppProps) {
   return ETL_UNDER_CONSTRUCTION ? <Console {...props} etl={ETL_UNDER_CONSTRUCTION_SECTION} /> : <ConsoleWithEtl {...props} />;
@@ -64,7 +66,7 @@ function ConsoleWithEtl(props: AppProps) {
 function Console({ dependencies, preferences, etl }: AppProps & { readonly etl: EtlSection }) {
   const { t } = useTranslation();
   const route = useHashRoute();
-  const back = backDestination(route);
+  const back = useBackDestination(route);
   const { catalog, sources, discovering, reload, rediscover } = useCatalogData(dependencies);
   const etlUnderConstruction = etl.kind === "under-construction";
   const etlStatus = etl.kind === "ready" && etl.value.configured ? etl.value : null;

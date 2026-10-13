@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nextProvider } from "react-i18next";
 import type { Dependencies } from "../../app/dependencies";
 import type { RunView } from "../../app/etl-routes";
+import { appHistory } from "../../app/history";
 import { useHashRoute } from "../../app/routes";
 import { createI18n } from "../../i18n";
 import { RunPage } from "./RunPage";
@@ -170,10 +171,13 @@ async function settle(ms = 0): Promise<void> {
 beforeEach(() => {
   vi.useFakeTimers();
   window.history.replaceState(null, "", "#/etl/runs/run-1");
+  // `replaceRoute` syncs the trail, which `main` installs before the console renders.
+  appHistory.install();
 });
 
 afterEach(() => {
   cleanup();
+  appHistory.dispose();
   vi.useRealTimers();
 });
 

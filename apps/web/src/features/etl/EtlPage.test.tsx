@@ -1,9 +1,10 @@
 import { StrictMode } from "react";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nextProvider } from "react-i18next";
 import type { Loadable } from "../../api/loadable";
 import type { Dependencies } from "../../app/dependencies";
+import { appHistory } from "../../app/history";
 import { href } from "../../app/routes";
 import { createI18n } from "../../i18n";
 import { EtlPage } from "./EtlPage";
@@ -13,8 +14,12 @@ import { useRunsNow } from "./useRunsNow";
 
 const i18n = await createI18n();
 
+// `main` installs the trail before the console renders; before that the registry throws in tests.
+beforeEach(() => appHistory.install());
+
 afterEach(() => {
   cleanup();
+  appHistory.dispose();
   window.location.hash = "";
   vi.restoreAllMocks();
 });
