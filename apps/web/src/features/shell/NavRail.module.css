@@ -111,15 +111,13 @@ nav.items {
 /* Where you are: a bar in the indicator token at the entry's inline start, kept when the rail is collapsed
    and the label is gone, plus the strong weight and the hover surface while it is expanded. The brand's dot
    outside the entry's edge is the periscope's lens saying "here": a signature, not the signal. */
-.item[aria-current="page"],
-.item[data-current="true"] {
+.item[aria-current="page"] {
   background: var(--nt-color-surface-hover);
   color: var(--nt-color-text);
   font-weight: var(--nt-font-weight-strong);
 }
 
-.item[aria-current="page"]::before,
-.item[data-current="true"]::before {
+.item[aria-current="page"]::before {
   content: "";
   position: absolute;
   inset-inline-start: calc(-1 * var(--nt-space-1-5));
@@ -131,12 +129,11 @@ nav.items {
   transform: translateY(-50%);
 }
 
-.item[aria-current="page"]::after,
-.item[data-current="true"]::after {
+.item[aria-current="page"]::after {
   content: "";
   position: absolute;
   inset-block: var(--nt-space-2);
-  inset-inline-start: var(--nt-space-0-5);
+  inset-inline-start: var(--nt-space-1);
   inline-size: var(--nt-space-0-5);
   border-radius: var(--nt-radius-full);
   background: var(--nt-color-indicator);

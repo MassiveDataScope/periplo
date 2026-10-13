@@ -17,11 +17,11 @@ describe("the rail's current entry", () => {
     const indicator = rule('.item[aria-current="page"]::after');
     expect(indicator).toContain('content: ""');
     expect(indicator).toContain("background: var(--nt-color-indicator)");
-    expect(rule('.item[data-current="true"]::after')).toBe(indicator);
   });
 
   it("keeps the indicator when the rail is collapsed", () => {
-    const hidden = [...css.matchAll(/([^{}]+)\{[^}]*display:\s*none/g)].map((match) => match[1] ?? "");
+    const hiding = /display:\s*none|visibility:\s*hidden|content:\s*none|opacity:\s*0(?![.\d])/;
+    const hidden = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter((match) => hiding.test(match[2] ?? "")).map((match) => match[1] ?? "");
     expect(hidden.filter((selectors) => selectors.includes("::after") || selectors.includes(".item"))).toEqual([]);
   });
 });
