@@ -2,6 +2,12 @@ import { baseAlias, canPair, defaultOutput, joinedTables, tableAlias, type JoinD
 
 /** The most tables a join may add to its base: the workspace stops there, and a longer link reads as broken rather than costing a catalog read each. */
 export const MAX_STEPS = 16;
+/** The most pairs one step's key may hold in a link. */
+export const MAX_PAIRS_PER_STEP = 16;
+/** The longest database, table, alias or column name a link may carry. */
+export const MAX_IDENTIFIER_LENGTH = 255;
+/** The longest spec, in base64url characters, that is decoded at all. */
+export const MAX_SPEC_LENGTH = 65_536;
 
 /** One pair of a step: `alias.column` of a table earlier in the join, equal to `right` of the step's own table. */
 export interface JoinSpecPair {
@@ -74,42 +80,51 @@ export function encodeJoinSpec(def: JoinDefinition): string {
   return toBase64Url(JSON.stringify(wire));
 }
 
-const isText = (value: unknown): value is string => typeof value === "string";
+/** A name as a link may carry it: text no longer than `MAX_IDENTIFIER_LENGTH`. */
+const isName = (value: unknown): value is string => typeof value === "string" && value.length <= MAX_IDENTIFIER_LENGTH;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isSpecPair(value: unknown): value is JoinSpecPair {
-  return isRecord(value) && isText(value.alias) && isText(value.column) && isText(value.right);
+  return isRecord(value) && isName(value.alias) && isName(value.column) && isName(value.right);
 }
 
 function isSpecStep(value: unknown): value is JoinSpecStep {
   return (
     isRecord(value) &&
-    isText(value.database) &&
-    isText(value.table) &&
-    isText(value.alias) &&
+    isName(value.database) &&
+    isName(value.table) &&
+    isName(value.alias) &&
     (value.kind === "left" || value.kind === "inner") &&
     Array.isArray(value.on) &&
+    value.on.length <= MAX_PAIRS_PER_STEP &&
     value.on.every(isSpecPair)
   );
 }
 
-const isColumnList = (value: unknown): value is string[] => Array.isArray(value) && value.every(isText);
+const isColumnList = (value: unknown): value is string[] => Array.isArray(value) && value.every(isName);
 
-/** The columns wanted per alias, or null when any entry is not a list of column names. */
+/** The columns wanted per alias, or null when there are more aliases than a join holds tables or any entry is not a list of column names. */
 function readOutput(value: Record<string, unknown>): ReadonlyMap<string, readonly string[]> | null {
+  const entries = Object.entries(value);
+  if (entries.length > MAX_STEPS + 1) return null;
   const output = new Map<string, readonly string[]>();
-  for (const [alias, columns] of Object.entries(value)) {
-    if (!isColumnList(columns)) return null;
+  for (const [alias, columns] of entries) {
+    if (!isName(alias) || !isColumnList(columns)) return null;
     output.set(alias, columns);
   }
   return output;
 }
 
-/** Reads a spec back, or null for anything that is not a version-2 join: a broken or foreign link is ignored, not trusted. */
+/**
+ * Reads a spec back, or null for anything that is not a version-2 join: a broken or foreign link is ignored, not
+ * trusted. A link over any of the bounds above (its length, tables, pairs per step, output entries, name length)
+ * reads as broken too.
+ */
 export function decodeJoinSpec(text: string): JoinSpec | null {
+  if (text.length > MAX_SPEC_LENGTH) return null;
   const json = fromBase64Url(text);
   if (json === null) return null;
   let value: unknown;

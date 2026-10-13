@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addTable, buildJoinSql, setKind, setOutput, startJoin, type JoinTable } from "./join-model";
-import { decodeJoinSpec, encodeJoinSpec, restoreJoin } from "./join-spec";
+import { MAX_IDENTIFIER_LENGTH, MAX_PAIRS_PER_STEP, MAX_SPEC_LENGTH, MAX_STEPS, decodeJoinSpec, encodeJoinSpec, restoreJoin } from "./join-spec";
 
 const ORDERS: JoinTable = {
   database: "landing_shop",
@@ -63,6 +63,46 @@ describe("encodeJoinSpec / decodeJoinSpec", () => {
     const step = { database: "curated_shop", table: "customers", alias: "c", kind: "left", on: [] };
     expect(decodeJoinSpec(handWritten({ v: 2, steps: Array.from({ length: 16 }, () => step), output: {} }))).not.toBeNull();
     expect(decodeJoinSpec(handWritten({ v: 2, steps: Array.from({ length: 17 }, () => step), output: {} }))).toBeNull();
+  });
+
+  it("reads a step with more pairs than a key can hold as broken", () => {
+    const pair = { alias: "o", column: "customer_id", right: "customer_id" };
+    const step = (pairs: number) => ({ database: "curated_shop", table: "customers", alias: "c", kind: "left", on: Array.from({ length: pairs }, () => pair) });
+    expect(decodeJoinSpec(handWritten({ v: 2, steps: [step(MAX_PAIRS_PER_STEP)], output: {} }))).not.toBeNull();
+    expect(decodeJoinSpec(handWritten({ v: 2, steps: [step(MAX_PAIRS_PER_STEP + 1)], output: {} }))).toBeNull();
+  });
+
+  it("reads an output naming more tables than a join can hold as broken", () => {
+    const output = (entries: number) => Object.fromEntries(Array.from({ length: entries }, (_, index) => [`t${index}`, ["order_id"]]));
+    expect(decodeJoinSpec(handWritten({ v: 2, steps: [], output: output(MAX_STEPS + 1) }))).not.toBeNull();
+    expect(decodeJoinSpec(handWritten({ v: 2, steps: [], output: output(MAX_STEPS + 2) }))).toBeNull();
+  });
+
+  it("reads a name longer than an identifier can be as broken, wherever it appears", () => {
+    const long = "x".repeat(MAX_IDENTIFIER_LENGTH + 1);
+    const fits = "x".repeat(MAX_IDENTIFIER_LENGTH);
+    const step = { database: "curated_shop", table: "customers", alias: "c", kind: "left", on: [{ alias: "o", column: "customer_id", right: "customer_id" }] };
+    expect(decodeJoinSpec(handWritten({ v: 2, steps: [{ ...step, table: fits }], output: { [fits]: [fits] } }))).not.toBeNull();
+    for (const field of ["database", "table", "alias"]) {
+      expect(decodeJoinSpec(handWritten({ v: 2, steps: [{ ...step, [field]: long }], output: {} }))).toBeNull();
+    }
+    for (const field of ["alias", "column", "right"]) {
+      expect(decodeJoinSpec(handWritten({ v: 2, steps: [{ ...step, on: [{ ...step.on[0], [field]: long }] }], output: {} }))).toBeNull();
+    }
+    expect(decodeJoinSpec(handWritten({ v: 2, steps: [], output: { [long]: ["order_id"] } }))).toBeNull();
+    expect(decodeJoinSpec(handWritten({ v: 2, steps: [], output: { o: [long] } }))).toBeNull();
+  });
+
+  it("reads a spec longer than a link may carry as broken", () => {
+    // Plain ASCII JSON: every 3 characters become 4 of base64url, so the padding sets the spec's length.
+    const overhead = JSON.stringify({ v: 2, steps: [], output: {}, pad: "" }).length;
+    const padded = (pad: number) => handWritten({ v: 2, steps: [], output: {}, pad: "y".repeat(pad) });
+    const fits = padded(Math.floor((MAX_SPEC_LENGTH * 3) / 4) - overhead);
+    const over = padded(Math.floor((MAX_SPEC_LENGTH * 3) / 4) - overhead + 3);
+    expect(fits.length).toBeLessThanOrEqual(MAX_SPEC_LENGTH);
+    expect(over.length).toBeGreaterThan(MAX_SPEC_LENGTH);
+    expect(decodeJoinSpec(fits)).not.toBeNull();
+    expect(decodeJoinSpec(over)).toBeNull();
   });
 
   it("reads an output entry that is not a list of column names as broken", () => {
