@@ -11,7 +11,8 @@ integration is off for this installation) before authorization. A caller refused
 ``VIEW_ETL`` on the whole resource, or a foreign one, never learns whether a deployment
 or run exists.
 
-- A deployment route or an operation is authorized before the orchestrator is called.
+- A deployment route or an operation is authorized before the orchestrator is called; a
+  change to a run, its action on the whole resource before the run is looked up.
 - A run route with a ``RunResolver`` authorizes ``VIEW_ETL`` on the whole resource, then
   asks the orchestrator for the run's deployment, and only then authorizes the run
   target that carries it and makes the call. An unknown run answers ``404`` before its
@@ -379,9 +380,12 @@ def create_router(
     ) -> Awaitable[Response]:
         """A change to the run *run_id* in the orchestrator, targeted like a run's read
         (``VIEW_ETL`` on the whole resource, then its ETL); audited with its new state,
-        never with anything the orchestrator said."""
+        never with anything the orchestrator said. *action* is authorized on the whole
+        resource first: a caller refused it outright never has the orchestrator asked
+        which ETL the run belongs to."""
 
         async def target(orchestrator: Orchestrator) -> Target:
+            await access.require(action, WHOLE)
             return run_target(run_id, await resolved_etl(orchestrator, run_id))
 
         return change(

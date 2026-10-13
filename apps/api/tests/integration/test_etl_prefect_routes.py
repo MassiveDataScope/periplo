@@ -157,3 +157,21 @@ def test_a_change_prefect_accepted_is_202_and_succeeded_though_its_read_back_fai
         ("requested", {}),
         ("succeeded", {"state": new_state}),
     ]
+
+
+@pytest.mark.parametrize(("suffix", "action"), [("cancel", "cancel_run"), ("retry", "retry_run")])
+def test_a_change_to_a_run_with_operating_off_asks_prefect_nothing(
+    tmp_path: Path, suffix: str, action: str
+) -> None:
+    prefect = FakePrefect()
+    controllable(prefect, control_run())
+    audit = _RecordingAudit()
+
+    response = _post(
+        tmp_path, prefect, f"/api/v1/etl/runs/{CONTROL_ID}/{suffix}", audit, operate=False
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "etl_operate_disabled"
+    assert prefect.requests == []
+    assert [(e.action, e.outcome) for e in audit.events] == [(action, "denied")]
