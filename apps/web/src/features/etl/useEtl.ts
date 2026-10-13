@@ -33,7 +33,7 @@ function useVisible(): boolean {
 }
 
 /**
- * The whole list — deployments, the server-computed summary and the live `running` runs — polled every `POLL_MS`
+ * The whole list — deployments, the server-computed summary and the live `running` runs — polled `POLL_MS` after each answer
  * while the tab is visible, so the dashboard's own pulse, running stack and Last 12 bars stay current on their own.
  * A poll or an explicit `reload` never resets to "loading" once a first answer has landed: the list already on
  * screen stays put until the fresh one replaces it, so nothing flashes. Disabled (outside the ETL section), it asks
@@ -52,24 +52,30 @@ export function useEtlList(
   useEffect(() => {
     if (!visible || !enabled) return;
     const abort = new AbortController();
+    let timer: number | undefined;
+    // The next poll is asked only once this one has answered, so a slow answer can never land after a newer one.
     const fetchList = () => {
       client
         .GET("/etl", { signal: abort.signal })
         .then(({ data }) => {
+          // An answer to an effect already cleaned up (a reload, the tab hidden) is not shown.
+          if (abort.signal.aborted) return;
           if (!data) throw new Error("The ETL list response was empty");
           // Unchanged ETLs and runs keep their identity across polls, so memoised rows skip the render.
           setList((current) => ({ kind: "ready", value: stableList(current.kind === "ready" ? current.value : null, data) }));
         })
         .catch((error: unknown) => {
           if (!isAbort(error)) setList((current) => (current.kind === "ready" ? current : failed(error)));
+        })
+        .finally(() => {
+          if (!abort.signal.aborted) timer = window.setTimeout(fetchList, POLL_MS);
         });
     };
     // Immediately on mount, on resume and on an explicit reload: coming back to the tab or acting on a row
     // should show the current list, not one up to POLL_MS old.
     fetchList();
-    const timer = window.setInterval(fetchList, POLL_MS);
     return () => {
-      window.clearInterval(timer);
+      window.clearTimeout(timer);
       abort.abort();
     };
   }, [client, visible, enabled, attempt]);
