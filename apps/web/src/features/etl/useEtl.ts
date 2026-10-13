@@ -126,6 +126,16 @@ function useChange(onChanged: () => void): {
   return { pending, error, make, reset };
 }
 
+type Client = Dependencies["client"];
+
+/** The one request for each change to an ETL: every hook that makes one sends it from here. */
+export const etlChange = {
+  resume: (client: Client, name: string) => client.POST("/etl/{name}/schedule/resume", { params: { path: { name } } }),
+  pause: (client: Client, name: string) => client.POST("/etl/{name}/schedule/pause", { params: { path: { name } } }),
+  archive: (client: Client, name: string) => client.POST("/etl/{name}/archive", { params: { path: { name } }, body: {} }),
+  restore: (client: Client, name: string) => client.POST("/etl/{name}/restore", { params: { path: { name } } }),
+};
+
 /** Resumes or pauses one deployment's schedule; `onChanged` once the orchestrator has answered. */
 export function useSchedule(
   dependencies: Dependencies,
@@ -134,8 +144,8 @@ export function useSchedule(
 ): { pending: boolean; error: ApiError | null; resume: () => Promise<boolean>; pause: () => Promise<boolean> } {
   const { client } = dependencies;
   const { pending, error, make } = useChange(onChanged);
-  const resume = useCallback(() => make(() => client.POST("/etl/{name}/schedule/resume", { params: { path: { name } } })), [client, make, name]);
-  const pause = useCallback(() => make(() => client.POST("/etl/{name}/schedule/pause", { params: { path: { name } } })), [client, make, name]);
+  const resume = useCallback(() => make(() => etlChange.resume(client, name)), [client, make, name]);
+  const pause = useCallback(() => make(() => etlChange.pause(client, name)), [client, make, name]);
   return { pending, error, resume, pause };
 }
 
@@ -147,8 +157,8 @@ export function useArchive(
 ): { pending: boolean; error: ApiError | null; archive: () => Promise<boolean>; restore: () => Promise<boolean> } {
   const { client } = dependencies;
   const { pending, error, make } = useChange(onChanged);
-  const archive = useCallback(() => make(() => client.POST("/etl/{name}/archive", { params: { path: { name } }, body: {} })), [client, make, name]);
-  const restore = useCallback(() => make(() => client.POST("/etl/{name}/restore", { params: { path: { name } } })), [client, make, name]);
+  const archive = useCallback(() => make(() => etlChange.archive(client, name)), [client, make, name]);
+  const restore = useCallback(() => make(() => etlChange.restore(client, name)), [client, make, name]);
   return { pending, error, archive, restore };
 }
 

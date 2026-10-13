@@ -1,7 +1,7 @@
 import type { ApiError } from "@periplo/core/api";
 import { useCallback, useMemo, useState } from "react";
 import type { Dependencies } from "../../app/dependencies";
-import { changeOutcome } from "./useEtl";
+import { changeOutcome, etlChange } from "./useEtl";
 import type { EtlStatus } from "./useEtlStatus";
 
 /** An action a table row takes on its ETL: null once it is done, the API's error otherwise. */
@@ -22,11 +22,11 @@ export function useEtlRowActions(
 ): EtlRowActions {
   const { client } = dependencies;
   const resume = useCallback(
-    (name: string) => changeOutcome(() => client.POST("/etl/{name}/schedule/resume", { params: { path: { name } } }), onChanged),
+    (name: string) => changeOutcome(() => etlChange.resume(client, name), onChanged),
     [client, onChanged],
   );
   const restore = useCallback(
-    (name: string) => changeOutcome(() => client.POST("/etl/{name}/restore", { params: { path: { name } } }), onChanged),
+    (name: string) => changeOutcome(() => etlChange.restore(client, name), onChanged),
     [client, onChanged],
   );
   return useMemo(
