@@ -109,6 +109,7 @@ describe("history", () => {
     expect(() => navigate(database)).toThrow(/install/);
     expect(() => appHistory.previousHash()).toThrow(/install/);
     expect(() => appHistory.currentEntryKey()).toThrow(/install/);
+    expect(() => appHistory.keepsEntry("document:0")).toThrow(/install/);
     expect(() => appHistory.lastMove()).toThrow(/install/);
   });
 

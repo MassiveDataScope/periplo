@@ -134,6 +134,25 @@ describe("useScrollRestoration", () => {
     expect(screen.getByRole("main", { name: "Work area" }).scrollTop).toBe(640);
   });
 
+  it("stops restoring after a reload once the work area unmounts", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const work = reloadScrolledTo(640);
+    cleanup();
+    act(() => vi.runAllTimers());
+    expect(work.scrollTop).toBe(0);
+  });
+
+  it.each([
+    ["wheel", () => new WheelEvent("wheel")],
+    ["keydown", () => new KeyboardEvent("keydown", { key: "PageDown" })],
+  ])("stops restoring after a reload as soon as the user takes over the scroll (%s)", (_, intent) => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const work = reloadScrolledTo(640);
+    work.dispatchEvent(intent());
+    act(() => vi.runAllTimers());
+    expect(work.scrollTop).toBe(0);
+  });
+
   it("forgets the positions of the documents whose trails are gone, so session storage does not grow with every reopening", () => {
     for (const hash of ["#/sql", "#/discovery", "#/etl", "#/d/a", "#/d/b", "#/d/c", "#/d/d"]) {
       appHistory.dispose();
