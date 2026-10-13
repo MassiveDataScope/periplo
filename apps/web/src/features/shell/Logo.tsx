@@ -4,7 +4,11 @@ import styles from "./Logo.module.css";
  * `sm` draws the periscope alone; `lg`, where there is room, adds the waterline and what lies below it,
  * and only there can the periscope rise and lower while something is being read (`busy`).
  */
-export type LogoProps = { readonly size?: "sm"; readonly className?: string } | { readonly size: "lg"; readonly busy?: boolean; readonly className?: string };
+export type LogoProps = LogoBaseProps & ({ readonly size?: "sm" } | { readonly size: "lg"; readonly busy?: boolean });
+
+interface LogoBaseProps {
+  readonly className?: string;
+}
 
 /** The `sm` drawing, shared with the favicon and the docs logo, which the brand icon test holds to it. */
 export const SMALL_LOGO = {
