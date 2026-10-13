@@ -99,6 +99,16 @@ describe("addTable / startJoin", () => {
     expect(def.joins[0]!.pairs).toEqual([{ left: { alias: "o", column: "customer_id" }, right: "customer_id" }]);
   });
 
+  it("matches column names regardless of case, as it already does for `id` and the table name", () => {
+    const upperCustomers: JoinTable = { ...CUSTOMERS, columns: [{ name: "CUSTOMER_ID", type: "int64" }] };
+    expect(addTable(startJoin(ORDERS), upperCustomers).joins[0]!.pairs).toEqual([{ left: { alias: "o", column: "customer_id" }, right: "CUSTOMER_ID" }]);
+    const upperPayments: JoinTable = { ...PAYMENTS, columns: [{ name: "Order_Id", type: "int64" }] };
+    expect(addTable(startJoin(ORDERS), upperPayments).joins[0]!.pairs).toEqual([{ left: { alias: "o", column: "order_id" }, right: "Order_Id" }]);
+    const sharedOnly: JoinTable = { database: "d", table: "stock", columns: [{ name: "SKU_CODE", type: "string" }] };
+    const items: JoinTable = { database: "d", table: "items", columns: [{ name: "sku_code", type: "string" }] };
+    expect(addTable(startJoin(items), sharedOnly).joins[0]!.pairs).toEqual([{ left: { alias: "i", column: "sku_code" }, right: "SKU_CODE" }]);
+  });
+
   it("joins a new table onto the table that owns its key, even when an earlier table shares the column", () => {
     const def = addTable(twoTable(), ADDRESSES);
     expect(def.joins[1]!.pairs).toEqual([{ left: { alias: "c", column: "customer_id" }, right: "customer_id" }]);

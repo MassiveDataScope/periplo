@@ -71,11 +71,16 @@ type PairRank = "owned-by-added" | "owned-by-earlier" | "shared-name";
 
 const PAIR_WEIGHT: Readonly<Record<PairRank, number>> = { "owned-by-added": 3, "owned-by-earlier": 2, "shared-name": 1 };
 
+/** Column names compare case-insensitively everywhere a pair is ranked, as `namesTable` and `id` already do. */
+function sameName(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
+
 function rankPair(mine: JoinColumn, theirs: JoinColumn, left: JoinTable, right: JoinTable): PairRank | null {
   if (!canPair(mine.type, theirs.type)) return null;
-  if (namesTable(mine.name, right.table) && (theirs.name === mine.name || theirs.name.toLowerCase() === "id")) return "owned-by-added";
-  if (namesTable(theirs.name, left.table) && (mine.name === theirs.name || mine.name.toLowerCase() === "id")) return "owned-by-earlier";
-  if (mine.name === theirs.name && isIdentifierName(mine.name)) return "shared-name";
+  if (namesTable(mine.name, right.table) && (sameName(theirs.name, mine.name) || sameName(theirs.name, "id"))) return "owned-by-added";
+  if (namesTable(theirs.name, left.table) && (sameName(mine.name, theirs.name) || sameName(mine.name, "id"))) return "owned-by-earlier";
+  if (sameName(mine.name, theirs.name) && isIdentifierName(mine.name)) return "shared-name";
   return null;
 }
 
