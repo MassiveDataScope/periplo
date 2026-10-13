@@ -23,8 +23,9 @@ export type Route =
   | { readonly kind: "sql" }
   | { readonly kind: "discovery" }
   /** Its own route, so a join can be shared and survives a tab change. Without a table it asks for one first; `arm` is the
-   * column "Join on this column…" armed on arrival. */
-  | { readonly kind: "join"; readonly database?: string; readonly table?: string; readonly arm?: string }
+   * column "Join on this column…" armed on arrival; `spec` is the whole join (`encodeJoinSpec`), kept up to date with
+   * replaced entries so it survives a reload and can be shared. */
+  | { readonly kind: "join"; readonly database?: string; readonly table?: string; readonly arm?: string; readonly spec?: string }
   | EtlSectionRoute;
 
 export function parseRoute(hash: string): Route {
@@ -35,8 +36,10 @@ export function parseRoute(hash: string): Route {
     return { kind: "table", database: rest[0], table: rest[1], tab };
   }
   if (section === "join" && rest.length === 2 && rest[0] && rest[1]) {
-    const arm = new URLSearchParams(search).get("arm");
-    return arm ? { kind: "join", database: rest[0], table: rest[1], arm } : { kind: "join", database: rest[0], table: rest[1] };
+    const params = new URLSearchParams(search);
+    const arm = params.get("arm");
+    const spec = params.get("spec");
+    return { kind: "join", database: rest[0], table: rest[1], ...(arm ? { arm } : {}), ...(spec ? { spec } : {}) };
   }
   if (section === "join" && (rest.length === 0 || (rest.length === 1 && !rest[0]))) return { kind: "join" };
   if (section === "d" && rest.length === 1 && rest[0]) return { kind: "database", database: rest[0] };
@@ -53,14 +56,21 @@ export function viewKey(route: Route): string {
   return href(withEtlListQuery(route, ""));
 }
 
+function joinHref(route: Extract<Route, { readonly kind: "join" }>): string {
+  if (!route.database || !route.table) return "#/join";
+  const params = new URLSearchParams();
+  if (route.arm) params.set("arm", route.arm);
+  if (route.spec) params.set("spec", route.spec);
+  const query = params.toString();
+  return `#/join/${encodeURIComponent(route.database)}/${encodeURIComponent(route.table)}${query ? `?${query}` : ""}`;
+}
+
 export function href(route: Route): string {
   switch (route.kind) {
     case "table":
       return `#/t/${encodeURIComponent(route.database)}/${encodeURIComponent(route.table)}${route.tab === "data" ? "" : `/${route.tab}`}`;
     case "join":
-      return route.database && route.table
-        ? `#/join/${encodeURIComponent(route.database)}/${encodeURIComponent(route.table)}${route.arm ? `?arm=${encodeURIComponent(route.arm)}` : ""}`
-        : "#/join";
+      return joinHref(route);
     case "database":
       return `#/d/${encodeURIComponent(route.database)}`;
     case "layer":

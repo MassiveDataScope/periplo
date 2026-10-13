@@ -53,10 +53,6 @@
   font-weight: var(--nt-font-weight-medium);
 }
 
-.pickerWrap {
-  position: relative;
-}
-
 .addTable {
   display: inline-flex;
   align-items: center;
@@ -71,19 +67,17 @@
   cursor: pointer;
 }
 
-.picker {
-  position: absolute;
-  z-index: 5;
-  inset-block-start: calc(100% + var(--nt-space-1));
-  inset-inline-start: 0;
+/* The table finder sits in the page under the chain, across the whole workspace: it never covers a table. */
+.pickerRow {
+  grid-column: 1 / -1;
   display: grid;
   gap: var(--nt-space-1-5);
-  inline-size: 22rem;
+  max-inline-size: 28rem;
+  margin-inline: var(--nt-space-4);
   padding: var(--nt-space-2);
   border: var(--nt-border-width) solid var(--nt-color-border);
   border-radius: var(--nt-radius-md);
-  background: var(--nt-color-surface-raised);
-  box-shadow: var(--nt-shadow-raised);
+  background: var(--nt-color-surface);
 }
 
 .choices {
@@ -123,12 +117,14 @@
   padding: 0 var(--nt-space-4);
 }
 
+/* Tables that do not fit move to the next line instead of being cut off behind a scrollbar. */
 .board {
   position: relative;
   display: flex;
+  flex-wrap: wrap;
   gap: var(--nt-space-6);
   align-items: flex-start;
-  overflow-x: auto;
+  min-inline-size: 0;
   padding-block-end: var(--nt-space-2);
   /* A pointer drag must not scroll the page or select text while it draws a wire. */
   touch-action: none;

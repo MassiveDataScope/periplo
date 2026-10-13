@@ -102,6 +102,13 @@ function Console({ dependencies, preferences, etl }: AppProps & { readonly etl: 
     window.setTimeout(() => filterRef.current?.focus(), 0);
   }, [searchInWorkArea]);
   const toggleCatalog = useCallback(() => shellRef.current?.toggleCatalog(), []);
+  const joinDatabase = route.kind === "join" ? route.database : undefined;
+  const joinTable = route.kind === "join" ? route.table : undefined;
+  /** Stable while the join's table is, so the workspace does not see a new callback on every render. */
+  const replaceJoinSpec = useCallback(
+    (spec: string | undefined) => replaceRoute({ kind: "join", database: joinDatabase, table: joinTable, ...(spec ? { spec } : {}) }),
+    [joinDatabase, joinTable],
+  );
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "f") {
@@ -266,11 +273,13 @@ function Console({ dependencies, preferences, etl }: AppProps & { readonly etl: 
               database={route.database}
               table={route.table}
               arm={route.arm}
+              spec={route.spec}
               back={back}
               onOpenInEditor={(joinSql) => {
                 setSql(joinSql);
                 navigate({ kind: "sql" });
               }}
+              onSpecChange={replaceJoinSpec}
             />
           ) : null}
           {route.kind === "database" && catalog.kind === "ready" ? (
