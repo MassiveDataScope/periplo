@@ -20,7 +20,7 @@ import { RunDialog } from "./RunDialog";
 import { RunsTable } from "./RunsTable";
 import { ScheduleCard } from "./ScheduleCard";
 import { StuckNotice } from "./StuckNotice";
-import { useEtlRuns, type Etl, type EtlList, type FlowRun } from "./useEtl";
+import { NO_ETLS, useEtlRuns, type Etl, type EtlList, type FlowRun } from "./useEtl";
 import type { EtlStatus } from "./useEtlStatus";
 import { MINUTE_MS, useNow } from "./useNow";
 import { useReloadOn } from "./useReloadOn";
@@ -47,7 +47,6 @@ export interface EtlPageProps {
 /** Runs fetched for the page: enough for the 14-day strip of a daily ETL and the table. */
 const RUNS_LIMIT = 40;
 const NO_RUNS: readonly FlowRun[] = [];
-const NO_ETLS: readonly Etl[] = [];
 
 export function EtlPage({ dependencies, name, status, list, runsNow, onListChanged, selectedRunId, runOnce, onRunOnceTaken }: EtlPageProps) {
   const { t } = useTranslation();

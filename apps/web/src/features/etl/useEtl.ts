@@ -16,6 +16,9 @@ export type RunDetail = components["schemas"]["RunDetail"];
 export type RunLink = components["schemas"]["RunLink"];
 export type LogEntry = components["schemas"]["LogEntry"];
 
+/** The one empty ETL list: the same on every render, so nothing that depends on it sees a change. */
+export const NO_ETLS: readonly Etl[] = [];
+
 /** Cadence of the run and log polls: short enough to feel live, long enough not to hammer the orchestrator. */
 export const POLL_MS = 3_000;
 
