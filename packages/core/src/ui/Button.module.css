@@ -50,3 +50,7 @@
   border-color: var(--nt-color-danger-hover);
   background: var(--nt-color-danger-hover);
 }
+
+.link {
+  text-decoration: none;
+}

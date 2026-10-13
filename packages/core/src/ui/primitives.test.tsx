@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Button, EmptyState, ErrorNotice, Panel, Progress, StatusBar } from ".";
+import { Button, ButtonLink, EmptyState, ErrorNotice, Panel, Progress, StatusBar } from ".";
 
 afterEach(cleanup);
 
@@ -22,6 +22,34 @@ describe("Button", () => {
     render(<Button disabled onClick={onClick} variant="danger">Cancel</Button>);
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onClick).not.toHaveBeenCalled();
+  });
+});
+
+describe("ButtonLink", () => {
+  it("is a real link to its destination, so Cmd+click and copy link work", () => {
+    render(<ButtonLink href="#/join/landing_shop/orders">Join with…</ButtonLink>);
+    const link = screen.getByRole("link", { name: "Join with…" });
+    expect(link.tagName).toBe("A");
+    expect(link.getAttribute("href")).toBe("#/join/landing_shop/orders");
+  });
+
+  it("looks like a Button of the same variant, keeping its own classes", () => {
+    render(
+      <>
+        <Button variant="primary">Run</Button>
+        <ButtonLink href="#/" variant="primary" className="extra">
+          Home
+        </ButtonLink>
+        <ButtonLink href="#/sql">SQL</ButtonLink>
+      </>,
+    );
+    const button = screen.getByRole("button", { name: "Run" });
+    const link = screen.getByRole("link", { name: "Home" });
+    expect(link.getAttribute("data-variant")).toBe("primary");
+    expect(button.classList.length).toBeGreaterThan(0);
+    for (const name of button.classList) expect(link.classList.contains(name)).toBe(true);
+    expect(link.classList.contains("extra")).toBe(true);
+    expect(screen.getByRole("link", { name: "SQL" }).getAttribute("data-variant")).toBe("secondary");
   });
 });
 

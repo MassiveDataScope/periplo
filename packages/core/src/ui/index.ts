@@ -1,4 +1,4 @@
-export { Button, type ButtonProps } from "./Button";
+export { Button, ButtonLink, type ButtonLinkProps, type ButtonProps } from "./Button";
 export { Dialog, type DialogProps, type DialogSize } from "./Dialog";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
 export { ErrorNotice, type ErrorNoticeError, type ErrorNoticeProps } from "./ErrorNotice";

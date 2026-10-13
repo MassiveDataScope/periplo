@@ -2,6 +2,7 @@ import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type 
 import { useTranslation } from "react-i18next";
 import { Icon } from "@periplo/core/ui";
 import { MAX_CATALOG_WIDTH, MIN_CATALOG_WIDTH, usePreferences, type PreferencesStore } from "../../app/preferences";
+import { useScrollRestoration } from "./useScrollRestoration";
 import styles from "./Shell.module.css";
 
 export interface ShellProps {
@@ -40,6 +41,8 @@ export function Shell({ ref, preferences, rail, catalog, stripLabel, routeKey, c
   const [overlayOpen, setOverlayOpen] = useState(false);
   const open = narrow ? overlayOpen : catalogColumn === "open";
   const dragging = useRef<(() => void) | null>(null);
+  const workRef = useRef<HTMLElement>(null);
+  useScrollRestoration(workRef);
   useEffect(() => () => dragging.current?.(), []);
 
   const bring = () => (narrow ? setOverlayOpen(true) : preferences.update({ catalogColumn: "open" }));
@@ -129,7 +132,7 @@ export function Shell({ ref, preferences, rail, catalog, stripLabel, routeKey, c
           />
         ) : null}
       </aside>
-      <main aria-label={t("shell.workArea")} className={styles.work}>
+      <main ref={workRef} aria-label={t("shell.workArea")} className={styles.work}>
         {children}
       </main>
     </div>
