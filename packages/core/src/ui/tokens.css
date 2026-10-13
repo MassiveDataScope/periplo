@@ -34,6 +34,8 @@
   --nt-color-border-subtle: light-dark(#e4e9e7, #1f2627); /* NEW grid row lines (decorative) */
   --nt-color-border: light-dark(#d3dad8, #2a3334); /* region separators (decorative)  */
   --nt-color-border-strong: light-dark(#7b8583, #6c7876); /* control outlines, ≥3:1          */
+  /* the current entry's bar in a navigation list: "you are here" without colour or a label, ≥3:1 on surface and surface-hover; the text's ink */
+  --nt-color-indicator: light-dark(#141819, #e6ebea);
 
   /* ── Accent (sea teal, shared with massivedatascope.info) ──────────────── */
   --nt-color-accent: light-dark(#2b6b65, #7dbdb3);

@@ -70,6 +70,17 @@ describe("design tokens", () => {
     expect(contrastRatio(colour.dark, surface.dark)).toBeGreaterThanOrEqual(3);
   });
 
+  it("keeps the current-entry indicator visible (>= 3:1) on the entry's hover surface and the chrome surface, in both themes", () => {
+    const indicator = lightDark("--nt-color-indicator");
+    const hover = lightDark("--nt-color-surface-hover");
+    const surface = lightDark("--nt-color-surface");
+
+    expect(contrastRatio(indicator.light, hover.light)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(indicator.light, surface.light)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(indicator.dark, hover.dark)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(indicator.dark, surface.dark)).toBeGreaterThanOrEqual(3);
+  });
+
   it("defines the running-state tokens, with the marching stripe stopped under reduced motion", () => {
     expect(tokens).toContain("--nt-color-state-run:");
     expect(tokens).toContain("--nt-color-state-run-stripe:");

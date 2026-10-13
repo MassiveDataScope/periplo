@@ -108,8 +108,9 @@ nav.items {
   cursor: not-allowed;
 }
 
-/* Where you are: the strong weight says it without colour, the hover surface stays on, and the brand's
-   dot at the edge is the periscope's lens saying "here" — a signature, not the signal. */
+/* Where you are: a bar in the indicator token at the entry's inline start, kept when the rail is collapsed
+   and the label is gone, plus the strong weight and the hover surface while it is expanded. The brand's dot
+   outside the entry's edge is the periscope's lens saying "here": a signature, not the signal. */
 .item[aria-current="page"],
 .item[data-current="true"] {
   background: var(--nt-color-surface-hover);
@@ -128,6 +129,17 @@ nav.items {
   border-radius: var(--nt-radius-full);
   background: var(--nt-color-brand);
   transform: translateY(-50%);
+}
+
+.item[aria-current="page"]::after,
+.item[data-current="true"]::after {
+  content: "";
+  position: absolute;
+  inset-block: var(--nt-space-2);
+  inset-inline-start: var(--nt-space-0-5);
+  inline-size: var(--nt-space-0-5);
+  border-radius: var(--nt-radius-full);
+  background: var(--nt-color-indicator);
 }
 
 .brand:focus-visible,
