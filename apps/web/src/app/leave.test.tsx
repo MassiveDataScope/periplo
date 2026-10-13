@@ -1,7 +1,7 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { appHistory } from "./history";
-import { backDestination, goBackTo, leaveOnClick, parentOf } from "./leave";
+import { goBackTo, leaveOnClick, parentOf, useBackDestination } from "./leave";
 import { href, navigate, type Route } from "./routes";
 
 const home: Route = { kind: "home" };
@@ -54,11 +54,12 @@ describe("leave", () => {
     expect(appHistory.lastMove()).toBe("new");
   });
 
-  it("leads 'Back to …' where this tab came from, or to the view's parent on a direct link", () => {
-    expect(backDestination(table)).toEqual(database);
-    navigate({ kind: "sql" });
-    navigate(table);
-    expect(backDestination(table)).toEqual({ kind: "sql" });
+  it("leads 'Back to …' where this tab came from, or to the view's parent on a direct link, following every move", () => {
+    const { result } = renderHook(() => useBackDestination(table));
+    expect(result.current).toEqual(database);
+    act(() => navigate({ kind: "sql" }));
+    act(() => navigate(table));
+    expect(result.current).toEqual({ kind: "sql" });
   });
 
   it("gives every view a logical parent for when there is no previous entry", () => {

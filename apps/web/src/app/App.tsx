@@ -26,7 +26,7 @@ import type { Loadable } from "../api/loadable";
 import { previewSql } from "../api/sql";
 import { BRAND } from "./brand";
 import type { Dependencies } from "./dependencies";
-import { backDestination } from "./leave";
+import { useBackDestination } from "./leave";
 import { usePreferences, type PreferencesStore } from "./preferences";
 import { href, navigate, replaceRoute, useHashRoute, type Route } from "./routes";
 import { ETL_UNDER_CONSTRUCTION } from "./sections";
@@ -68,7 +68,7 @@ function ConsoleWithEtl(props: AppProps) {
 function Console({ dependencies, preferences, etl }: AppProps & { readonly etl: EtlSection }) {
   const { t } = useTranslation();
   const route = useHashRoute();
-  const back = backDestination(route);
+  const back = useBackDestination(route);
   const { catalog, sources, discovering, reload, rediscover } = useCatalogData(dependencies);
   const etlUnderConstruction = etl.kind === "under-construction";
   const etlStatus = etl.kind === "ready" && etl.value.configured ? etl.value : null;
