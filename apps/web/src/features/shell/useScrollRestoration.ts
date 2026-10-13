@@ -12,12 +12,13 @@ function isPosition(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-/**
- * Drops the positions of documents whose trails are gone, then stores the rest. Positions live on in
- * memory for this page when the storage is full or blocked.
- */
-function savePositions(positions: Record<string, number>): void {
+/** Deletes from `positions`, in place, those of documents whose trails the history registry no longer keeps. */
+function forgetDiscardedDocuments(positions: Record<string, number>): void {
   for (const key of Object.keys(positions)) if (!appHistory.keepsEntry(key)) delete positions[key];
+}
+
+/** Positions live on in memory for this page when the storage is full or blocked. */
+function savePositions(positions: Readonly<Record<string, number>>): void {
   writeSessionJson(STORAGE_KEY, positions);
 }
 
@@ -52,6 +53,11 @@ export function useScrollRestoration(ref: RefObject<HTMLElement | null>): void {
       );
     };
 
+    const pruneAndSave = () => {
+      forgetDiscardedDocuments(positions);
+      savePositions(positions);
+    };
+
     const onScroll = () => {
       if (!restoring) positions[appHistory.currentEntryKey()] = element.scrollTop;
     };
@@ -64,7 +70,7 @@ export function useScrollRestoration(ref: RefObject<HTMLElement | null>): void {
       const move = appHistory.lastMove();
       // A new entry may take the place of one cut off from the trail: that one's position is not its own.
       if (move === "new") delete positions[appHistory.currentEntryKey()];
-      savePositions(positions);
+      pruneAndSave();
       if (move === "replace") return;
       restore(positions[appHistory.currentEntryKey()] ?? 0);
     };
@@ -76,7 +82,7 @@ export function useScrollRestoration(ref: RefObject<HTMLElement | null>): void {
     element.addEventListener("scroll", onScroll, { passive: true });
     for (const type of USER_INTENT_EVENTS) element.addEventListener(type, onUserIntent, { passive: true });
     const unsubscribe = appHistory.subscribe(onMove);
-    const onHide = () => savePositions(positions);
+    const onHide = pruneAndSave;
     window.addEventListener("pagehide", onHide);
     return () => {
       cancel();
@@ -84,7 +90,7 @@ export function useScrollRestoration(ref: RefObject<HTMLElement | null>): void {
       element.removeEventListener("scroll", onScroll);
       for (const type of USER_INTENT_EVENTS) element.removeEventListener(type, onUserIntent);
       window.removeEventListener("pagehide", onHide);
-      savePositions(positions);
+      pruneAndSave();
     };
   }, [ref]);
 }
