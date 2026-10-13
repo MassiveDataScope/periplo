@@ -30,6 +30,9 @@ services:
       # WARNING: with ALLOW_OPERATE on, anyone who can reach the pod can run, resume or pause
       # ETLs, because the console has no authentication yet.
       PERIPLO_ETL_ALLOW_OPERATE: ${PERIPLO_ETL_ALLOW_OPERATE:-false}
+      # Empty (unset) follows PERIPLO_ETL_ALLOW_OPERATE.
+      PERIPLO_ETL_ALLOW_ARCHIVE: ${PERIPLO_ETL_ALLOW_ARCHIVE:-}
+      PERIPLO_ETL_FACETS: ${PERIPLO_ETL_FACETS:-}
       PERIPLO_PREFECT_TIMEOUT_SECONDS: ${PERIPLO_PREFECT_TIMEOUT_SECONDS:-10}
       PERIPLO_ETL_LOG_NOISE: ${PERIPLO_ETL_LOG_NOISE:-}
       # Credentials come from the default AWS chain; nothing else configures storage yet.
