@@ -3971,6 +3971,66 @@ async def test_retry_refused_by_prefect_is_not_retryable() -> None:
         await orchestrator(fake).retry_run(CONTROL_ID, by=None)
 
 
+def failing_reads_after_set_state(fake: FakePrefect) -> None:
+    """Prefect accepts ``set_state``, then stops answering run reads."""
+    set_state = fake.routes[("POST", f"/flow_runs/{CONTROL_ID}/set_state")]
+
+    def accept_then_fail(body: dict[str, Any]) -> httpx2.Response:
+        answer: httpx2.Response = set_state(body)
+        fake.on("POST", "/flow_runs/filter", {"detail": "down"}, status=500)
+        return answer
+
+    fake.respond("POST", f"/flow_runs/{CONTROL_ID}/set_state", accept_then_fail)
+
+
+@pytest.mark.asyncio
+async def test_an_accepted_cancel_whose_read_back_fails_answers_its_new_state() -> None:
+    fake = FakePrefect()
+    controllable(fake, control_run())
+    failing_reads_after_set_state(fake)
+
+    detail = await orchestrator(fake, now=lambda: CONTROL_NOW).cancel_run(
+        CONTROL_ID, force=False, by=None
+    )
+
+    assert set_state_bodies(fake) != []
+    assert (detail.id, detail.state, detail.terminal, detail.deployment_name) == (
+        CONTROL_ID,
+        "CANCELLING",
+        False,
+        "daily-orders",
+    )
+
+
+@pytest.mark.asyncio
+async def test_an_accepted_retry_whose_read_back_fails_answers_its_new_state() -> None:
+    fake = FakePrefect()
+    controllable(fake, control_run(state_type="FAILED", state_name="Failed"))
+    failing_reads_after_set_state(fake)
+
+    detail = await orchestrator(fake).retry_run(CONTROL_ID, by=None)
+
+    assert (detail.id, detail.state, detail.terminal) == (CONTROL_ID, "SCHEDULED", False)
+
+
+@pytest.mark.asyncio
+async def test_a_reject_that_sets_another_state_answers_that_state_when_the_read_back_fails() -> (
+    None
+):
+    fake = FakePrefect()
+    scheduled = control_run(
+        state_type="SCHEDULED", state_name="Scheduled", start_time=None, infrastructure_pid="pid"
+    )
+    controllable(fake, scheduled, outcome="REJECT", answer_state="CANCELLED")
+    failing_reads_after_set_state(fake)
+
+    detail = await orchestrator(fake, now=lambda: CONTROL_NOW).cancel_run(
+        CONTROL_ID, force=False, by=None
+    )
+
+    assert (detail.state, detail.terminal) == ("CANCELLED", True)
+
+
 @pytest.mark.asyncio
 async def test_a_run_outside_the_tags_is_unknown_and_never_changed() -> None:
     fake = FakePrefect()

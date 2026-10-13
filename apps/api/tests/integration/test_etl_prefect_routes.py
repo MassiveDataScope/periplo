@@ -8,13 +8,19 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from periplo.access import AuditEvent
 from periplo.bootstrap import create_app
 from periplo.etl.adapters.prefect import PrefectOrchestrator
+from periplo.extensions import Extensions
 from periplo.settings import Settings
 from tests.unit.etl.test_prefect_adapter import (
     BASE_URL,
+    CONTROL_ID,
     FakePrefect,
+    control_run,
+    controllable,
     deployment_json,
+    failing_reads_after_set_state,
     run_json,
 )
 
@@ -99,3 +105,55 @@ def test_an_unknown_run_with_valid_input_is_404(tmp_path: Path, prefect: FakePre
 
     assert response.status_code == 404
     assert response.json() == UNKNOWN
+
+
+# --- cancel and retry over the adapter: audited as what happened in Prefect ----------------
+
+
+class _RecordingAudit:
+    def __init__(self) -> None:
+        self.events: list[AuditEvent] = []
+
+    async def record(self, event: AuditEvent) -> None:
+        self.events.append(event)
+
+
+def _post(
+    tmp_path: Path, prefect: FakePrefect, path: str, audit: _RecordingAudit, *, operate: bool
+) -> Any:
+    orchestrator = PrefectOrchestrator(BASE_URL, transport=prefect.transport())
+    app = create_app(
+        write_lake(tmp_path),
+        settings=Settings(etl_allow_operate=operate),
+        lister=LocalLister(),
+        opener=CountingOpener(),
+        orchestrator=orchestrator,
+        extensions=Extensions(audit=audit),
+    )
+    with TestClient(app) as client:
+        wait_ready(client)
+        return client.post(path, json={})
+
+
+@pytest.mark.parametrize(
+    ("suffix", "run_state", "new_state"),
+    [("cancel", "RUNNING", "CANCELLING"), ("retry", "FAILED", "SCHEDULED")],
+)
+def test_a_change_prefect_accepted_is_202_and_succeeded_though_its_read_back_fails(
+    tmp_path: Path, suffix: str, run_state: str, new_state: str
+) -> None:
+    prefect = FakePrefect()
+    controllable(prefect, control_run(state_type=run_state, state_name=run_state.title()))
+    failing_reads_after_set_state(prefect)
+    audit = _RecordingAudit()
+
+    response = _post(
+        tmp_path, prefect, f"/api/v1/etl/runs/{CONTROL_ID}/{suffix}", audit, operate=True
+    )
+
+    assert response.status_code == 202
+    assert response.json()["state"] == new_state
+    assert [(e.outcome, e.detail) for e in audit.events] == [
+        ("requested", {}),
+        ("succeeded", {"state": new_state}),
+    ]

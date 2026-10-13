@@ -1102,31 +1102,34 @@ class PrefectOrchestrator:
 
     async def cancel_run(self, run_id: str, *, force: bool, by: str | None) -> RunDetail:
         """See :mod:`periplo.etl.run_control` for the state proposed and why."""
+        before = await self.get_run(run_id)
         run = await self._resolve_run(run_id)
         proposal = cancel_proposal(_run_facts(run), now=self._now(), force=force)
-        await self._propose(
+        state = await self._propose(
             run,
             proposal,
             message=_signed("Cancelled from Periplo", by),
             refused=NotCancellable("The orchestrator refused to cancel this run"),
         )
-        return await self._reread(run_id)
+        return await self._reread(before, state)
 
     async def retry_run(self, run_id: str, *, by: str | None) -> RunDetail:
         """See :mod:`periplo.etl.run_control`: the same run, scheduled again."""
+        before = await self.get_run(run_id)
         run = await self._resolve_run(run_id)
         proposal = retry_proposal(_run_facts(run))
-        await self._propose(
+        state = await self._propose(
             run,
             proposal,
             message=_signed("Retried from Periplo", by),
             refused=NotRetryable("The orchestrator refused to retry this run"),
         )
-        return await self._reread(run_id)
+        return await self._reread(before, state)
 
     async def _propose(
         self, run: _PrefectRun, proposal: StateProposal, *, message: str, refused: EtlError
-    ) -> None:
+    ) -> RunState:
+        """The state the run is in once Prefect took the proposal, or raises *refused*."""
         run_id = run.id
         state = {"type": proposal.type, "name": proposal.name, "message": message}
         result = await self._post(
@@ -1141,12 +1144,29 @@ class PrefectOrchestrator:
             )
             raise refused
         _log.info("etl.state_proposed", run_id=run_id, proposed=proposal.type, force=proposal.force)
+        if result.status == "ACCEPT" or result.state is None:
+            return proposal.type
+        return result.state.type
 
-    async def _reread(self, run_id: str) -> RunDetail:
-        """The run read afresh, and the lists dropped: both must show the change at once."""
-        self._run_cache.pop(run_id, None)
+    async def _reread(self, before: RunDetail, state: RunState) -> RunDetail:
+        """The run read afresh, and the lists dropped: both must show the change at once.
+
+        The change is already made: a read that fails answers *before*, the run as read
+        ahead of the change, in its new *state*, rather than an error.
+        """
+        self._run_cache.pop(before.id, None)
         self._invalidate_lists()
-        return await self.get_run(run_id)
+        try:
+            return await self.get_run(before.id)
+        except EtlError as error:
+            _log.warning("etl.change_not_read_back", run_id=before.id, code=error.code)
+            return msgspec.structs.replace(
+                before,
+                state=state,
+                state_message=None,
+                state_since=None,
+                terminal=state in TERMINAL_STATES,
+            )
 
     async def _resolve_deployment(self, name: str) -> _PrefectDeployment:
         filters: dict[str, Any] = {"name": {"any_": [name]}}

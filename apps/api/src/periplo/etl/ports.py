@@ -540,12 +540,18 @@ class Orchestrator(Protocol):
         must be stopped, ``CANCELLED`` for one with nothing to stop or one ``force``d after
         being stuck cancelling. ``by`` is who asked, for the orchestrator's own record.
 
+        Once the orchestrator took the change, never raises: a re-read that fails answers
+        the run as read before the change, in its new state.
+
         Raises ``NotCancellable`` for a run in a state that cannot be cancelled (or forced).
         """
         ...
 
     async def retry_run(self, run_id: str, *, by: str | None) -> RunDetail:
         """Schedule a failed or crashed ``run_id`` again as the same run; re-read it.
+
+        Once the orchestrator took the change, never raises: a re-read that fails answers
+        the run as read before the change, in its new state.
 
         Raises ``NotRetryable`` for any other run, or one without a deployment.
         """
