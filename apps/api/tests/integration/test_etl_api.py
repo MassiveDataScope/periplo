@@ -25,6 +25,7 @@ from periplo.etl.errors import (
     Upstream,
 )
 from periplo.etl.facets import FacetConfig
+from periplo.etl.http import ListedEtl, ListedEtls
 from periplo.etl.ports import (
     Attempt,
     Deployment,
@@ -433,6 +434,13 @@ def test_lists_the_deployments_as_the_adapter_gave_them(
     # Each ETL with Periplo's own archive state, after the orchestrator's fields.
     listing["etls"] = [{**etl, "archived": None} for etl in listing["etls"]]
     assert response.json() == listing
+
+
+def test_the_listed_shapes_keep_every_field_of_the_port_ones() -> None:
+    """``ListedEtls`` restates ``EtlList`` field by field: a field added to the port must
+    reach the answer too, and each ETL only gains its archive state, last."""
+    assert ListedEtls.__struct_fields__ == EtlList.__struct_fields__
+    assert ListedEtl.__struct_fields__ == (*Deployment.__struct_fields__, "archived")
 
 
 def test_lists_runs_with_the_limit_asked(client: TestClient, fake: FakeOrchestrator) -> None:
