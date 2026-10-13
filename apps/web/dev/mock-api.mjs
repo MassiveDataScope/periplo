@@ -1088,7 +1088,7 @@ inventoryRuns.slice(retriedRunsAt, retriedRunsAt + 2).forEach((run, index) => {
 archives.set("orders_snapshot_backfill_by_month", { at: new Date(Date.now() - 3 * DAY_MS).toISOString(), by: null, reason: "One-off backfill, done" });
 archives.set("staging_orders_dev", { at: new Date(Date.now() - 2 * DAY_MS).toISOString(), by: null, reason: null });
 
-// Cancel and retry as the API asks Prefect for them (see the API's `run_control`), with the worker played by timers: a
+// Cancel and retry as the API asks Prefect for them (see the API's `prefect_run_control`), with the worker played by timers: a
 // started run is stopped a few seconds after it turns CANCELLING; one that never started is CANCELLED at once; a
 // retried run is the same run, scheduled, then running again (one more attempt, its first start kept, as Prefect does),
 // then completed.

@@ -6,14 +6,14 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from periplo.etl.errors import NotCancellable, NotRetryable
-from periplo.etl.run_control import (
+from periplo.etl.adapters.prefect_run_control import (
     FORCE_CANCEL_AFTER,
     RunFacts,
     StateProposal,
     cancel_proposal,
     retry_proposal,
 )
+from periplo.etl.errors import NotCancellable, NotRetryable
 
 NOW = datetime(2026, 10, 8, 9, 0, tzinfo=UTC)
 _FORCE_AFTER_MINUTES = f"{FORCE_CANCEL_AFTER // timedelta(minutes=1)} minutes"

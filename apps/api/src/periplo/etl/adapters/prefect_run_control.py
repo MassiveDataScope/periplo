@@ -29,7 +29,9 @@ Cancel
     attempt's (a ``start_time`` alone would leave it in ``CANCELLING``). Every other
     cancellable run is proposed ``CANCELLING`` without ``force``, under the server's own
     rules; a retried attempt not started but with an ``infrastructure_pid`` may wait there
-    for a worker, and then needs Force cancel.
+    for a worker, and then needs Force cancel. The adapter reads the run again right
+    before forcing it and decides on that read, so a run a worker has started or given
+    infrastructure since is proposed ``CANCELLING``.
 
     Force cancel: a run left in ``CANCELLING`` for ``FORCE_CANCEL_AFTER`` (nobody stopped
     it: no worker, or a job already gone) may be forced to ``CANCELLED``. Forcing skips the

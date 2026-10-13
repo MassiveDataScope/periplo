@@ -36,6 +36,12 @@ from periplo.etl.adapters.prefect_chains import (
     automation_of,
 )
 from periplo.etl.adapters.prefect_decode import decode_field
+from periplo.etl.adapters.prefect_run_control import (
+    RunFacts,
+    StateProposal,
+    cancel_proposal,
+    retry_proposal,
+)
 from periplo.etl.errors import (
     ETL_NOT_KNOWN,
     RUN_NOT_KNOWN,
@@ -77,7 +83,6 @@ from periplo.etl.ports import (
     TriggerKind,
     Upcoming,
 )
-from periplo.etl.run_control import RunFacts, StateProposal, cancel_proposal, retry_proposal
 from periplo.etl.tasks import (
     FlowStateIn,
     TaskRunIn,
@@ -1101,7 +1106,7 @@ class PrefectOrchestrator:
         return deployment
 
     async def cancel_run(self, run_id: str, *, force: bool, by: str | None) -> RunDetail:
-        """See :mod:`periplo.etl.run_control` for the state proposed and why."""
+        """See :mod:`periplo.etl.adapters.prefect_run_control` for the state proposed and why."""
         before = await self.get_run(run_id)
         run = await self._resolve_run(run_id)
         proposal = cancel_proposal(_run_facts(run), now=self._now(), force=force)
@@ -1120,7 +1125,7 @@ class PrefectOrchestrator:
         return await self._reread(before, state)
 
     async def retry_run(self, run_id: str, *, by: str | None) -> RunDetail:
-        """See :mod:`periplo.etl.run_control`: the same run, scheduled again."""
+        """See :mod:`periplo.etl.adapters.prefect_run_control`: the same run, scheduled again."""
         before = await self.get_run(run_id)
         run = await self._resolve_run(run_id)
         proposal = retry_proposal(_run_facts(run))
