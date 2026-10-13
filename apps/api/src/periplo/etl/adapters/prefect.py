@@ -1105,6 +1105,12 @@ class PrefectOrchestrator:
         before = await self.get_run(run_id)
         run = await self._resolve_run(run_id)
         proposal = cancel_proposal(_run_facts(run), now=self._now(), force=force)
+        if proposal.force and not force:
+            # A forced state skips Prefect's rules: decided again on the run as it is now,
+            # so one a worker has started or given infrastructure since is asked for
+            # CANCELLING instead.
+            run = await self._resolve_run(run_id)
+            proposal = cancel_proposal(_run_facts(run), now=self._now(), force=False)
         state = await self._propose(
             run,
             proposal,
