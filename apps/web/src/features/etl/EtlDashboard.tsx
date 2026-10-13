@@ -1,6 +1,6 @@
 import { useMemo, useRef, type Ref } from "react";
 import { useTranslation } from "react-i18next";
-import { ErrorNotice, Icon, Progress } from "@periplo/core/ui";
+import { ErrorNotice, Icon, Progress, TitleMark } from "@periplo/core/ui";
 import type { Dependencies } from "../../app/dependencies";
 import { href, navigate, replaceRoute, useHashRoute, type EtlTab, type Route } from "../../app/routes";
 import { formatAge, formatClock } from "../../i18n/format";
@@ -194,7 +194,10 @@ function Header({
         <Icon name="pipeline" className={homeStyles.markIcon} />
       </span>
       <div>
-        <h2 className={homeStyles.title}>{t("etl.title")}</h2>
+        <h2 className={homeStyles.title}>
+          {t("etl.title")}
+          <TitleMark />
+        </h2>
         <p className={homeStyles.summary}>
           {t("etl.dashboard.summary.etls", { count: etls.length })}
           {" · "}

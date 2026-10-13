@@ -4,6 +4,7 @@ import { usePreferences, type PreferencesStore } from "../../app/preferences";
 import { href, type Route } from "../../app/routes";
 import type { Brand } from "../../app/brand";
 import { Logo } from "./Logo";
+import { Wordmark } from "./Wordmark";
 import styles from "./NavRail.module.css";
 
 export interface NavRailProps {
@@ -75,8 +76,7 @@ export function NavRail({ preferences, route, troubled, etl, etlUnderConstructio
   return (
     <div className={styles.rail} data-collapsed={railCollapsed}>
       <a className={styles.brand} href={href({ kind: "home" })} aria-label={t("app.name")} title={t("app.name")}>
-        <Logo size={railCollapsed ? "sm" : "md"} className={styles.logo} />
-        <span className={styles.wordmark}>{t("app.wordmark")}</span>
+        {railCollapsed ? <Logo size="sm" className={styles.logo} /> : <Wordmark className={styles.wordmark} />}
       </a>
       {brand?.name ? (
         <div className={styles.workspace} title={`${t("nav.workspace")}: ${brand.name}`}>

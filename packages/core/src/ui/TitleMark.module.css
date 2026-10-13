@@ -1,0 +1,5 @@
+.mark {
+  color: var(--nt-color-brand);
+  /* A signature, not punctuation: copying the title copies the words alone. */
+  user-select: none;
+}

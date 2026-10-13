@@ -1,7 +1,6 @@
 {
   "app": {
-    "name": "Periplo",
-    "wordmark": "periplo"
+    "name": "Periplo"
   },
   "catalog": {
     "tableCount_one": "{{count}} table",

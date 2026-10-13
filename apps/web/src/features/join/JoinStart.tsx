@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Icon } from "@periplo/core/ui";
+import { Icon, TitleMark } from "@periplo/core/ui";
 import { href } from "../../app/routes";
 import { tableKey, type Catalog } from "../catalog-tree/catalog-model";
 import { matchTokens } from "../catalog-tree/names";
@@ -23,7 +23,10 @@ export function JoinStart({ catalog, suggested }: { catalog: Catalog | null; sug
   }, [catalog, search]);
   return (
     <div className={styles.start}>
-      <h2 className={styles.startTitle}>{t("join.startTitle")}</h2>
+      <h2 className={styles.startTitle}>
+        {t("join.startTitle")}
+        <TitleMark />
+      </h2>
       <p className={styles.startHint}>{t("join.startHint")}</p>
       <ol className={styles.startSteps}>
         <li>{t("join.step1")}</li>
