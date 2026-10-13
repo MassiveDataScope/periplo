@@ -828,6 +828,23 @@ function batch(start, rows) {
   }).batches[0];
 }
 
+// The join check (`buildCheckJoinSql`) answers one row per step. The figures are plausible for a lookup:
+// every order finds its customer, customer ids repeat across orders, and each customer appears once.
+function checkJoinBatch(sql) {
+  const steps = [...sql.matchAll(/SELECT (\d+) AS step_order, '([^']+)' AS step/g)].map((m) => ({ order: Number(m[1]), alias: m[2] }));
+  const n = (value) => steps.map(() => value);
+  return new Table({
+    step_order: vectorFromArray(steps.map((s) => s.order), new Int32()),
+    step: vectorFromArray(steps.map((s) => s.alias), new Utf8()),
+    matched: vectorFromArray(n(12_398_760), new Int32()),
+    left_without_match: vectorFromArray(n(1_240), new Int32()),
+    right_without_match: vectorFromArray(n(312), new Int32()),
+    rows_after_join: vectorFromArray(n(12_400_000), new Int32()),
+    left_repeated_keys: vectorFromArray(n(48_210), new Int32()),
+    right_repeated_keys: vectorFromArray(n(0), new Int32()),
+  }).batches[0];
+}
+
 async function runQuery(req, res, body) {
   const sql = String(body.sql ?? "");
   if (!/^\s*(select|with)\b/i.test(sql)) return fail(res, 400, "sql_not_allowed", "Only read queries are allowed");
@@ -853,6 +870,13 @@ async function runQuery(req, res, body) {
   writer.pipe(res);
   res.on("close", () => query.state === "running" && (query.state = "cancelled"));
 
+  if (/ AS step_order, /.test(sql)) {
+    const checkBatch = checkJoinBatch(sql);
+    writer.write(checkBatch);
+    query.rows = checkBatch.numRows;
+    query.state = "completed";
+    return writer.end();
+  }
   // `-- slow` streams visibly; `-- break` cuts the stream to exercise the partial-result path.
   const delay = /--\s*slow/i.test(sql) ? 400 : 30;
   for (let start = 0; start < maxRows && query.state === "running"; start += BATCH_ROWS) {

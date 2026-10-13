@@ -126,7 +126,7 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
   const [def, setDef] = useState<JoinDefinition | null>(null);
   const [armed, setArmed] = useState<Armed | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
-  /** Pair keys (`alias:column`) that came from `suggestPairs`, untouched since: dashed in the band and the wires. */
+  /** Pair keys (`alias:column`) that `addTable` proposed, untouched since: dashed in the band and the wires. */
   const [suggestedKeys, setSuggestedKeys] = useState<ReadonlySet<string>>(new Set());
   const [status, setStatus] = useState("");
   const [pickerOpen, setPickerOpen] = useState(true);
@@ -166,8 +166,8 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
   const checkSettled = settled(checkSession.state, checkGeneration);
   const checkResults: readonly CheckJoinResult[] | null = useMemo(() => {
     if (!checkSettled || checkSession.state.kind !== "completed" || !checkSession.resource) return null;
-    return readCheckJoin(rowsOf(checkSession.resource, checkSession.state.rows));
-  }, [checkSettled, checkSession.state, checkSession.resource]);
+    return readCheckJoin(rowsOf(checkSession.resource, checkSession.state.rows), def?.joins.map((step) => step.alias) ?? []);
+  }, [checkSettled, checkSession.state, checkSession.resource, def]);
 
   useEffect(() => {
     if (checkSettled && checkSession.state.kind === "completed") setCheckState("done");

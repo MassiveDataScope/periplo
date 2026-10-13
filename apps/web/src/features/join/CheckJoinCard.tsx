@@ -2,10 +2,23 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@periplo/core/ui";
 import type { TranslationKey } from "../../i18n";
 import { formatCount } from "../../i18n/format";
-import type { CheckJoinResult } from "./join-model";
+import type { CheckJoinResult, JoinRelation } from "./join-model";
 import styles from "./JoinWorkspace.module.css";
 
 const FACTOR_WARNINGS: Record<"warn" | "bad", TranslationKey> = { warn: "join.factorWarning.warn", bad: "join.factorWarning.bad" };
+
+const RELATION_VALUES: Record<JoinRelation, TranslationKey> = {
+  "one-to-one": "join.relationValue.one-to-one",
+  "many-to-one": "join.relationValue.many-to-one",
+  "one-to-many": "join.relationValue.one-to-many",
+  "many-to-many": "join.relationValue.many-to-many",
+};
+const RELATION_HINTS: Record<JoinRelation, TranslationKey> = {
+  "one-to-one": "join.relationHint.one-to-one",
+  "many-to-one": "join.relationHint.many-to-one",
+  "one-to-many": "join.relationHint.one-to-many",
+  "many-to-many": "join.relationHint.many-to-many",
+};
 
 export type CheckJoinState = "idle" | "running" | "done" | "stale" | "unavailable";
 
@@ -26,7 +39,7 @@ function grade(factor: number): "ok" | "warn" | "bad" {
   return "ok";
 }
 
-/** One read-only query, run on demand: matched rows, unmatched on each side, and how much each step multiplies the row count. */
+/** One read-only query, run on demand: matched rows, unmatched on each side, how much each step multiplies the row count, and the relation the data shows. */
 export function CheckJoinCard({ state, results, language, onCheck }: CheckJoinCardProps) {
   const { t } = useTranslation();
   return (
@@ -48,6 +61,8 @@ export function CheckJoinCard({ state, results, language, onCheck }: CheckJoinCa
         <ul aria-label={t("join.checkResults")} className={styles.checkList}>
           {results.map((result) => {
             const tone = grade(result.factor);
+            // Many-to-many explains the fan-out by itself: one alert, not two.
+            const manyToMany = result.relation === "many-to-many";
             return (
               <li key={result.alias} className={styles.checkRow} data-tone={tone}>
                 <span className={styles.aliasChip}>{result.alias}</span>
@@ -68,12 +83,25 @@ export function CheckJoinCard({ state, results, language, onCheck }: CheckJoinCa
                     <dt>{t("join.factor")}</dt>
                     <dd data-tone={tone}>×{result.factor.toFixed(2)}</dd>
                   </div>
+                  <div>
+                    <dt>{t("join.relation")}</dt>
+                    <dd data-tone={manyToMany ? "bad" : undefined}>{t(RELATION_VALUES[result.relation])}</dd>
+                  </div>
                 </dl>
-                {tone !== "ok" ? (
+                {manyToMany ? (
                   <p role="alert" className={styles.warning}>
-                    {t(FACTOR_WARNINGS[tone], { alias: result.alias })}
+                    {t(RELATION_HINTS[result.relation], { alias: result.alias })}
                   </p>
-                ) : null}
+                ) : (
+                  <>
+                    <p className={styles.dim}>{t(RELATION_HINTS[result.relation], { alias: result.alias })}</p>
+                    {tone !== "ok" ? (
+                      <p role="alert" className={styles.warning}>
+                        {t(FACTOR_WARNINGS[tone], { alias: result.alias })}
+                      </p>
+                    ) : null}
+                  </>
+                )}
               </li>
             );
           })}
