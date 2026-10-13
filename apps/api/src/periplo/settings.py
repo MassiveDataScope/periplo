@@ -84,7 +84,7 @@ class Settings(msgspec.Struct, frozen=True, kw_only=True):
 
     @classmethod
     def from_environment(cls, environ: Mapping[str, str]) -> Settings:
-        """Read ``PERIPLO_*`` from ``environ``.
+        """Read ``PERIPLO_*`` from ``environ``; an empty variable counts as unset.
 
         Raises:
             ConfigError: Naming the variable that is missing or malformed.
@@ -92,7 +92,7 @@ class Settings(msgspec.Struct, frozen=True, kw_only=True):
         raw: dict[str, object] = {
             name: environ[PREFIX + name.upper()]
             for name in cls.__struct_fields__
-            if PREFIX + name.upper() in environ
+            if environ.get(PREFIX + name.upper())
         }
         # The one variable holding JSON (a structure, not a single value).
         if "etl_facets" in raw:
