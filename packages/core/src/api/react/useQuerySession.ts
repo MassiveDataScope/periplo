@@ -27,7 +27,9 @@ const noopUnsubscribe = () => undefined;
  */
 export function useQuerySession<Resource>(factory: () => QuerySession<Resource>): QuerySessionView<Resource> {
   const factoryRef = useRef(factory);
-  factoryRef.current = factory;
+  useEffect(() => {
+    factoryRef.current = factory;
+  });
   const [session, setSession] = useState<QuerySession<Resource> | null>(null);
 
   useEffect(() => {
