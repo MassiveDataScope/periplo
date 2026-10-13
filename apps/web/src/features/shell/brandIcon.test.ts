@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { SMALL_LOGO } from "./Logo";
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
 const favicon = read("../../../public/favicon.svg");
 const docsLogo = read("../../../../../docs/_static/logo.svg");
-const logo = read("./Logo.tsx");
 const tokens = read("../../../../../packages/core/src/ui/tokens.css");
 
 /** The light and dark values of a `light-dark()` token. */
@@ -21,13 +21,9 @@ describe("the brand icon outside the app", () => {
   });
 
   it("draws the sm logo", () => {
-    const smDrawing =
-      /if \(props\.size !== "lg"\)[\s\S]*?<path className=\{styles\.tube\} d="([^"]+)"[\s\S]*?<circle className=\{styles\.lens\} (cx="[^"]+" cy="[^"]+" r="[^"]+")/.exec(
-        logo,
-      );
-    expect(smDrawing).not.toBeNull();
-    expect(favicon).toContain(`d="${smDrawing?.[1]}"`);
-    expect(favicon).toContain(smDrawing?.[2]);
+    const { tube, lens } = SMALL_LOGO;
+    expect(favicon).toContain(`d="${tube}"`);
+    expect(favicon).toContain(`cx="${lens.cx}" cy="${lens.cy}" r="${lens.r}"`);
   });
 
   it("uses the token colours in both themes", () => {
