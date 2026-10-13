@@ -67,9 +67,9 @@ function namesTable(column: string, table: string): boolean {
  * relation, read the other way (one order, many payments). A shared identifier name alone says nothing
  * about which side owns it.
  */
-type PairRank = "shared-name" | "owned-by-earlier" | "owned-by-added";
+type PairRank = "owned-by-added" | "owned-by-earlier" | "shared-name";
 
-const PAIR_WEIGHT: Readonly<Record<PairRank, number>> = { "shared-name": 1, "owned-by-earlier": 2, "owned-by-added": 3 };
+const PAIR_WEIGHT: Readonly<Record<PairRank, number>> = { "owned-by-added": 3, "owned-by-earlier": 2, "shared-name": 1 };
 
 function rankPair(mine: JoinColumn, theirs: JoinColumn, left: JoinTable, right: JoinTable): PairRank | null {
   if (!canPair(mine.type, theirs.type)) return null;
@@ -147,8 +147,9 @@ function bestPair(def: JoinDefinition, table: JoinTable): JoinPairRef | null {
 }
 
 /**
- * Adds a table to a join: gives it a fresh alias, suggests pairs against every table already present, and
- * starts its output with every column except the ones its own suggested pairs would show a second time.
+ * Adds a table to a join: gives it a fresh alias, proposes the single likeliest key against any table already
+ * present (none when no column looks like one), and starts its output with every column except the one that
+ * proposed key would show a second time.
  */
 export function addTable(def: JoinDefinition, table: JoinTable, kind: JoinKind = "left"): JoinDefinition {
   const taken = new Set(aliasesInOrder(def));
