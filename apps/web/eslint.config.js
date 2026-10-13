@@ -14,7 +14,7 @@ export default tseslint.config(
   {
     files: ["src/**/*.{ts,tsx}"],
     plugins: { "react-hooks": reactHooks },
-    rules: { ...reactHooks.configs.recommended.rules },
+    rules: reactHooks.configs.recommended.rules,
   },
   {
     // Every visible string comes from src/i18n/en.json, so any language is one catalog away.

@@ -67,6 +67,8 @@ export function useJoinFromUrl(
     if (!base || (written.current !== null && written.current.spec === spec)) return;
     const decoded = spec ? decodeJoinSpec(spec) : null;
     if (!decoded || decoded.steps.length === 0) {
+      // The URL is external state: a link with no join to restore resets the workspace here, as the async restore does below.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDefState(startJoin(base));
       setNotice(spec && !decoded ? { kind: "broken" } : null);
       return;
@@ -113,7 +115,9 @@ export function useJoinFromUrl(
     // Compared with what this page wrote, not with the URL: a link opened over it is restored above, not overwritten.
     if (written.current !== null && written.current.spec === next) return;
     if (next !== undefined && decodeJoinSpec(next) === null) {
-      // Written, it would read back as broken and a reload would lose the whole join: the URL keeps the last spec that reads.
+      // Written, it would read back as broken and a reload would lose the whole join: the URL keeps the last spec that reads
+      // (the URL is external state).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNotice({ kind: "unwritable" });
       return;
     }

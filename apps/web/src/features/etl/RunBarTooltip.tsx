@@ -114,6 +114,8 @@ export function RunBarTooltip<E extends Element = HTMLElement>({ id, content, ch
 
   return (
     <>
+      {/* The render prop hands its caller a callback ref and ref-backed handlers, which only ever reach JSX. */}
+      {/* eslint-disable-next-line react-hooks/refs */}
       {children(anchorProps)}
       {open && position
         ? createPortal(

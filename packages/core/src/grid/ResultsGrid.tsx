@@ -123,6 +123,8 @@ export function ResultsGrid({ ref, buffer, status, renderHeaderMenu, onCopyCell,
     setDetail(null);
   }, [schema]);
 
+  // TanStack Virtual cannot be memoized by the React Compiler, which this build does not use.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const rows = useVirtualizer({
     count: rowCount,
     getScrollElement: () => scrollRef.current,

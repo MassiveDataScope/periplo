@@ -152,6 +152,8 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
     if (!arm) return;
     const field = detail.value.fields.find((candidate) => candidate.name === arm);
     if (!field) return;
+    // The arm in the URL is claimed once, when the base table's columns have arrived from the server.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setArmed({ alias: baseAlias({ base: def.base }), column: field.name, type: field.type });
     setPickerOpen(false);
   }, [def, detail, arm]);
