@@ -172,6 +172,41 @@ describe("useEtlList", () => {
     expect(shown.map(answerOf)).toEqual(["older", "newer"]);
   });
 
+  it("leaves no poll behind once unmounted, even with an answer still on its way", async () => {
+    const list = { etls: [etl], summary, running: [], running_truncated: false };
+    let answer: (value: { data: typeof list }) => void = () => undefined;
+    const GET = vi
+      .fn()
+      .mockResolvedValueOnce({ data: list })
+      .mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+    const dependencies = fakeDependencies(GET);
+    const { unmount } = renderHook(() => useEtlList(dependencies));
+    await settle();
+    await tick();
+    expect(GET).toHaveBeenCalledTimes(2);
+    unmount();
+    answer({ data: list });
+    await settle();
+    expect(vi.getTimerCount()).toBe(0);
+    await tick(POLL_MS * 3);
+    expect(GET).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a single poll going after a reload, not one more per reload", async () => {
+    const GET = vi.fn().mockResolvedValue({ data: { etls: [etl], summary, running: [], running_truncated: false } });
+    const dependencies = fakeDependencies(GET);
+    const { result } = renderHook(() => useEtlList(dependencies));
+    await settle();
+    act(() => result.current.reload());
+    await settle();
+    act(() => result.current.reload());
+    await settle();
+    expect(GET).toHaveBeenCalledTimes(3);
+    expect(vi.getTimerCount()).toBe(1);
+    await tick();
+    expect(GET).toHaveBeenCalledTimes(4);
+  });
+
   it("fails when the API does", async () => {
     const error = new ApiError({ status: 502, code: "etl_upstream", message: "Prefect did not answer" });
     const dependencies = fakeDependencies(vi.fn().mockRejectedValue(error));
