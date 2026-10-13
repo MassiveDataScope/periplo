@@ -37,7 +37,7 @@ afterEach(() => {
 
 describe("useJoinFromUrl", () => {
   it("logs a restore that throws, and starts again from the base with the broken-link notice", async () => {
-    vi.mocked(readJoinTable).mockResolvedValue(null);
+    vi.mocked(readJoinTable).mockResolvedValue({ kind: "unreadable" });
     vi.mocked(restoreJoin).mockImplementationOnce(() => {
       throw failure;
     });
@@ -50,10 +50,10 @@ describe("useJoinFromUrl", () => {
     unmount();
   });
 
-  it("keeps the link as it was when a table could not be read, until the join is edited", async () => {
-    vi.mocked(readJoinTable).mockResolvedValue(null);
+  it("keeps the link as it was when a table could not be loaded, names that table, and rewrites the link once the join is edited", async () => {
+    vi.mocked(readJoinTable).mockResolvedValue({ kind: "unreadable" });
     const { result, unmount } = renderHook(() => useJoinFromUrl(STORE, ORDER, SPEC));
-    await waitFor(() => expect(result.current.notice).toMatchObject({ kind: "dropped", tables: 1 }));
+    await waitFor(() => expect(result.current.notice).toEqual({ kind: "dropped", tables: 0, keys: 0, unreadable: ["landing_shop.orders"] }));
     expect(result.current.def?.joins).toEqual([]);
     expect(window.location.hash).toBe(LINK);
 
@@ -63,8 +63,16 @@ describe("useJoinFromUrl", () => {
     unmount();
   });
 
+  it("counts a table the catalog no longer has apart from one that could not be loaded, and keeps the link", async () => {
+    vi.mocked(readJoinTable).mockResolvedValue({ kind: "missing" });
+    const { result, unmount } = renderHook(() => useJoinFromUrl(STORE, ORDER, SPEC));
+    await waitFor(() => expect(result.current.notice).toEqual({ kind: "dropped", tables: 1, keys: 0, unreadable: [] }));
+    expect(window.location.hash).toBe(LINK);
+    unmount();
+  });
+
   it("restores every table that reads, with no notice", async () => {
-    vi.mocked(readJoinTable).mockResolvedValue(ORDERS);
+    vi.mocked(readJoinTable).mockResolvedValue({ kind: "ready", table: ORDERS });
     const { result, unmount } = renderHook(() => useJoinFromUrl(STORE, ORDER, SPEC));
     await waitFor(() => expect(result.current.def?.joins).toHaveLength(1));
     expect(result.current.notice).toBeNull();

@@ -2,17 +2,34 @@ import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateA
 import type { TableFactsStore } from "../../api/table-facts";
 import { replaceRoute } from "../../app/routes";
 import { startJoin, type JoinDefinition, type JoinTable } from "./join-model";
-import { decodeJoinSpec, encodeJoinSpec, restoreJoin, type DroppedFromSpec } from "./join-spec";
-import { readJoinTable } from "./join-tables";
+import { decodeJoinSpec, encodeJoinSpec, restoreJoin, type DroppedFromSpec, type JoinSpecStep } from "./join-spec";
+import { readJoinTable, type JoinTableRead } from "./join-tables";
 
-/** What the workspace says about the link a join came from: it could not be read, or parts of it were left out. */
-export type JoinRestoreNotice = ({ readonly kind: "dropped" } & DroppedFromSpec) | { readonly kind: "broken" };
+/**
+ * What the workspace says about the link a join came from: it could not be read, or parts of it were left out.
+ * `unreadable` names (`database.table`) the tables that could not be loaded right now; `tables` counts the
+ * other tables left out (gone from the catalog, or named twice in the link).
+ */
+export type JoinRestoreNotice =
+  | ({ readonly kind: "dropped"; readonly unreadable: readonly string[] } & DroppedFromSpec)
+  | { readonly kind: "broken" };
 
 export interface JoinFromUrl {
   readonly def: JoinDefinition | null;
   /** Edits the join; the first edit also puts away the notice about the link it was restored from. */
   readonly setDef: Dispatch<SetStateAction<JoinDefinition | null>>;
   readonly notice: JoinRestoreNotice | null;
+}
+
+function nameOf(step: Pick<JoinSpecStep, "database" | "table">): string {
+  return `${step.database}.${step.table}`;
+}
+
+/** The notice for what a restore left out, or null when it left nothing out. An unreadable step is always dropped, so it is counted once in `dropped.tables`. */
+function droppedNotice(steps: readonly JoinSpecStep[], read: ReadonlyMap<string, JoinTableRead>, dropped: DroppedFromSpec): JoinRestoreNotice | null {
+  if (dropped.tables === 0 && dropped.keys === 0) return null;
+  const unreadableSteps = steps.map(nameOf).filter((name) => read.get(name)?.kind === "unreadable");
+  return { kind: "dropped", tables: dropped.tables - unreadableSteps.length, keys: dropped.keys, unreadable: [...new Set(unreadableSteps)] };
 }
 
 /** The spec a join is written to the URL as; none for a join of the base table alone. */
@@ -51,16 +68,19 @@ export function useJoinFromUrl(tableFacts: TableFactsStore, base: JoinTable | nu
     };
     let cancelled = false;
     void (async () => {
-      const read = new Map<string, JoinTable | null>();
+      const read = new Map<string, JoinTableRead>();
       await Promise.all(
         decoded.steps.map(async (step) => {
-          read.set(`${step.database}.${step.table}`, await readJoinTable(tableFacts, step.database, step.table));
+          read.set(nameOf(step), await readJoinTable(tableFacts, step.database, step.table));
         }),
       );
       if (cancelled) return;
       try {
-        const restored = restoreJoin(base, decoded, (database, table) => read.get(`${database}.${table}`) ?? null);
-        settle(restored.def, restored.dropped.tables > 0 || restored.dropped.keys > 0 ? { kind: "dropped", ...restored.dropped } : null);
+        const restored = restoreJoin(base, decoded, (database, table) => {
+          const found = read.get(nameOf({ database, table }));
+          return found?.kind === "ready" ? found.table : null;
+        });
+        settle(restored.def, droppedNotice(decoded.steps, read, restored.dropped));
       } catch (error) {
         // A link that still breaks the restore must not leave the workspace blank: start again from the base, and say so.
         // A throw here is a bug, not a bad link, so it is logged rather than swallowed.

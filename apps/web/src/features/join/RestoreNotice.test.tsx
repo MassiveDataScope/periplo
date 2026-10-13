@@ -12,7 +12,7 @@ describe("RestoreNotice", () => {
   it("names dropped tables apart from dropped keys, and only what was dropped", () => {
     render(
       <I18nextProvider i18n={i18n}>
-        <RestoreNotice notice={{ kind: "dropped", tables: 1, keys: 2 }} />
+        <RestoreNotice notice={{ kind: "dropped", tables: 1, keys: 2, unreadable: [] }} />
       </I18nextProvider>,
     );
     expect(screen.getByRole("status").textContent).toBe(
@@ -21,9 +21,20 @@ describe("RestoreNotice", () => {
     cleanup();
     render(
       <I18nextProvider i18n={i18n}>
-        <RestoreNotice notice={{ kind: "dropped", tables: 0, keys: 1 }} />
+        <RestoreNotice notice={{ kind: "dropped", tables: 0, keys: 1, unreadable: [] }} />
       </I18nextProvider>,
     );
     expect(screen.getByRole("status").textContent).toBe("1 key of this join no longer matches its tables and was left out.");
+  });
+
+  it("names the tables that could not be loaded, and says the link still holds them", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <RestoreNotice notice={{ kind: "dropped", tables: 0, keys: 0, unreadable: ["landing_shop.orders", "curated_shop.customers"] }} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByRole("status").textContent).toBe(
+      "landing_shop.orders, curated_shop.customers could not be loaded right now and were left out. The link still holds them until you edit the join: reload to try again.",
+    );
   });
 });

@@ -209,11 +209,11 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
     setPickError(false);
     if (!def) return;
     const picked = await readJoinTable(dependencies.tableFacts, otherDatabase, otherTable);
-    if (!picked) {
+    if (picked.kind !== "ready") {
       setPickError(true);
       return;
     }
-    const next = addTable(def, picked);
+    const next = addTable(def, picked.table);
     const step = next.joins.at(-1);
     setDef(next);
     markStale();

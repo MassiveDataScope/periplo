@@ -303,6 +303,8 @@
     "restoreBroken": "This join link could not be read, so the join starts again from this table.",
     "restoreDroppedTables_one": "{{count}} table of this join could not be read and was left out.",
     "restoreDroppedTables_other": "{{count}} tables of this join could not be read and were left out.",
+    "restoreUnreadable_one": "{{tables}} could not be loaded right now and was left out. The link still holds it until you edit the join: reload to try again.",
+    "restoreUnreadable_other": "{{tables}} could not be loaded right now and were left out. The link still holds them until you edit the join: reload to try again.",
     "restoreDroppedKeys_one": "{{count}} key of this join no longer matches its tables and was left out.",
     "restoreDroppedKeys_other": "{{count}} keys of this join no longer match their tables and were left out.",
     "relation": "Relation",

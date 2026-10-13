@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import type { JoinRestoreNotice } from "./useJoinFromUrl";
 import styles from "./JoinWorkspace.module.css";
 
-/** What became of the join link the workspace opened with: unreadable, or restored with tables or keys left out. */
+/** What became of the join link the workspace opened with: unreadable, or restored with tables or keys left out, naming the tables that could not be loaded right now. */
 export function RestoreNotice({ notice }: { readonly notice: JoinRestoreNotice }) {
   const { t } = useTranslation();
   const lines =
@@ -10,6 +10,7 @@ export function RestoreNotice({ notice }: { readonly notice: JoinRestoreNotice }
       ? [t("join.restoreBroken")]
       : [
           notice.tables > 0 ? t("join.restoreDroppedTables", { count: notice.tables }) : "",
+          notice.unreadable.length > 0 ? t("join.restoreUnreadable", { count: notice.unreadable.length, tables: notice.unreadable.join(", ") }) : "",
           notice.keys > 0 ? t("join.restoreDroppedKeys", { count: notice.keys }) : "",
         ];
   return (
