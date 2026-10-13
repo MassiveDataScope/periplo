@@ -146,14 +146,16 @@ describe("ScheduleCard of a chained ETL", () => {
     renderCard(nlp, all);
     const chain = screen.getByRole("list", { name: "Chain" });
     const links = within(chain).getAllByRole("link");
-    expect(links.map((link) => link.textContent)).toEqual(["messages", "nlp", "model"]);
+    // Each link says its last run's state in words too, not by its swatch's colour and glyph alone.
+    expect(links.map((link) => link.textContent)).toEqual(["messages last run completed", "nlp last run failed", "model never ran"]);
+    expect(within(chain).getByText("last run failed", { exact: false }).className).toContain("nt-sr-only");
     expect(links.map((link) => link.getAttribute("href"))).toEqual(["#/etl/messages", "#/etl/nlp", "#/etl/model"]);
     expect(links.map((link) => link.getAttribute("aria-current"))).toEqual([null, "page", null]);
     expect(links.map((link) => link.getAttribute("title"))).toEqual(["messages", "nlp", "model"]);
     expect(chain.querySelectorAll("[data-status]")).toHaveLength(2);
     // One item per link, its arrow inside it: a narrow card never starts a line with an arrow.
     const items = within(chain).getAllByRole("listitem");
-    expect(items.map((item) => item.textContent)).toEqual(["messages→", "nlp→", "model"]);
+    expect(items.map((item) => item.textContent)).toEqual(["messages last run completed→", "nlp last run failed→", "model never ran"]);
   });
 
   it("says what it starts next only when the chain cannot show it: when it starts several", () => {

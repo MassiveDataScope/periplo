@@ -1,11 +1,22 @@
 import { useTranslation } from "react-i18next";
 import { StatusSwatch, type ExecutionStatus } from "@periplo/core/ui";
 import { href } from "../../app/routes";
+import type { TranslationKey } from "../../i18n";
 import type { EtlChain } from "./chain";
 import { statusOf } from "./run-state";
 import { useInSection } from "./SectionLinks";
 import type { Etl } from "./useEtl";
 import styles from "./ChainStrip.module.css";
+
+/** A link's last run in words, for a screen reader: its swatch says it by colour and glyph alone. */
+const RUN_WORDS: Readonly<Record<ExecutionStatus | "never", TranslationKey>> = {
+  completed: "etl.page.chainRun.completed",
+  failed: "etl.page.chainRun.failed",
+  running: "etl.page.chainRun.running",
+  scheduled: "etl.page.chainRun.scheduled",
+  stopped: "etl.page.chainRun.stopped",
+  never: "etl.page.chainRun.never",
+};
 
 /** How an ETL's newest run went, or null when it has never run. */
 function lastRunStatus(etl: Etl): ExecutionStatus | null {
@@ -31,6 +42,7 @@ export function ChainStrip({ chain, current }: { readonly chain: EtlChain; reado
             >
               {status !== null ? <StatusSwatch status={status} className={styles.mark} /> : null}
               <span className={styles.name}>{link.name}</span>
+              <span className="nt-sr-only"> {t(RUN_WORDS[status ?? "never"])}</span>
             </a>
             {index < chain.links.length - 1 ? (
               <span aria-hidden="true" className={styles.arrow}>
