@@ -2,7 +2,7 @@ import { MINUTE_MS } from "./useNow";
 import type { RunDetail } from "./useEtl";
 
 /**
- * What can be done to one run from the console, as the API allows it (see the API's `run_control`): cancel a run going,
+ * What can be done to one run from the console, as the API allows it (see the API's `prefect_run_control`): cancel a run going,
  * waiting or paused; force a run stuck cancelling to cancelled once the worker has had ten minutes; retry a failed or
  * crashed run of a deployment, as the same run.
  */

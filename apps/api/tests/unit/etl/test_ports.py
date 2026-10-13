@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 import msgspec
 
-from periplo.etl.ports import TERMINAL_STATES, LogEntry, LogPage, RunDetail
+from periplo.etl.ports import TERMINAL_STATES, Deployment, LogEntry, LogPage, RunDetail
 
 
 def test_run_detail_encodes_the_contract_keys() -> None:
@@ -101,3 +101,8 @@ def test_terminal_states() -> None:
     assert {"COMPLETED", "FAILED", "CANCELLED", "CRASHED"} == TERMINAL_STATES
     assert "RUNNING" not in TERMINAL_STATES
     assert "CANCELLING" not in TERMINAL_STATES
+
+
+def test_a_deployment_carries_nothing_periplo_keeps_itself() -> None:
+    """Archiving is Periplo's: the HTTP layer composes it, the orchestrator never fills it."""
+    assert "archived" not in Deployment.__struct_fields__

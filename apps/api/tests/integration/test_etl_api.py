@@ -25,6 +25,7 @@ from periplo.etl.errors import (
     Upstream,
 )
 from periplo.etl.facets import FacetConfig
+from periplo.etl.http import ListedEtl, ListedEtls
 from periplo.etl.ports import (
     Attempt,
     Deployment,
@@ -99,7 +100,6 @@ ORDERS = Deployment(
     external_url="https://prefect.example/deployments/deployment/dep-1",
     triggered_by=None,
     triggers=[],
-    archived=None,
 )
 CUSTOMERS = Deployment(
     id="dep-2",
@@ -118,7 +118,6 @@ CUSTOMERS = Deployment(
     external_url=None,
     triggered_by=None,
     triggers=[],
-    archived=None,
 )
 EMPTY_HISTORY_1H = History(interval="1h", buckets=[], upcoming=[], median_seconds=None)
 EMPTY_HISTORY_7D = History(interval="1d", buckets=[], upcoming=[], median_seconds=None)
@@ -429,9 +428,19 @@ def test_lists_the_deployments_as_the_adapter_gave_them(
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/json"
-    assert response.json() == encoded(
+    listing = encoded(
         EtlList(etls=[ORDERS, CUSTOMERS], summary=SUMMARY, running=[], running_truncated=False)
     )
+    # Each ETL with Periplo's own archive state, after the orchestrator's fields.
+    listing["etls"] = [{**etl, "archived": None} for etl in listing["etls"]]
+    assert response.json() == listing
+
+
+def test_the_listed_shapes_keep_every_field_of_the_port_ones() -> None:
+    """``ListedEtls`` restates ``EtlList`` field by field: a field added to the port must
+    reach the answer too, and each ETL only gains its archive state, last."""
+    assert ListedEtls.__struct_fields__ == EtlList.__struct_fields__
+    assert ListedEtl.__struct_fields__ == (*Deployment.__struct_fields__, "archived")
 
 
 def test_lists_runs_with_the_limit_asked(client: TestClient, fake: FakeOrchestrator) -> None:
@@ -680,8 +689,18 @@ def test_schedule_enabled_changes_and_returns_the_etl(
     expected = msgspec.structs.replace(
         ORDERS, schedule=msgspec.structs.replace(ORDERS.schedule, active=active)
     )
-    assert response.json() == encoded(expected)
+    assert response.json() == {**encoded(expected), "archived": None}
     assert fake.calls == [("set_schedule", "daily-orders", active)]
+
+
+@pytest.mark.parametrize("settings", [Settings(etl_allow_operate=True)], indirect=True)
+def test_a_schedule_change_answers_the_etls_archive_state(client: TestClient) -> None:
+    client.post(f"{ETL}/daily-orders/archive", json={"reason": "replaced"})
+
+    response = client.post(f"{ETL}/daily-orders/schedule/pause")
+
+    assert response.status_code == 202
+    assert response.json()["archived"]["reason"] == "replaced"
 
 
 # --- errors ---------------------------------------------------------------------------

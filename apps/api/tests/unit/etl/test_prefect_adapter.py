@@ -14,6 +14,7 @@ import pytest
 import structlog.testing
 
 from periplo.etl.adapters import prefect as prefect_adapter
+from periplo.etl.adapters import prefect_run_control
 from periplo.etl.adapters.prefect import PrefectOrchestrator
 from periplo.etl.errors import (
     ETL_NOT_KNOWN,
@@ -108,6 +109,25 @@ def run_json(**overrides: Any) -> dict[str, Any]:
         "end_time": "2026-09-23T06:00:14+00:00",
         "total_run_time": 12.5,
         "created_by": {"display_value": "prefect-scheduler"},
+    }
+    return {**base, **overrides}
+
+
+def prefect3_policy(**overrides: Any) -> dict[str, Any]:
+    """``empirical_policy`` exactly as Prefect 3.7 serialises ``FlowRunPolicy``.
+
+    ``retries`` and ``retry_delay`` are the live fields and are ``null`` for a flow with
+    no retry policy; ``max_retries`` and ``retry_delay_seconds`` are deprecated, always
+    present, and stay ``0`` even when the live fields are set.
+    """
+    base: dict[str, Any] = {
+        "max_retries": 0,
+        "retry_delay_seconds": 0.0,
+        "retries": None,
+        "retry_delay": None,
+        "pause_keys": [],
+        "resuming": False,
+        "retry_type": None,
     }
     return {**base, **overrides}
 
@@ -1234,10 +1254,7 @@ async def test_flow_run_maps_run_count_retries_and_retry_delay() -> None:
         [deployment_json()],
         recent={
             "dep-1": [
-                run_json(
-                    run_count=3,
-                    empirical_policy={"retries": 2, "retry_delay_seconds": 30.0},
-                )
+                run_json(run_count=3, empirical_policy=prefect3_policy(retries=2, retry_delay=30))
             ]
         },
     )
@@ -1258,12 +1275,12 @@ async def test_flow_run_maps_run_count_retries_and_retry_delay() -> None:
 
 
 @pytest.mark.asyncio
-async def test_flow_run_falls_back_to_retry_delay_when_seconds_is_absent() -> None:
+async def test_flow_run_falls_back_to_the_deprecated_retry_delay_seconds() -> None:
     fake = FakePrefect()
     listing(
         fake,
         [deployment_json()],
-        recent={"dep-1": [run_json(empirical_policy={"retries": 1, "retry_delay": 45})]},
+        recent={"dep-1": [run_json(empirical_policy={"retries": 1, "retry_delay_seconds": 45.0})]},
     )
     [deployment] = (await orchestrator(fake).list_deployments()).etls
     run = deployment.last_run
@@ -1279,6 +1296,24 @@ async def test_flow_run_defaults_without_empirical_policy() -> None:
     run = deployment.last_run
     assert run is not None
     assert (run.run_count, run.retries, run.retry_delay_seconds) == (0, 0, 0.0)
+
+
+@pytest.mark.asyncio
+async def test_a_run_without_a_retry_policy_does_not_break_the_list() -> None:
+    fake = FakePrefect()
+    resolvable(fake)
+    fake.on(
+        "POST",
+        "/flow_runs/filter",
+        [run_json(id="run-1"), run_json(id="run-2", empirical_policy=prefect3_policy())],
+    )
+
+    runs = await orchestrator(fake).list_runs("daily-orders", 25)
+
+    assert [(r.id, r.retries, r.retry_delay_seconds) for r in runs] == [
+        ("run-1", 0, 0.0),
+        ("run-2", 0, 0.0),
+    ]
 
 
 @pytest.mark.asyncio
@@ -3255,6 +3290,30 @@ async def test_failures_are_retryable_upstream(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("bad_field", "field_path"),
+    [
+        ({"run_count": None}, "$[1].run_count"),
+        # msgspec quotes an invalid literal in its message: only the path may be logged.
+        ({"state_type": HOST}, "$[1].state_type"),
+    ],
+)
+async def test_an_undecodable_response_logs_the_field_path_but_no_value(
+    bad_field: dict[str, Any], field_path: str
+) -> None:
+    fake = FakePrefect()
+    resolvable(fake)
+    fake.on("POST", "/flow_runs/filter", [run_json(id="run-1"), run_json(id="run-2", **bad_field)])
+
+    with structlog.testing.capture_logs() as captured, pytest.raises(Upstream):
+        await orchestrator(fake).list_runs("daily-orders", 25)
+
+    [failure] = [e for e in captured if e["event"] == "etl.upstream_error"]
+    assert (failure["path"], failure["field"]) == ("/flow_runs/filter", field_path)
+    assert HOST not in json.dumps(captured, default=str)
+
+
+@pytest.mark.asyncio
 async def test_422_is_rejected_with_bounded_detail() -> None:
     fake = FakePrefect()
     resolvable(fake)
@@ -3846,6 +3905,40 @@ async def test_cancel_moves_a_run_that_never_started_straight_to_cancelled() -> 
 
 
 @pytest.mark.asyncio
+async def test_a_never_started_run_a_worker_takes_before_the_cancel_asks_for_cancelling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakePrefect()
+    stuck = control_run(
+        state_type="PENDING", state_name="Pending", start_time=None, infrastructure_pid=None
+    )
+    controllable(fake, stuck)
+    runs = {CONTROL_ID: stuck}
+
+    def flow_runs(body: dict[str, Any]) -> httpx2.Response:
+        return httpx2.Response(
+            200, json=[runs[run_id] for run_id in body["flow_runs"]["id"]["any_"]]
+        )
+
+    fake.respond("POST", "/flow_runs/filter", flow_runs)
+    decide = prefect_run_control.cancel_proposal
+
+    def decided_then_taken(*args: Any, **kwargs: Any) -> Any:
+        """The worker records the run's infrastructure as soon as a cancel is decided."""
+        proposal = decide(*args, **kwargs)
+        runs[CONTROL_ID] = {**stuck, "infrastructure_pid": "arn:ecs:task/1"}
+        return proposal
+
+    monkeypatch.setattr(prefect_adapter, "cancel_proposal", decided_then_taken)
+
+    await orchestrator(fake, now=lambda: CONTROL_NOW).cancel_run(CONTROL_ID, force=False, by=None)
+
+    assert [(b["state"]["type"], b["force"]) for b in set_state_bodies(fake)] == [
+        ("CANCELLING", False)
+    ]
+
+
+@pytest.mark.asyncio
 async def test_force_cancel_reads_how_long_the_run_has_been_cancelling() -> None:
     fake = FakePrefect()
     cancelling = control_run(
@@ -3894,6 +3987,7 @@ async def test_retry_proposes_awaiting_retry_on_the_same_run() -> None:
         }
     ]
     assert (detail.id, detail.state) == (CONTROL_ID, "SCHEDULED")
+    assert not [path for path in fake.paths() if path.endswith("/create_flow_run")]
 
 
 @pytest.mark.asyncio
@@ -3911,6 +4005,66 @@ async def test_retry_refused_by_prefect_is_not_retryable() -> None:
     controllable(fake, control_run(state_type="CRASHED", state_name="Crashed"), outcome="ABORT")
     with pytest.raises(NotRetryable):
         await orchestrator(fake).retry_run(CONTROL_ID, by=None)
+
+
+def failing_reads_after_set_state(fake: FakePrefect) -> None:
+    """Prefect accepts ``set_state``, then stops answering run reads."""
+    set_state = fake.routes[("POST", f"/flow_runs/{CONTROL_ID}/set_state")]
+
+    def accept_then_fail(body: dict[str, Any]) -> httpx2.Response:
+        answer: httpx2.Response = set_state(body)
+        fake.on("POST", "/flow_runs/filter", {"detail": "down"}, status=500)
+        return answer
+
+    fake.respond("POST", f"/flow_runs/{CONTROL_ID}/set_state", accept_then_fail)
+
+
+@pytest.mark.asyncio
+async def test_an_accepted_cancel_whose_read_back_fails_answers_its_new_state() -> None:
+    fake = FakePrefect()
+    controllable(fake, control_run())
+    failing_reads_after_set_state(fake)
+
+    detail = await orchestrator(fake, now=lambda: CONTROL_NOW).cancel_run(
+        CONTROL_ID, force=False, by=None
+    )
+
+    assert set_state_bodies(fake) != []
+    assert (detail.id, detail.state, detail.terminal, detail.deployment_name) == (
+        CONTROL_ID,
+        "CANCELLING",
+        False,
+        "daily-orders",
+    )
+
+
+@pytest.mark.asyncio
+async def test_an_accepted_retry_whose_read_back_fails_answers_its_new_state() -> None:
+    fake = FakePrefect()
+    controllable(fake, control_run(state_type="FAILED", state_name="Failed"))
+    failing_reads_after_set_state(fake)
+
+    detail = await orchestrator(fake).retry_run(CONTROL_ID, by=None)
+
+    assert (detail.id, detail.state, detail.terminal) == (CONTROL_ID, "SCHEDULED", False)
+
+
+@pytest.mark.asyncio
+async def test_a_reject_that_sets_another_state_answers_that_state_when_the_read_back_fails() -> (
+    None
+):
+    fake = FakePrefect()
+    scheduled = control_run(
+        state_type="SCHEDULED", state_name="Scheduled", start_time=None, infrastructure_pid="pid"
+    )
+    controllable(fake, scheduled, outcome="REJECT", answer_state="CANCELLED")
+    failing_reads_after_set_state(fake)
+
+    detail = await orchestrator(fake, now=lambda: CONTROL_NOW).cancel_run(
+        CONTROL_ID, force=False, by=None
+    )
+
+    assert (detail.state, detail.terminal) == ("CANCELLED", True)
 
 
 @pytest.mark.asyncio

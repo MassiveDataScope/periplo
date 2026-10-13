@@ -36,6 +36,12 @@ from periplo.etl.adapters.prefect_chains import (
     automation_of,
 )
 from periplo.etl.adapters.prefect_decode import decode_field
+from periplo.etl.adapters.prefect_run_control import (
+    RunFacts,
+    StateProposal,
+    cancel_proposal,
+    retry_proposal,
+)
 from periplo.etl.errors import (
     ETL_NOT_KNOWN,
     RUN_NOT_KNOWN,
@@ -77,7 +83,6 @@ from periplo.etl.ports import (
     TriggerKind,
     Upcoming,
 )
-from periplo.etl.run_control import RunFacts, StateProposal, cancel_proposal, retry_proposal
 from periplo.etl.tasks import (
     FlowStateIn,
     TaskRunIn,
@@ -163,6 +168,8 @@ class _PrefectTaskRun(msgspec.Struct):
     id: str
     name: str
     task_key: str
+    # Optional in Prefect's schema, but only for a run created without any state, which
+    # neither Prefect's client nor its scheduler does; required here so it stays a ``RunState``.
     state_type: RunState
     tags: list[str] = []
     start_time: datetime | None = None
@@ -200,9 +207,16 @@ class _CreatedBy(msgspec.Struct):
 
 
 class _EmpiricalPolicy(msgspec.Struct):
-    retries: int = 0
-    # Prefect exposes either shape depending on version; whichever is present wins.
-    retry_delay: float | int | None = None
+    """Prefect 3's ``FlowRunPolicy``, reduced to its retry settings.
+
+    ``retries`` and ``retry_delay`` are the live fields, ``null`` (or ``0``) for a flow
+    with no retry policy. ``retry_delay_seconds`` is deprecated: Prefect 3 still sends it, as
+    ``0`` whatever the live delay is, so it is only a fallback for a ``retry_delay``
+    that is absent or ``null``. A list of delays is a task-run policy, never a flow run's.
+    """
+
+    retries: int | None = None
+    retry_delay: float | None = None
     retry_delay_seconds: float | None = None
 
 
@@ -210,6 +224,8 @@ class _PrefectRun(msgspec.Struct):
     id: str
     name: str
     flow_id: str
+    # Optional in Prefect's schema, but only for a run created without any state, which
+    # neither Prefect's client nor its scheduler does; required here so it stays a ``RunState``.
     state_type: RunState
     state_name: str
     state: _State | None = None
@@ -1090,32 +1106,41 @@ class PrefectOrchestrator:
         return deployment
 
     async def cancel_run(self, run_id: str, *, force: bool, by: str | None) -> RunDetail:
-        """See :mod:`periplo.etl.run_control` for the state proposed and why."""
+        """See :mod:`periplo.etl.adapters.prefect_run_control` for the state proposed and why."""
+        before = await self.get_run(run_id)
         run = await self._resolve_run(run_id)
         proposal = cancel_proposal(_run_facts(run), now=self._now(), force=force)
-        await self._propose(
+        if proposal.force and not force:
+            # A forced state skips Prefect's rules: decided again on the run as it is now,
+            # so one a worker has started or given infrastructure since is asked for
+            # CANCELLING instead.
+            run = await self._resolve_run(run_id)
+            proposal = cancel_proposal(_run_facts(run), now=self._now(), force=False)
+        state = await self._propose(
             run,
             proposal,
             message=_signed("Cancelled from Periplo", by),
             refused=NotCancellable("The orchestrator refused to cancel this run"),
         )
-        return await self._reread(run_id)
+        return await self._reread(before, state)
 
     async def retry_run(self, run_id: str, *, by: str | None) -> RunDetail:
-        """See :mod:`periplo.etl.run_control`: the same run, scheduled again."""
+        """See :mod:`periplo.etl.adapters.prefect_run_control`: the same run, scheduled again."""
+        before = await self.get_run(run_id)
         run = await self._resolve_run(run_id)
         proposal = retry_proposal(_run_facts(run))
-        await self._propose(
+        state = await self._propose(
             run,
             proposal,
             message=_signed("Retried from Periplo", by),
             refused=NotRetryable("The orchestrator refused to retry this run"),
         )
-        return await self._reread(run_id)
+        return await self._reread(before, state)
 
     async def _propose(
         self, run: _PrefectRun, proposal: StateProposal, *, message: str, refused: EtlError
-    ) -> None:
+    ) -> RunState:
+        """The state the run is in once Prefect took the proposal, or raises *refused*."""
         run_id = run.id
         state = {"type": proposal.type, "name": proposal.name, "message": message}
         result = await self._post(
@@ -1130,12 +1155,29 @@ class PrefectOrchestrator:
             )
             raise refused
         _log.info("etl.state_proposed", run_id=run_id, proposed=proposal.type, force=proposal.force)
+        if result.status == "ACCEPT" or result.state is None:
+            return proposal.type
+        return result.state.type
 
-    async def _reread(self, run_id: str) -> RunDetail:
-        """The run read afresh, and the lists dropped: both must show the change at once."""
-        self._run_cache.pop(run_id, None)
+    async def _reread(self, before: RunDetail, state: RunState) -> RunDetail:
+        """The run read afresh, and the lists dropped: both must show the change at once.
+
+        The change is already made: a read that fails answers *before*, the run as read
+        ahead of the change, in its new *state*, rather than an error.
+        """
+        self._run_cache.pop(before.id, None)
         self._invalidate_lists()
-        return await self.get_run(run_id)
+        try:
+            return await self.get_run(before.id)
+        except EtlError as error:
+            _log.warning("etl.change_not_read_back", run_id=before.id, code=error.code)
+            return msgspec.structs.replace(
+                before,
+                state=state,
+                state_message=None,
+                state_since=None,
+                terminal=state in TERMINAL_STATES,
+            )
 
     async def _resolve_deployment(self, name: str) -> _PrefectDeployment:
         filters: dict[str, Any] = {"name": {"any_": [name]}}
@@ -1665,13 +1707,19 @@ def _recent_or_empty(deployment: str, result: list[FlowRun] | BaseException) -> 
 
 
 def _retry_delay_seconds(policy: _EmpiricalPolicy | None) -> float:
+    """The live ``retry_delay``, else the deprecated ``retry_delay_seconds``, else 0."""
     if policy is None:
         return 0.0
-    if policy.retry_delay_seconds is not None:
-        return policy.retry_delay_seconds
     if policy.retry_delay is not None:
-        return float(policy.retry_delay)
-    return 0.0
+        return policy.retry_delay
+    return policy.retry_delay_seconds or 0.0
+
+
+def _retries(policy: _EmpiricalPolicy | None) -> int:
+    """A run with no retry policy (``null`` in Prefect 3) is never retried."""
+    if policy is None or policy.retries is None:
+        return 0
+    return policy.retries
 
 
 def _deployment_url(ui_url: str | None, deployment_id: str) -> str | None:
@@ -1703,7 +1751,7 @@ def _flow_run(raw: _PrefectRun, *, ui_url: str | None) -> FlowRun:
         duration_seconds=raw.total_run_time or 0.0,
         created_by=_creator(raw),
         run_count=raw.run_count,
-        retries=raw.empirical_policy.retries if raw.empirical_policy else 0,
+        retries=_retries(raw.empirical_policy),
         retry_delay_seconds=_retry_delay_seconds(raw.empirical_policy),
         trigger=_trigger_kind(raw),
         external_url=_run_url(ui_url, raw.id),
@@ -1785,7 +1833,6 @@ def _deployment(
         accepts_processes=_accepts_processes(raw.parameter_openapi_schema),
         triggered_by=None,
         triggers=[],
-        archived=None,
         external_url=_deployment_url(ui_url, raw.id),
     )
 
