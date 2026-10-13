@@ -191,6 +191,17 @@ describe("EtlDayPanel links", () => {
   });
 });
 
+describe("EtlDayPanel heading", () => {
+  it("names each panel by its own heading, however many are on the page", () => {
+    renderPanel();
+    renderPanel();
+    const panels = document.querySelectorAll("section[aria-labelledby]");
+    const named = [...panels].filter((panel) => panel.querySelector("h3")?.id === panel.getAttribute("aria-labelledby"));
+    expect(named).toHaveLength(2);
+    expect(new Set(named.map((panel) => panel.getAttribute("aria-labelledby"))).size).toBe(2);
+  });
+});
+
 describe("EtlDayPanel histogram", () => {
   it("summarises every ETL's last 24 hours in one fixed chart, whatever the filter", () => {
     renderPanel({ etls: [] });
