@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { appHistory } from "./history";
-import { goBackTo, leaveOnClick, parentOf, useBackDestination } from "./leave";
+import { goBackTo, leaveOnClick, parentOf, replaceOnClick, useBackDestination } from "./leave";
 import { href, navigate, type Route } from "./routes";
 
 const home: Route = { kind: "home" };
@@ -110,6 +110,44 @@ describe("leave", () => {
       navigate(table);
       expect(clickBack(init)).toBe(false);
       expect(window.location.hash).toBe("#/t/landing_shop/orders");
+    });
+  });
+
+  describe("replaceOnClick", () => {
+    const withLog: Route = { kind: "etl-run", id: "run-1", view: { logs: true } };
+
+    function click(init: MouseEventInit): boolean {
+      render(
+        <a href={href(withLog)} onClick={replaceOnClick(withLog)}>
+          View logs
+        </a>,
+      );
+      let prevented = false;
+      const record = (event: Event) => {
+        prevented = event.defaultPrevented;
+        event.preventDefault();
+      };
+      document.addEventListener("click", record);
+      try {
+        fireEvent.click(screen.getByRole("link", { name: "View logs" }), init);
+      } finally {
+        document.removeEventListener("click", record);
+      }
+      return prevented;
+    }
+
+    it("takes a plain click over and changes the view in place, adding no entry", () => {
+      navigate({ kind: "etl-run", id: "run-1" });
+      const entries = window.history.length;
+      expect(click({ button: 0 })).toBe(true);
+      expect(window.location.hash).toBe("#/etl/runs/run-1?logs=1");
+      expect(window.history.length).toBe(entries);
+    });
+
+    it("leaves a modified click to the link", () => {
+      navigate({ kind: "etl-run", id: "run-1" });
+      expect(click({ metaKey: true })).toBe(false);
+      expect(window.location.hash).toBe("#/etl/runs/run-1");
     });
   });
 });

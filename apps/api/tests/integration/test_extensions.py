@@ -269,8 +269,20 @@ def test_etl_status_follows_the_identity(tmp_path: Path) -> None:
             f"{ETL}/status", headers=_header("alice", "default", "operator")
         ).json()
 
-    assert viewer_status == {"configured": True, "operate_enabled": False}
-    assert operator_status == {"configured": True, "operate_enabled": True}
+    assert viewer_status == {
+        "configured": True,
+        "operate_enabled": False,
+        "archive_enabled": False,
+        "archive_mode": "process",
+        "facets": {},
+    }
+    assert operator_status == {
+        "configured": True,
+        "operate_enabled": True,
+        "archive_enabled": True,
+        "archive_mode": "process",
+        "facets": {},
+    }
 
 
 # --- audit: requested/succeeded, denied and a query, in order -----------------------------

@@ -1,0 +1,264 @@
+/* The run's timeline: a name column and a track column sharing one grid template, the axis on top, the tick lines and
+   the now line drawn once over every track. The track column has no padding: its width is the axis width. */
+.timeline {
+  --names: clamp(8rem, 30%, 18rem);
+  /* Room past the axis's end: the last tick's text and a label beside a bar that ends the run are never cut. */
+  --axis-end: 2.5rem;
+  --row: 1.75rem;
+  --bar: 0.625rem;
+  min-inline-size: 0;
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-xs);
+}
+
+.head,
+.row {
+  display: grid;
+  grid-template-columns: var(--names) minmax(0, 1fr);
+}
+
+.head {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  block-size: var(--row);
+  border-block-end: var(--nt-border-width) solid var(--nt-color-border);
+  background: var(--nt-color-bg);
+}
+
+.headName {
+  display: flex;
+  align-items: center;
+}
+
+.wholeRun {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nt-color-accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.wholeRun:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: var(--nt-space-0-5);
+}
+
+.axis {
+  position: relative;
+  margin-inline-end: var(--axis-end);
+  color: var(--nt-color-text-subtle);
+}
+
+.tick {
+  position: absolute;
+  inset-block-end: var(--nt-space-1);
+  padding-inline-start: var(--nt-space-1);
+  border-inline-start: var(--nt-border-width) solid var(--nt-color-border-strong);
+  white-space: nowrap;
+}
+
+.grid {
+  position: relative;
+}
+
+/* A row's background is named, for its labels to sit on it: they hide the tick lines that run under them. */
+.row {
+  --row-bg: var(--nt-color-bg);
+  block-size: var(--row);
+  background: var(--row-bg);
+  cursor: default;
+}
+
+.row:hover {
+  --row-bg: var(--nt-color-surface-hover);
+}
+
+.row:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: calc(-1 * var(--nt-focus-width));
+}
+
+.row[aria-selected="true"] {
+  --row-bg: var(--nt-color-selection);
+}
+
+.row[data-kind="group"],
+.row[data-kind="process"] {
+  font-weight: var(--nt-font-weight-medium);
+}
+
+.nameCell {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-1);
+  min-inline-size: 0;
+  overflow: hidden;
+  font-family: var(--nt-font-family-sans);
+  font-size: var(--nt-font-size-sm);
+}
+
+.chevron {
+  flex: none;
+  inline-size: var(--nt-space-4);
+  color: var(--nt-color-text-muted);
+  text-align: center;
+}
+
+.name,
+.stepLink {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stepLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.stepLink:hover {
+  text-decoration: underline;
+}
+
+/* A gap's name is what it offers: it reads as a link, the row itself takes the click. */
+.name[data-action="true"] {
+  color: var(--nt-color-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.row[data-kind="not-run"] .name {
+  color: var(--nt-color-text-subtle);
+}
+
+.track {
+  position: relative;
+  margin-inline-end: var(--axis-end);
+  overflow: hidden;
+}
+
+/* A bar is a slot the shared swatch fills: the swatch draws the state (colour plus cross, stripes or outline). */
+/* Bars, marks and labels sit above the tick lines (the overlay's z-index 1), the lines only between them. */
+.barSlot,
+.segmentSlot,
+.offscreen,
+.label {
+  z-index: 2;
+}
+
+.barSlot,
+.segmentSlot {
+  position: absolute;
+  inset-block-start: calc((var(--row) - var(--bar)) / 2);
+  block-size: var(--bar);
+}
+
+.fill {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+/* Shorter than 2 px at its real length: a vertical mark, taller than a bar, its duration in the label only. */
+.barSlot[data-mark="true"] {
+  inset-block-start: calc((var(--row) - var(--bar) * 1.6) / 2);
+  block-size: calc(var(--bar) * 1.6);
+}
+
+/* A bar cut by the zoom window ends square on that side, as if it went on past the edge. */
+.barSlot[data-cut-start="true"] .fill {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+
+.barSlot[data-cut-end="true"] .fill {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+/* A failed or running step, or a completed process holding one, is outlined: findable among hundreds of thin bars. */
+.barSlot[data-emphasised="true"] {
+  outline: var(--nt-border-width) solid var(--nt-color-text);
+  outline-offset: var(--nt-border-width);
+}
+
+/* In a folded process's strip, quiet segments fill its height; failed, running and selected ones sit in its lower
+   half, drawn after, so a long running step never hides the steps that ran beside it. */
+.segmentSlot[data-lane="low"] {
+  inset-block-start: calc((var(--row) - var(--bar)) / 2 + var(--bar) / 2);
+  block-size: calc(var(--bar) / 2);
+}
+
+.segmentSlot[data-mixed="true"] {
+  opacity: 0.75;
+}
+
+.offscreen {
+  position: absolute;
+  inset-block: 0;
+  display: flex;
+  align-items: center;
+  color: var(--nt-color-text-subtle);
+}
+
+.offscreen[data-side="before"] {
+  inset-inline-start: 0;
+}
+
+.offscreen[data-side="after"] {
+  inset-inline-end: 0;
+}
+
+/* Plain inline text on the row's line: its " · " keeps its spaces. Where it fits nowhere whole (a narrow screen), it
+   ends in an ellipsis at the axis's edge rather than being cut. */
+.label {
+  position: absolute;
+  inset-block-start: 0;
+  overflow: hidden;
+  padding-inline: var(--nt-space-0-5);
+  background: var(--row-bg);
+  color: var(--nt-color-text-muted);
+  line-height: var(--row);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+/* Only when the bar takes almost the whole width: a chip on the bar, so the text never sits on the fill. */
+.label[data-placement="inside"] {
+  inset-block-start: calc((var(--row) - var(--nt-font-size-xs) * 1.6) / 2);
+  padding-inline: var(--nt-space-1);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-bg);
+  line-height: 1.6;
+}
+
+.label [data-tone="failed"] {
+  color: var(--nt-color-state-failed);
+  font-weight: var(--nt-font-weight-medium);
+}
+
+.overlay {
+  position: absolute;
+  z-index: 1;
+  inset-block: 0;
+  inset-inline-start: var(--names);
+  inset-inline-end: var(--axis-end);
+  pointer-events: none;
+}
+
+.gridline {
+  position: absolute;
+  inset-block: 0;
+  border-inline-start: var(--nt-border-width) dashed var(--nt-color-border);
+}
+
+/* The brand's orange: "now", while the run goes on. */
+.now {
+  position: absolute;
+  inset-block: 0;
+  border-inline-start: var(--nt-size-progress, 2px) solid var(--nt-color-brand);
+}

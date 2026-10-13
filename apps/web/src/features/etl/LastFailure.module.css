@@ -1,0 +1,31 @@
+/* The newest failure, said once: a quiet danger tint, the error in mono, a link to the run. */
+.failure {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-3);
+  padding: var(--nt-space-2-5) var(--nt-space-3);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-danger-surface);
+}
+
+.failureMark {
+  flex-shrink: 0;
+}
+
+.failureText {
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
+}
+
+.failureMessage {
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.failureLink {
+  flex-shrink: 0;
+  color: var(--nt-color-text);
+  font-weight: var(--nt-font-weight-strong);
+}

@@ -1,0 +1,55 @@
+/* Held at the top of the work area while the dashboard scrolls (on a wide pane), on the page's own ground so rows pass
+   under it. The negative margin keeps the dashboard's rhythm; the padding gives the bar its own breathing room. */
+.toolbar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  margin-block: calc(-1 * var(--nt-space-3));
+  padding-block: var(--nt-space-3);
+  border-block-end: var(--nt-border-width) solid var(--nt-color-border-subtle);
+  background: var(--nt-color-bg);
+}
+
+.groupBy {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-1-5);
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-sm);
+}
+
+/* Said, but not shown, where the bar is short of room: the select's own value reads as what it is. */
+.groupByWord {
+  white-space: nowrap;
+}
+
+@container (max-width: 64rem) {
+  .groupByWord {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* A select is as wide as its longest option: a long facet label would take the facets' room. */
+.groupBy select {
+  max-inline-size: 11rem;
+  min-block-size: var(--nt-size-control);
+  text-overflow: ellipsis;
+  padding: 0 var(--nt-space-2);
+  border: var(--nt-border-width) solid var(--nt-color-border-strong);
+  border-radius: var(--nt-radius-sm);
+  background: var(--nt-color-bg);
+  color: var(--nt-color-text);
+  font: inherit;
+}
+
+/* A narrow pane has no room to keep it: the bar scrolls away with the page. */
+@container (max-width: 36rem) {
+  .toolbar {
+    position: static;
+  }
+}

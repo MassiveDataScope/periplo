@@ -8,7 +8,7 @@ function routeOfHash(hash: string | null): Route | null {
 }
 
 /** Where this tab was before the current entry, as a route; null on a fresh open or a direct link. */
-export function previousRoute(): Route | null {
+function previousRoute(): Route | null {
   return routeOfHash(appHistory.previousHash());
 }
 
@@ -41,6 +41,19 @@ export function leaveOnClick(destination: Route): (event: MouseEvent<HTMLAnchorE
     if (!isPlainLeftClick(event)) return;
     event.preventDefault();
     goBackTo(destination);
+  };
+}
+
+/**
+ * The click handler for a link that changes what the current view shows (a step selected, the log opened): a plain
+ * click replaces the entry in place, as the navigation rule asks of state within a view; a click with a modifier or
+ * another button keeps the link's own behaviour, so the same view can open in a new tab.
+ */
+export function replaceOnClick(destination: Route): (event: MouseEvent<HTMLAnchorElement>) => void {
+  return (event) => {
+    if (!isPlainLeftClick(event)) return;
+    event.preventDefault();
+    replaceRoute(destination);
   };
 }
 

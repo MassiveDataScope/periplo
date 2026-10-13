@@ -1,0 +1,20 @@
+/* A button or a link that reads as an inline link: the run page's quiet actions (copy, view logs, run again). */
+.textLink {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nt-color-accent);
+  font: inherit;
+  font-size: var(--nt-font-size-sm);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.textLink:hover {
+  color: var(--nt-color-accent-hover);
+}
+
+.textLink:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: var(--nt-space-0-5);
+}

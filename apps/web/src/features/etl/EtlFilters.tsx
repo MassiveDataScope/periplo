@@ -1,180 +1,130 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useMemo, useRef, useState, type ReactNode, type Ref } from "react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Icon } from "@periplo/core/ui";
-import type { EtlStatusFilter } from "../../app/routes";
-import { matchTokens } from "../catalog-tree/names";
-import { needsAttention, newestRecent } from "./run-state";
+import { useMeasure } from "../../app/useMeasure";
+import { facetValueCounts, stateFacetCount, STATUS_ORDER, type EtlFiltersState } from "./etl-filters";
+import type { RunsNowByEtl } from "./etl-groups";
+import { tagFacet, type Facet } from "./facets";
+import { FacetMenu, MoreFacets, type FacetMenuSpec } from "./FacetMenu";
+import { FiltersSheet } from "./FiltersSheet";
 import type { Etl } from "./useEtl";
 import styles from "./EtlFilters.module.css";
 
-export type { EtlStatusFilter };
-
-/** Search, Tags (grouped by prefix) and quick state, all at once. Field names match the URL query (`q`, `tag`, `state`). */
-export interface EtlFiltersState {
-  readonly q: string;
-  readonly tags: readonly string[];
-  readonly state: readonly EtlStatusFilter[];
-}
-
-export const DEFAULT_ETL_FILTERS: EtlFiltersState = { q: "", tags: [], state: [] };
-
-/** Prefixes grouped in the Tags popover, in display order; `cadence:` is deliberately not one of them (UX review). */
-const KNOWN_PREFIXES = ["source:", "target:", "mode:", "team:", "kind:"] as const;
-const OTHER = "other";
-const CADENCE_PREFIX = "cadence:";
-
-const STATUS_ORDER: readonly EtlStatusFilter[] = ["failed", "running", "attention", "paused"];
-
-/** True when the ETL's newest of the last 12 runs (oldest to newest in `recent`) ended in the given quick state. */
-function matchesQuickState(etl: Etl, filter: EtlStatusFilter): boolean {
-  switch (filter) {
-    case "failed": {
-      const state = newestRecent(etl)?.state;
-      return state === "FAILED" || state === "CRASHED";
-    }
-    case "running":
-      return newestRecent(etl)?.state === "RUNNING";
-    case "attention":
-      return needsAttention(etl);
-    case "paused":
-      return etl.schedule_inactive;
-  }
-}
-
-function hasFilters(filters: EtlFiltersState): boolean {
-  return filters.q.trim() !== "" || filters.tags.length > 0 || filters.state.length > 0;
-}
-
-/** The known group a tag belongs to, `"other"` for the rest, or null for a `cadence:` tag (kept out of the Tags popover entirely). */
-function tagGroup(tag: string): string | null {
-  if (tag.startsWith(CADENCE_PREFIX)) return null;
-  return KNOWN_PREFIXES.find((prefix) => tag.startsWith(prefix)) ?? OTHER;
-}
-
-/** The part of the tag shown once its group is already named by the group header. */
-function tagValue(tag: string, group: string): string {
-  return group === OTHER ? tag : tag.slice(group.length);
-}
-
-/** OR within a tag group, AND across groups: an ETL matches once every selected group has at least one of its tags. */
-function matchesTagFilters(etl: Etl, tags: readonly string[]): boolean {
-  if (tags.length === 0) return true;
-  const byGroup = new Map<string, string[]>();
-  for (const tag of tags) {
-    const group = tagGroup(tag) ?? tag;
-    byGroup.set(group, [...(byGroup.get(group) ?? []), tag]);
-  }
-  return [...byGroup.values()].every((group) => group.some((tag) => etl.tags.includes(tag)));
-}
-
-/** Search by pieces of the name and tags, tags OR within a group and AND across groups, any selected state matches (OR). */
-export function applyEtlFilters(etls: readonly Etl[], filters: EtlFiltersState): Etl[] {
-  const search = filters.q.trim();
-  return etls.filter((etl) => {
-    if (search !== "" && matchTokens(search, `${etl.name} ${etl.tags.join(" ")}`) === null) return false;
-    if (!matchesTagFilters(etl, filters.tags)) return false;
-    if (filters.state.length > 0 && !filters.state.some((status) => matchesQuickState(etl, status))) return false;
-    return true;
-  });
-}
-
-interface TagGroup {
-  readonly group: string;
-  readonly tags: readonly string[];
-}
-
-/** Every tag but an ETL's own-name tag and any `cadence:` tag, grouped by its known prefix (fixed order) and the rest under "other". */
-function groupTags(etls: readonly Etl[]): TagGroup[] {
-  const buckets = new Map<string, Set<string>>();
-  for (const etl of etls) {
-    for (const tag of etl.tags) {
-      if (tag === etl.name) continue;
-      const group = tagGroup(tag);
-      if (group === null) continue;
-      buckets.set(group, (buckets.get(group) ?? new Set<string>()).add(tag));
-    }
-  }
-  return [...KNOWN_PREFIXES, OTHER].filter((group) => buckets.has(group)).map((group) => ({ group, tags: [...(buckets.get(group) ?? [])].sort() }));
-}
-
-function toggle<T>(list: readonly T[], item: T): T[] {
-  return list.includes(item) ? list.filter((current) => current !== item) : [...list, item];
-}
-
-/** The count if `tag` were the only selection of its own group, every other group's selection kept as is. */
-function tagFacetCount(etls: readonly Etl[], filters: EtlFiltersState, tag: string, group: string): number {
-  const others = filters.tags.filter((current) => (tagGroup(current) ?? current) !== group);
-  return applyEtlFilters(etls, { ...filters, tags: [...others, tag] }).length;
-}
-
-/** The count if `status` were the only state selected, search and tags kept as is: state has one group, so it is dropped entirely first. */
-function stateFacetCount(etls: readonly Etl[], filters: EtlFiltersState, status: EtlStatusFilter): number {
-  return applyEtlFilters(etls, { ...filters, state: [status] }).length;
-}
-
-/** Opens on click, closes on Esc (returning focus to the trigger) or a pointer down outside the trigger and panel. */
-function useDisclosure(): {
-  readonly open: boolean;
-  toggle(): void;
-  readonly triggerRef: RefObject<HTMLButtonElement | null>;
-  readonly panelRef: RefObject<HTMLDivElement | null>;
-} {
-  const [open, setOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      setOpen(false);
-      triggerRef.current?.focus();
-    }
-    function onPointerDown(event: PointerEvent): void {
-      const target = event.target as Node;
-      if (panelRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
-      setOpen(false);
-    }
-    document.addEventListener("keydown", onKeyDown);
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.removeEventListener("pointerdown", onPointerDown);
-    };
-  }, [open]);
-
-  return { open, toggle: () => setOpen((current) => !current), triggerRef, panelRef };
-}
-
 export interface EtlFiltersProps {
-  /** Every ETL across the three sheets, unfiltered: the source of the tag options and of "M" in the counter. */
+  /** The ETLs the filters choose among (the tab's whole list): the values' counts. */
   readonly etls: readonly Etl[];
+  readonly facets: readonly Facet[];
+  readonly runsNow: RunsNowByEtl;
   readonly value: EtlFiltersState;
+  /** How many ETLs the filters let through: the narrow sheet's way out says it. */
+  readonly matching: number;
   /** The search box, on every keystroke: a replaced history entry, never a new one. */
   onSearchChange(q: string): void;
-  /** A tag or state toggle, a chip removal, or Clear: a discrete choice, so a normal (pushed) navigation. */
   onFiltersChange(next: EtlFiltersState): void;
+  readonly searchRef?: Ref<HTMLInputElement>;
+  /** Another control at the bar's far end (the dashboard's grouping). */
+  readonly aside?: ReactNode;
+  /** Whether the State filter applies here: not where every ETL is archived (none needs anyone's attention). */
+  readonly withState?: boolean;
 }
 
-/** Search, Tags and State popovers, active filters as removable chips, above the three sheets; the tiles above stay unfiltered. */
-export function EtlFilters({ etls, value, onSearchChange, onFiltersChange }: EtlFiltersProps) {
-  const { t } = useTranslation();
-  const groups = useMemo(() => groupTags(etls), [etls]);
-  const shown = useMemo(() => applyEtlFilters(etls, value), [etls, value]);
-  const active = hasFilters(value);
+/** At most this many facets get a button of their own, fewer when the bar has no room for them; the rest wait under
+ * More. */
+const ON_THE_BAR = 4;
 
-  function tagLabel(tag: string, group: string): string {
-    const groupLabel = group === OTHER ? t("etl.filters.otherGroup") : group.slice(0, -1);
-    return `${groupLabel}: ${tagValue(tag, group)}`;
-  }
+/** How many facet buttons, up to `ON_THE_BAR`, fit beside More. Measured on hidden copies of the candidates
+ * (`[data-measure]`, holding how many facets there are; More's copy last), since a facet already under More has no
+ * button to measure. */
+function fittingFacets(element: HTMLElement): number {
+  const ghost = element.querySelector<HTMLElement>(":scope > [data-measure]");
+  const copies = [...(ghost?.children ?? [])] as HTMLElement[];
+  const more = copies.pop();
+  if (ghost === null || more === undefined) return ON_THE_BAR;
+  const gap = Number.parseFloat(getComputedStyle(ghost).columnGap) || 0;
+  const total = Number(ghost.dataset.measure);
+  const widths = copies.map((copy) => copy.offsetWidth);
+  const needed = (count: number): number => widths.slice(0, count).reduce((sum, width) => sum + width + gap, 0) + (count < total ? more.offsetWidth : -gap);
+  let count = widths.length;
+  while (count > 0 && needed(count) > element.clientWidth) count -= 1;
+  return count;
+}
+
+/** A facet's name: its own, or Labels for the tags without a prefix. */
+export function facetName(facet: Facet, t: TFunction): string {
+  return facet.label ?? t("etl.filters.labels");
+}
+
+/** State, the built-in facet: its values in their counts' order, as the tag facets list theirs. */
+function stateSpec(
+  etls: readonly Etl[],
+  runsNow: RunsNowByEtl,
+  value: EtlFiltersState,
+  onChange: (next: EtlFiltersState) => void,
+  t: TFunction,
+): FacetMenuSpec {
+  const options = STATUS_ORDER.map((status) => ({ id: status, text: t(`etl.filters.${status}`), count: stateFacetCount(etls, value, runsNow, status) })).sort(
+    (a, b) => b.count - a.count || a.text.localeCompare(b.text),
+  );
+  return {
+    key: "state",
+    label: t("etl.filters.stateButton"),
+    options,
+    selected: value.state,
+    onChange: (selected) => onChange({ ...value, state: STATUS_ORDER.filter((status) => selected.includes(status)) }),
+  };
+}
+
+/** A tag facet: its values with their counts given the other picks, its picks the URL's tags of it. */
+function tagSpec(
+  facet: Facet,
+  etls: readonly Etl[],
+  runsNow: RunsNowByEtl,
+  value: EtlFiltersState,
+  onChange: (next: EtlFiltersState) => void,
+  t: TFunction,
+): FacetMenuSpec {
+  const ofIt = (tag: string): boolean => tagFacet(tag).key === facet.key;
+  return {
+    key: `tag:${facet.key}`,
+    label: facetName(facet, t),
+    options: facetValueCounts(etls, value, runsNow, facet.key).map(({ tag, value: text, count }) => ({ id: tag, text, count })),
+    selected: value.tags.filter(ofIt),
+    onChange: (selected) => onChange({ ...value, tags: [...value.tags.filter((tag) => !ofIt(tag)), ...selected] }),
+  };
+}
+
+/**
+ * The dashboard's filters in one bar of steady height: the search, then State and the first facets of the ETLs' tags
+ * as buttons that say what they pick, the rest under More, and the grouping at the far end. A narrow pane has the
+ * search, then "Filters · N", which opens every facet at once in a sheet.
+ */
+export function EtlFilters({ etls, facets, runsNow, value, matching, onSearchChange, onFiltersChange, searchRef, aside, withState = true }: EtlFiltersProps) {
+  const { t } = useTranslation();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const specs = useMemo(
+    () => [
+      ...(withState ? [stateSpec(etls, runsNow, value, onFiltersChange, t)] : []),
+      ...facets.map((facet) => tagSpec(facet, etls, runsNow, value, onFiltersChange, t)),
+    ],
+    [withState, etls, runsNow, value, onFiltersChange, facets, t],
+  );
+  const facetsRef = useRef<HTMLDivElement>(null);
+  // What the buttons' widths follow: a poll that changes only the counts measures nothing again.
+  const widthKey = useMemo(() => specs.map((spec) => [spec.label, ...spec.selected].join("\u0000")).join("\u0001"), [specs]);
+  const fitting = useMeasure(facetsRef, fittingFacets, ON_THE_BAR, widthKey);
+  const shown = Math.max(withState ? 1 : 0, fitting);
+  const onBar = specs.slice(0, shown);
+  const more = specs.slice(shown);
+  const picked = specs.reduce((sum, spec) => sum + spec.selected.length, 0);
 
   return (
     <div className={styles.filters}>
-      <div className={styles.row}>
+      <div className={styles.row} data-testid="facet-bar">
         <label className={styles.search}>
           <Icon name="search" />
           <input
+            ref={searchRef}
             type="search"
             aria-label={t("etl.filters.label")}
             placeholder={t("etl.filters.placeholder")}
@@ -182,139 +132,26 @@ export function EtlFilters({ etls, value, onSearchChange, onFiltersChange }: Etl
             onChange={(event) => onSearchChange(event.target.value)}
           />
         </label>
-        <TagsFilter etls={etls} groups={groups} value={value} onChange={onFiltersChange} />
-        <StateFilter etls={etls} value={value} onChange={onFiltersChange} />
-        {value.tags.map((tag) => (
-          <Chip key={tag} label={tagLabel(tag, tagGroup(tag) ?? tag)} onRemove={() => onFiltersChange({ ...value, tags: toggle(value.tags, tag) })} />
-        ))}
-        {value.state.map((status) => (
-          <Chip key={status} label={t(`etl.filters.${status}`)} onRemove={() => onFiltersChange({ ...value, state: toggle(value.state, status) })} />
-        ))}
-        <span className={styles.count}>{t("etl.filters.count", { shown: shown.length, total: etls.length })}</span>
-        {active ? (
-          <button type="button" className={styles.clear} onClick={() => onFiltersChange(DEFAULT_ETL_FILTERS)}>
-            {t("etl.filters.clear")}
-          </button>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function Chip({ label, onRemove }: { readonly label: string; onRemove(): void }) {
-  const { t } = useTranslation();
-  return (
-    <button type="button" className={styles.activeChip} onClick={onRemove} aria-label={t("etl.filters.removeFilter", { label })}>
-      {label} <span aria-hidden="true">×</span>
-    </button>
-  );
-}
-
-function Hint() {
-  const { t } = useTranslation();
-  return <p className={styles.hint}>{t("etl.filters.anyAcrossGroups")}</p>;
-}
-
-function Popover({
-  label,
-  count,
-  disclosure,
-  children,
-}: {
-  readonly label: string;
-  readonly count: number;
-  readonly disclosure: ReturnType<typeof useDisclosure>;
-  readonly children: ReactNode;
-}) {
-  const { open, toggle: toggleOpen, triggerRef, panelRef } = disclosure;
-  return (
-    <div className={styles.popoverWrap}>
-      <button type="button" ref={triggerRef} className={styles.filterButton} aria-expanded={open} aria-haspopup="dialog" onClick={toggleOpen}>
-        {label}
-        {count > 0 ? <span className={styles.badge}>{count}</span> : null}
-      </button>
-      {open ? (
-        <div ref={panelRef} role="dialog" aria-label={label} className={styles.popover}>
-          {children}
+        <div className={styles.facets} ref={facetsRef}>
+          <div className={styles.shown}>
+            {onBar.map((spec) => (
+              <FacetMenu key={spec.key} spec={spec} />
+            ))}
+            {more.length > 0 ? <MoreFacets specs={more} /> : null}
+          </div>
+          <div className={styles.measure} data-measure={specs.length} aria-hidden="true" inert>
+            {specs.slice(0, ON_THE_BAR).map((spec) => (
+              <FacetMenu key={spec.key} spec={spec} />
+            ))}
+            <MoreFacets specs={specs} />
+          </div>
         </div>
-      ) : null}
-    </div>
-  );
-}
-
-function TagsFilter({
-  etls,
-  groups,
-  value,
-  onChange,
-}: {
-  readonly etls: readonly Etl[];
-  readonly groups: readonly TagGroup[];
-  readonly value: EtlFiltersState;
-  onChange(next: EtlFiltersState): void;
-}) {
-  const { t } = useTranslation();
-  const disclosure = useDisclosure();
-  const [search, setSearch] = useState("");
-
-  function toggleTag(tag: string): void {
-    onChange({ ...value, tags: toggle(value.tags, tag) });
-  }
-
-  const visibleGroups = groups
-    .map((group) => ({
-      ...group,
-      tags: group.tags.filter((tag) => search.trim() === "" || matchTokens(search, tagValue(tag, group.group)) !== null),
-    }))
-    .filter((group) => group.tags.length > 0);
-
-  return (
-    <Popover label={t("etl.filters.tagsButton")} count={value.tags.length} disclosure={disclosure}>
-      <input
-        type="search"
-        className={styles.popoverSearch}
-        aria-label={t("etl.filters.searchTags")}
-        placeholder={t("etl.filters.searchTags")}
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-      />
-      <Hint />
-      {visibleGroups.map((group) => (
-        <div key={group.group} className={styles.optionGroup}>
-          <div className={styles.groupLabel}>{group.group === OTHER ? t("etl.filters.otherGroup") : group.group.slice(0, -1)}</div>
-          {group.tags.map((tag) => (
-            <label key={tag} className={styles.option}>
-              <input type="checkbox" checked={value.tags.includes(tag)} onChange={() => toggleTag(tag)} />
-              {tagValue(tag, group.group)}
-              <span className={styles.optionCount}>{tagFacetCount(etls, value, tag, group.group)}</span>
-            </label>
-          ))}
-        </div>
-      ))}
-    </Popover>
-  );
-}
-
-function StateFilter({ etls, value, onChange }: { readonly etls: readonly Etl[]; readonly value: EtlFiltersState; onChange(next: EtlFiltersState): void }) {
-  const { t } = useTranslation();
-  const disclosure = useDisclosure();
-
-  function toggleStatus(status: EtlStatusFilter): void {
-    onChange({ ...value, state: toggle(value.state, status) });
-  }
-
-  return (
-    <Popover label={t("etl.filters.stateButton")} count={value.state.length} disclosure={disclosure}>
-      <Hint />
-      <div className={styles.optionGroup}>
-        {STATUS_ORDER.map((status) => (
-          <label key={status} className={styles.option}>
-            <input type="checkbox" checked={value.state.includes(status)} onChange={() => toggleStatus(status)} />
-            {t(`etl.filters.${status}`)}
-            <span className={styles.optionCount}>{stateFacetCount(etls, value, status)}</span>
-          </label>
-        ))}
+        <button type="button" className={`${styles.filterButton} ${styles.sheetButton}`} aria-haspopup="dialog" onClick={() => setSheetOpen(true)}>
+          {picked === 0 ? t("etl.filters.sheetTitle") : t("etl.filters.sheetButton", { count: picked })}
+        </button>
+        {aside !== undefined ? <div className={styles.aside}>{aside}</div> : null}
       </div>
-    </Popover>
+      <FiltersSheet open={sheetOpen} specs={specs} matching={matching} onClose={() => setSheetOpen(false)} />
+    </div>
   );
 }

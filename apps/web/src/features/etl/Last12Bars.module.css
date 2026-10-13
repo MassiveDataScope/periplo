@@ -1,4 +1,5 @@
-/* The dashboard's "Last 12" column: height-scaled bars, oldest to newest; retried runs split into segments. */
+/* The dashboard's "Last 12" column: height-scaled bars, oldest to newest, each its run's final state; a retried run
+   has a dot above it (its attempts are drawn on the ETL page's chart and in its runs table). */
 
 .strip {
   display: flex;
@@ -15,18 +16,35 @@
   align-items: flex-end;
 }
 
+/* A bar's slot: where its retry dot sits, centred just above it, without taking any width from the strip. */
+.slot {
+  position: relative;
+}
+
+.retryDot {
+  position: absolute;
+  inset-block-end: calc(100% + 1px);
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+}
+
 .bar {
   position: relative;
   display: block;
   inline-size: 6px;
+  transition: height var(--nt-motion-tick) linear;
+}
+
+/* The run's state, drawn by the shared swatch over the whole bar (a cross, stripes or an outline as well as colour). */
+.fill {
+  inline-size: 100%;
+  block-size: 100%;
   border-radius: var(--nt-radius-2xs, 1px);
-  background: var(--nt-color-state-ok);
 }
 
 /* A bar clipped to the strip's shared scale (one very long run must not flatten the other eleven): a small cut
    mark at the top says there is more than what is shown. */
-.bar[data-clipped]::after,
-.segmented[data-clipped]::after {
+.bar[data-clipped]::after {
   content: "";
   position: absolute;
   inset-block-start: 1px;
@@ -35,66 +53,9 @@
   background: repeating-linear-gradient(45deg, var(--nt-color-bg) 0, var(--nt-color-bg) 1px, transparent 1px, transparent 2px);
 }
 
-.bar[data-tone="danger"] {
-  background: var(--nt-color-danger);
-}
-
-.bar[data-tone="info"] {
-  background-color: var(--nt-color-state-run);
-}
-
-.bar[data-tone="warning"] {
-  background-color: var(--nt-color-warning);
-}
-
-/* The running bar's own "stripes = running" cue, static (no animation in this strip — 12 tiny bars marching at
- * once would be far too busy for what they add): a fixed diagonal-stripe background, the same tile size as the
- * step timeline's own running bar. Only a bar actually in motion right now (RUNNING/PENDING, or the live "running
- * now" stack a run is drawn from) earns it — SCHEDULED/CANCELLING share the same "info" tone but are not moving. */
-.bar[data-tone="info"][data-stripe],
-.bar[data-tone="warning"][data-stripe] {
-  background-image: repeating-linear-gradient(
-    -45deg,
-    var(--nt-color-state-run-stripe) 0,
-    var(--nt-color-state-run-stripe) 1px,
-    transparent 1px,
-    transparent 3px
-  );
-  transition: height var(--nt-motion-tick) linear;
-}
-
-.bar[data-tone="neutral"] {
-  background: var(--nt-color-surface-sunken);
-}
-
 .na {
   inline-size: 6px;
   block-size: 2px;
   background: var(--nt-color-border-subtle);
   align-self: flex-end;
-}
-
-.segmented {
-  position: relative;
-  inline-size: 6px;
-}
-
-.segmentLink {
-  display: flex;
-  flex-direction: column-reverse;
-  gap: 1px;
-  inline-size: 100%;
-  block-size: 100%;
-}
-
-.segmentLink i {
-  display: block;
-  flex: none;
-  inline-size: 100%;
-  border-radius: var(--nt-radius-2xs, 1px);
-  background: var(--nt-color-state-ok);
-}
-
-.segmentLink i[data-tone="danger"] {
-  background: var(--nt-color-danger);
 }

@@ -71,10 +71,18 @@ class Upstream(EtlError):
 
 
 class Rejected(EtlError):
-    """The orchestrator refused the request itself, e.g. invalid parameters (400)."""
+    """The orchestrator refused the request itself, e.g. invalid parameters (400).
+
+    ``upstream_status`` is the orchestrator's own status, when it answered one (a 422 for
+    a field it does not know); never part of the response.
+    """
 
     status = 400
     code = "etl_rejected"
+
+    def __init__(self, message: str, *, upstream_status: int | None = None) -> None:
+        super().__init__(message)
+        self.upstream_status = upstream_status
 
 
 class Busy(EtlError):
@@ -85,3 +93,18 @@ class Busy(EtlError):
 
     def __init__(self) -> None:
         super().__init__("ETL requests are queued, try again shortly", retryable=True)
+
+
+class NotCancellable(EtlError):
+    """The run cannot be cancelled in its current state (409): it has finished, it is
+    already being cancelled, or it is not stuck cancelling long enough to force."""
+
+    status = 409
+    code = "etl_run_not_cancellable"
+
+
+class NotRetryable(EtlError):
+    """The run cannot be retried (409): only a failed or crashed run of a deployment can."""
+
+    status = 409
+    code = "etl_run_not_retryable"

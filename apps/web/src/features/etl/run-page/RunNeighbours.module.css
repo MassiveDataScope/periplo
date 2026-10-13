@@ -1,0 +1,20 @@
+/* The runs before and after this one, at the end of the breadcrumbs' line. */
+.neighbours {
+  display: flex;
+  gap: var(--nt-space-4);
+  font-size: var(--nt-font-size-sm);
+}
+
+.neighbours a {
+  color: var(--nt-color-accent);
+  text-decoration: none;
+}
+
+.neighbours a:hover {
+  text-decoration: underline;
+}
+
+.neighbours a:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: var(--nt-space-0-5);
+}

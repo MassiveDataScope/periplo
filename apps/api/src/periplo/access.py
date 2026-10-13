@@ -99,11 +99,23 @@ class Action(StrEnum):
     QUERY = "query"
     VIEW_ETL = "view_etl"
     OPERATE_ETL = "operate_etl"
+    CANCEL_RUN = "cancel_run"
+    """Cancelling one run in the orchestrator (or forcing a stuck cancel); under the operate
+    switch."""
+    RETRY_RUN = "retry_run"
+    """Scheduling a failed or crashed run again, as the same run; under the operate switch."""
+    ARCHIVE_ETL = "archive_etl"
+    """Archiving or restoring an ETL: kept by Periplo, nothing changes in the orchestrator.
+    The open-core default allows it by its own switch, which follows the operate one unless
+    set (``Settings.etl_archive_allowed``)."""
 
 
 _CORE_VALUES: Final = frozenset(action.value for action in Action)
 
-STATE_CHANGING: Final = frozenset({Action.OPERATE_ETL})
+_OPERATING: Final = frozenset({Action.OPERATE_ETL, Action.CANCEL_RUN, Action.RETRY_RUN})
+"""What the open-core operate switch allows: everything that changes the orchestrator."""
+
+STATE_CHANGING: Final = _OPERATING | {Action.ARCHIVE_ETL}
 """Core actions a ``denied`` audit event is worth recording for from ``require``.
 
 ``Access.operate`` records every denial it meets, whatever the action.
@@ -209,18 +221,24 @@ class FilteringAuthorizer(Authorizer, Protocol):
 
 
 class SwitchAuthorizer:
-    """Default :class:`Authorizer`: the single-tenant ``allow_operate`` switch."""
+    """Default :class:`Authorizer`: the single-tenant ``allow_operate`` and ``allow_archive``
+    switches (``Settings.etl_archive_allowed`` decides the second)."""
 
-    def __init__(self, *, allow_operate: bool) -> None:
+    def __init__(self, *, allow_operate: bool, allow_archive: bool) -> None:
         self._allow_operate = allow_operate
+        self._allow_archive = allow_archive
 
     async def authorize(self, context: RequestContext, action: StrEnum, target: Target) -> None:
         # A single-tenant default is a boundary: another tenant is a composition
         # error, never a request it can decide on.
         require_default_tenant(context)
-        if action is Action.OPERATE_ETL and not self._allow_operate:
+        if action in _OPERATING and not self._allow_operate:
             raise Denied(
                 "Operating ETLs is disabled for this installation", code="etl_operate_disabled"
+            )
+        if action is Action.ARCHIVE_ETL and not self._allow_archive:
+            raise Denied(
+                "Archiving ETLs is disabled for this installation", code="etl_archive_disabled"
             )
 
 
@@ -320,15 +338,18 @@ class Access:
         self._filter = authorizer if isinstance(authorizer, FilteringAuthorizer) else None
         self._audit = audit
 
-    async def require(self, action: StrEnum, target: Target = WHOLE) -> RequestContext:
+    async def require(
+        self, action: StrEnum, target: Target = WHOLE, *, audited_as: Target | None = None
+    ) -> RequestContext:
         """Authorize *action* for the current request, or raise a denial.
 
         Any loom ``Forbidden`` is re-raised through :func:`as_403` and any
         ``Unauthenticated`` through :func:`as_401`, so each answers the same status on
-        every surface.
+        every surface. A refusal is audited with *audited_as* when given (what the caller
+        was after, when *target* is broader), else with *target*.
         """
         context = current_context()
-        await self._authorize(context, action, target)
+        await self._authorize(context, action, target, audited_as=audited_as)
         return context
 
     async def visible(self, action: StrEnum, targets: Sequence[Target]) -> list[Target]:
@@ -505,14 +526,22 @@ class Access:
             raise hidden()
 
     async def _authorize(
-        self, context: RequestContext, action: StrEnum, target: Target, *, always: bool = False
+        self,
+        context: RequestContext,
+        action: StrEnum,
+        target: Target,
+        *,
+        always: bool = False,
+        audited_as: Target | None = None,
     ) -> Justification | None:
-        """The authorizer's grant for *action*, or its refusal re-raised through ``_refuse``."""
+        """The authorizer's grant for *action*, or its refusal re-raised through ``_refuse``,
+        audited with *audited_as* when given."""
         _vet(action)
         try:
             return await self._authorizer.authorize(context, action, target)
         except (Forbidden, Unauthenticated) as error:
-            await self._refuse(context, action, target, error, always=always)
+            audited = target if audited_as is None else audited_as
+            await self._refuse(context, action, audited, error, always=always)
 
     async def _refuse(
         self,

@@ -1,0 +1,25 @@
+/* A run stuck waiting to start, said once: a quiet warning tint, a link to the run where there is one. */
+.notice {
+  display: flex;
+  align-items: center;
+  gap: var(--nt-space-3);
+  padding: var(--nt-space-2-5) var(--nt-space-3);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-warning-surface);
+}
+
+.mark {
+  flex-shrink: 0;
+}
+
+.text {
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
+}
+
+.link {
+  flex-shrink: 0;
+  color: var(--nt-color-text);
+  font-weight: var(--nt-font-weight-strong);
+}

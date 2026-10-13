@@ -7,7 +7,16 @@
   overflow: auto;
 }
 
-/* One line: the run's name leads, its deployment follows, the orchestrator link sits at the far end. */
+/* Where the run sits: its ETL's breadcrumbs, then the runs before and after it at the far end. */
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--nt-space-2) var(--nt-space-4);
+}
+
+/* One line: the run's name leads, the orchestrator link sits at the far end. */
 .header {
   display: flex;
   flex-wrap: wrap;
@@ -21,242 +30,47 @@
   font-size: var(--nt-font-size-xl);
   font-weight: var(--nt-font-weight-medium);
   line-height: var(--nt-font-line-height-tight);
+  overflow-wrap: anywhere;
 }
 
-.deployment,
 .external {
+  margin-inline-start: auto;
   color: var(--nt-color-text-muted);
   font-family: var(--nt-font-family-mono);
   font-size: var(--nt-font-size-sm);
   text-decoration: none;
 }
 
-.deployment:hover,
 .external:hover {
   color: var(--nt-color-text);
   text-decoration: underline;
 }
 
-.deployment:focus-visible,
 .external:focus-visible {
   outline: var(--nt-focus-width) solid var(--nt-color-focus);
   outline-offset: var(--nt-space-0-5);
 }
 
-.external {
-  margin-inline-start: auto;
-}
-
-/* Why the run did not make it, right under its state: the same ink the status bar uses for danger. */
-.message {
-  margin: 0;
-  padding: var(--nt-space-2) var(--nt-space-3);
-  border-inline-start: var(--nt-size-progress) solid var(--nt-color-danger);
-  background: var(--nt-color-danger-surface);
-  font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-sm);
-}
-
-/* "Killed · memory": a short, bold line above the raw SIGKILL/OOM message, so the shape of the failure reads first. */
-.killedLine {
-  margin: 0 0 var(--nt-space-1);
-  font-weight: var(--nt-font-weight-strong);
-  text-transform: uppercase;
-  letter-spacing: var(--nt-font-tracking-wide);
-  font-size: var(--nt-font-size-xs);
-}
-
-.messageText {
-  margin: 0;
-  white-space: pre-wrap;
-}
-
-.viewLogs {
-  margin: var(--nt-space-2) 0 0;
+/* Heard, not seen: the run's state as it changes. */
+.announcement {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
   padding: 0;
-  border: none;
-  background: none;
-  color: inherit;
-  font: inherit;
-  font-size: var(--nt-font-size-xs);
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.section {
-  min-inline-size: 0;
-}
-
-.section > h3 {
-  margin-block-end: var(--nt-space-2);
-}
-
-.section > h3:not(:first-child) {
-  margin-block-start: var(--nt-space-4);
-}
-
-.parameters {
-  margin: 0;
-  padding: var(--nt-space-2) var(--nt-space-3);
-  overflow: auto;
-  border-radius: var(--nt-radius-sm);
-  background: var(--nt-color-surface-sunken);
-  font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-sm);
-}
-
-.muted {
-  margin: 0;
-  color: var(--nt-color-text-muted);
-  font-size: var(--nt-font-size-sm);
-}
-
-/* ── Attempt tabs: "Attempt 1 · 2 · 3 · final", each tinted by its own state. ────────────────────────────────── */
-
-.tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--nt-space-1);
-  margin-block-end: var(--nt-space-2);
-}
-
-.tab {
-  padding: 0 var(--nt-space-3);
-  min-block-size: var(--nt-size-control);
-  border: var(--nt-border-width) solid var(--nt-color-border);
-  border-radius: var(--nt-radius-sm);
-  background: var(--nt-color-bg);
-  color: var(--nt-color-text-muted);
-  font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-sm);
-  cursor: pointer;
-}
-
-.tab[aria-selected="true"] {
-  border-color: var(--nt-color-border-strong);
-  background: var(--nt-color-surface);
-  color: var(--nt-color-text);
-  font-weight: var(--nt-font-weight-medium);
-}
-
-.tab[data-tone="success"][aria-selected="true"] {
-  border-color: var(--nt-color-success);
-}
-
-.tab[data-tone="danger"][aria-selected="true"] {
-  border-color: var(--nt-color-danger);
-}
-
-.tab[data-tone="info"][aria-selected="true"] {
-  border-color: var(--nt-color-info);
-}
-
-.attemptMessage {
-  margin: 0 0 var(--nt-space-2);
-  color: var(--nt-color-danger);
-  font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-xs);
-}
-
-/* ── The process › step table: a bold process row, its steps indented below, each with a timeline bar. ───────── */
-
-.processRow th {
-  background: var(--nt-color-surface);
-  font-weight: var(--nt-font-weight-strong);
-}
-
-.processCell,
-.stepCell {
-  display: flex;
-  align-items: center;
-  gap: var(--nt-space-2);
   overflow: hidden;
-}
-
-.stepCell {
-  padding-inline-start: var(--nt-space-6);
-}
-
-.toggle {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  inline-size: var(--nt-space-4);
-  block-size: var(--nt-space-4);
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--nt-color-text-muted);
-  cursor: pointer;
-}
-
-.expected {
-  color: var(--nt-color-text-muted);
-  font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-xs);
+  clip-path: inset(50%);
   white-space: nowrap;
 }
 
-.state {
-  overflow: hidden;
+.attempt {
+  display: grid;
+  gap: var(--nt-space-2);
+  min-inline-size: 0;
 }
 
-.colState {
-  inline-size: 9rem;
-}
-
-.started {
-  font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-sm);
-}
-
-.colStarted {
-  inline-size: 10rem;
-}
-
-/* One track per row; the bar itself sits at its computed offset and width within it. */
-.timelineTrack {
-  position: relative;
-  inline-size: 100%;
-  min-inline-size: 8rem;
-  block-size: var(--nt-space-2);
-  border-radius: var(--nt-radius-full);
-  background: var(--nt-color-surface-sunken);
-}
-
-.timelineBar {
-  position: absolute;
-  inset-block: 0;
-  border-radius: var(--nt-radius-full);
-  background: var(--nt-color-border-strong);
-}
-
-.timelineBar[data-tone="success"] {
-  background: var(--nt-color-success);
-}
-
-.timelineBar[data-tone="danger"] {
-  background: var(--nt-color-danger);
-}
-
-.timelineBar[data-tone="info"] {
-  background: var(--nt-color-info);
-}
-
-.timelineBar[data-dashed="true"] {
-  background-image: repeating-linear-gradient(45deg, currentcolor 0 4px, transparent 4px 8px);
-  background-color: transparent;
-  color: var(--nt-color-danger);
-}
-
-/* ── The full run's logs: opens the floating log window at Run scope rather than repeating a viewer inline. ──── */
-
-.openFullLogs {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--nt-color-accent);
-  font-size: var(--nt-font-size-sm);
-  cursor: pointer;
+@media (max-width: 719px) {
+  .view {
+    padding: var(--nt-space-3);
+  }
 }

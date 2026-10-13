@@ -1,0 +1,392 @@
+/* The 24-hour panel: what needs attention listed first, off the axis; then one shared axis (−24 h … +6 h) under the
+   histogram, the running rows and the folded strip, so a run lines up with its hour wherever it is drawn. The name
+   column and the track keep the same widths on every line of the axis, and now is drawn once across all of them. */
+
+.panel {
+  display: grid;
+  gap: var(--nt-space-3);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nt-space-2) var(--nt-space-4);
+}
+
+.title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--nt-space-3);
+  margin: 0;
+}
+
+.figures {
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+  font-weight: var(--nt-font-weight-regular);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.frame {
+  padding: var(--nt-space-3) var(--nt-space-4);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-bg);
+}
+
+.line,
+.nowLayer {
+  display: grid;
+  grid-template-columns: minmax(9rem, min(16rem, 30%)) minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--nt-space-4);
+}
+
+/* Every line of the axis above now's layer: the line runs behind the bars. */
+.axisArea .line {
+  position: relative;
+  z-index: 1;
+}
+
+.label {
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-xs);
+}
+
+/* The track every chart sits on: positioned children in percent of its width. */
+.track {
+  position: relative;
+  block-size: 2.25rem;
+}
+
+/* The axis' lines, and now drawn once behind all of them: a layer on the same columns as the lines, its second column
+   holding the line at now's spot of the track. Solid down the histogram (where the dot signs it), faint below it. */
+.axisArea {
+  --now-solid: 2.75rem;
+  position: relative;
+  isolation: isolate;
+}
+
+.nowLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  align-items: stretch;
+  pointer-events: none;
+}
+
+.nowSlot {
+  position: relative;
+}
+
+.nowLine {
+  position: absolute;
+  inset-block: 0;
+  inline-size: 1px;
+  background: linear-gradient(to bottom, var(--nt-color-brand) var(--now-solid), color-mix(in srgb, var(--nt-color-brand) 35%, transparent) var(--now-solid));
+  transform: translateX(-50%);
+}
+
+/* The histogram's own now line, for a narrow pane only (where the lines below it put each name above its track). */
+.histogramNow {
+  position: absolute;
+  inset-block: calc(-1 * var(--nt-space-1)) 0;
+  display: none;
+  inline-size: 1px;
+  background: var(--nt-color-brand);
+  transform: translateX(-50%);
+}
+
+/* The periscope's dot on top of the now line, as the brand signs the present. */
+.nowLine::before,
+.histogramNow::before {
+  content: "";
+  position: absolute;
+  inset-block-start: calc(-1 * var(--nt-space-1));
+  inset-inline-start: 50%;
+  inline-size: var(--nt-space-2);
+  block-size: var(--nt-space-2);
+  border-radius: var(--nt-radius-full);
+  background: var(--nt-color-brand);
+  transform: translateX(-50%);
+}
+
+/* Histogram: fixed height whatever the number of ETLs; one column per clock hour, its segments stacked from the floor. */
+.histogram {
+  block-size: 2.75rem;
+  border-block-end: var(--nt-border-width) solid var(--nt-color-border);
+}
+
+.column {
+  position: absolute;
+  inset-block: 0;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 1px;
+  padding-inline: 1px;
+  box-sizing: border-box;
+}
+
+.segment {
+  flex: none;
+  border-radius: 1px;
+}
+
+.axis {
+  position: relative;
+  block-size: 1.25rem;
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-2xs);
+}
+
+.tick {
+  position: absolute;
+  inset-block-start: var(--nt-space-1);
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.tick[data-tick="start"] {
+  transform: none;
+}
+
+.tick[data-tick="end"] {
+  transform: translateX(-100%);
+}
+
+.tick[data-tick="now"] {
+  color: var(--nt-color-text);
+}
+
+/* Groups and rows. */
+.section {
+  display: grid;
+}
+
+.sectionHeading {
+  display: flex;
+  gap: var(--nt-space-2);
+  margin: var(--nt-space-3) 0 var(--nt-space-1);
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rows > li {
+  border-block-start: var(--nt-border-width) solid var(--nt-color-border-subtle);
+}
+
+.who {
+  display: grid;
+  gap: 1px;
+  min-inline-size: 0;
+  padding-block: var(--nt-space-1-5);
+}
+
+.name {
+  overflow: hidden;
+  color: var(--nt-color-text);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+  font-weight: var(--nt-font-weight-medium);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.name:hover {
+  color: var(--nt-color-accent);
+  text-decoration: underline;
+}
+
+/* A note wraps rather than lose its end: the slow ratio and the schedule's state come last. */
+.note {
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-xs);
+}
+
+/* One run: at least a few pixels wide however short it was, its real length in its accessible name. */
+.bar {
+  position: absolute;
+  inset-block-start: 50%;
+  display: block;
+  block-size: 0.75rem;
+  min-inline-size: 4px;
+  transform: translateY(-50%);
+  border-radius: 2px;
+}
+
+/* A run still going ends at now: wide enough to see however young, growing leftwards from now, over now's line. */
+.bar[data-live] {
+  z-index: 1;
+  min-inline-size: 6px;
+}
+
+/* The focus ring is drawn outside the bar: a 4 px run must still show it plainly. */
+.bar:focus-visible,
+.unfold:focus-visible,
+.action:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: var(--nt-focus-offset);
+}
+
+.bar > .fill {
+  inline-size: 100%;
+  block-size: 100%;
+  border-radius: inherit;
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  min-block-size: var(--nt-space-5, 20px);
+  padding: 0 var(--nt-space-2);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-sm);
+  background: none;
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family);
+  font-size: var(--nt-font-size-xs);
+  font-weight: var(--nt-font-weight-medium);
+  cursor: pointer;
+}
+
+.action:hover {
+  border-color: var(--nt-color-text);
+  color: var(--nt-color-text);
+}
+
+a.action {
+  text-decoration: none;
+}
+
+/* What needs attention, apart from the axis below it. */
+.incidents {
+  margin-block-end: var(--nt-space-3);
+  padding-block-end: var(--nt-space-2);
+  border-block-end: var(--nt-border-width) solid var(--nt-color-border);
+}
+
+.incidents + .axisArea {
+  --now-solid: calc(2.75rem + var(--nt-space-3));
+  padding-block-start: var(--nt-space-3);
+}
+
+/* What needs attention, off the axis: its mark, who and why (with when), its last runs, and its actions at the end. */
+.incident {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  column-gap: var(--nt-space-3);
+  padding-block: var(--nt-space-1-5);
+}
+
+.incidentMark {
+  display: flex;
+  align-self: start;
+  padding-block-start: var(--nt-space-0-5);
+}
+
+.when {
+  color: var(--nt-color-text-subtle);
+  font-size: var(--nt-font-size-xs);
+}
+
+.incidentActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--nt-space-2);
+}
+
+/* The folded rest: a summary, the button that unfolds it, and its runs counted per hour on the same axis. */
+.summary {
+  font-size: var(--nt-font-size-sm);
+}
+
+.unfold {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nt-color-accent);
+  font: inherit;
+  font-size: var(--nt-font-size-xs);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.strip {
+  block-size: 1.5rem;
+}
+
+/* A narrow pane (a phone, or a wide side column): the panel never scrolls sideways. Each line puts the ETL's name
+   above its runs, the track then spanning the whole line. */
+@container (max-width: 36rem) {
+  .panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .line {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--nt-space-1);
+  }
+
+  /* The name sits above its track: now is drawn on the histogram alone, not across the names below it. */
+  .nowLayer {
+    display: none;
+  }
+
+  .histogramNow {
+    display: block;
+  }
+
+  /* An incident keeps its mark beside who and why; its last runs and its actions wrap below them. */
+  .incident {
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: var(--nt-space-1-5);
+  }
+
+  .incidentRuns,
+  .incidentActions {
+    grid-column: 2;
+  }
+
+  .incidentActions {
+    justify-content: flex-start;
+  }
+}
+
+/* A chained ETL's row: ↳ before its name (another ETL's completion starts it), said in words to a screen reader. */
+.chainMark {
+  margin-inline-end: var(--nt-space-0-5);
+  color: var(--nt-color-text-muted);
+}
+
+/* The retry dot just above the bar's start, in the room the track leaves above it. */
+.retryDot {
+  position: absolute;
+  inset-block-end: calc(100% + 2px);
+  inset-inline-start: 0;
+}
+
+/* Cancel stuck runs: each run on a line of its own, its ETL first, in the dialog's small type. */
+.bulkList {
+  display: grid;
+  gap: var(--nt-space-1);
+  margin: 0;
+  padding: 0;
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+  list-style: none;
+  overflow-wrap: anywhere;
+}

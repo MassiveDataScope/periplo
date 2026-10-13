@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 from loom.core.config import ConfigError
 
+from periplo.etl.facets import FacetConfig
 from periplo.settings import Settings
 
 
@@ -103,3 +104,65 @@ def test_etl_log_noise_defaults_and_is_split_trimmed_and_without_empties() -> No
 
     assert settings.etl_log_noise == "a, b,,c "
     assert settings.etl_log_noise_list == ("a", "b", "c")
+
+
+@pytest.mark.parametrize(
+    ("environ", "allowed"),
+    [
+        ({}, False),
+        ({"PERIPLO_ETL_ALLOW_OPERATE": "true"}, True),
+        ({"PERIPLO_ETL_ALLOW_OPERATE": "true", "PERIPLO_ETL_ALLOW_ARCHIVE": "false"}, False),
+        ({"PERIPLO_ETL_ALLOW_ARCHIVE": "true"}, True),
+    ],
+)
+def test_archiving_follows_operating_unless_set_on_its_own(
+    environ: dict[str, str], allowed: bool
+) -> None:
+    assert Settings.from_environment(environ).etl_archive_allowed is allowed
+
+
+def test_etl_facets_default_to_none_configured() -> None:
+    assert Settings.from_environment({}).etl_facets == {}
+
+
+def test_etl_facets_read_labels_order_hidden_and_lineage_roles_from_json() -> None:
+    settings = Settings.from_environment(
+        {
+            "PERIPLO_ETL_FACETS": (
+                '{"system": {"label": "System", "order": 1, "role": "reads"},'
+                ' "writes": {"role": "writes"}, "tier": {"hidden": true}}'
+            )
+        }
+    )
+    assert settings.etl_facets == {
+        "system": FacetConfig(label="System", order=1, role="reads"),
+        "writes": FacetConfig(role="writes"),
+        "tier": FacetConfig(hidden=True),
+    }
+
+
+def test_etl_facets_read_an_expects_schedule_role_with_its_values() -> None:
+    settings = Settings.from_environment(
+        {"PERIPLO_ETL_FACETS": '{"tier": {"role": "expects_schedule", "values": ["daily"]}}'}
+    )
+    assert settings.etl_facets == {
+        "tier": FacetConfig(role="expects_schedule", values=["daily"]),
+    }
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        '{"system": {"role": "owns"}}',
+        '{"system": {"colour": "red"}}',
+        "not json",
+        '["system"]',
+        '{"tier": {"role": "expects_schedule"}}',
+        '{"tier": {"role": "expects_schedule", "values": []}}',
+        '{"tier": {"role": "reads", "values": ["daily"]}}',
+        '{"tier": {"values": ["daily"]}}',
+    ],
+)
+def test_etl_facets_that_do_not_parse_name_the_variable(raw: str) -> None:
+    with pytest.raises(ConfigError, match="PERIPLO_ETL_FACETS"):
+        Settings.from_environment({"PERIPLO_ETL_FACETS": raw})

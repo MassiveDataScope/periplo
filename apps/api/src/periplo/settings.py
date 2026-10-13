@@ -13,6 +13,8 @@ from typing import Annotated
 import msgspec
 from loom.core.config import ConfigError
 
+from periplo.etl.facets import FacetConfig
+
 PREFIX = "PERIPLO_"
 
 Positive = Annotated[int, msgspec.Meta(ge=1)]
@@ -48,11 +50,26 @@ class Settings(msgspec.Struct, frozen=True, kw_only=True):
     prefect_tags: str = ""
     """Comma-separated tags every Prefect query is filtered by; see ``prefect_tag_list``."""
     etl_allow_operate: bool = False
-    """Whether run, resume and pause are allowed (``true``/``false``/``1``/``0``)."""
+    """Whether launching, cancelling and retrying runs, and resuming and pausing schedules,
+    are allowed (``true``/``false``/``1``/``0``)."""
+    etl_allow_archive: bool | None = None
+    """Whether archiving and restoring ETLs is allowed; unset follows ``etl_allow_operate``
+    (see ``etl_archive_allowed``)."""
+    etl_facets: dict[str, FacetConfig] = {}
+    """How the console names the facets the ETL tags form, keyed by tag prefix: a JSON
+    object of ``{"<prefix>": {"label", "order", "hidden", "role", "values"}}``, every field
+    optional but ``values`` with ``role="expects_schedule"`` (see :mod:`periplo.etl.facets`).
+    Empty by default: every facet keeps its prefix as its name, none is lineage and no ETL
+    is expected to be scheduled."""
     etl_log_noise: str = ""
     """Comma-separated log prefixes folded by default in the web; see ``etl_log_noise_list``."""
     prefect_timeout_seconds: Seconds = 10
     """Limit of each call to Prefect."""
+
+    @property
+    def etl_archive_allowed(self) -> bool:
+        """``etl_allow_archive``, or ``etl_allow_operate`` when it is unset."""
+        return self.etl_allow_operate if self.etl_allow_archive is None else self.etl_allow_archive
 
     @property
     def prefect_tag_list(self) -> tuple[str, ...]:
@@ -72,15 +89,25 @@ class Settings(msgspec.Struct, frozen=True, kw_only=True):
         Raises:
             ConfigError: Naming the variable that is missing or malformed.
         """
-        raw = {
+        raw: dict[str, object] = {
             name: environ[PREFIX + name.upper()]
             for name in cls.__struct_fields__
             if PREFIX + name.upper() in environ
         }
+        # The one variable holding JSON (a structure, not a single value).
+        if "etl_facets" in raw:
+            raw["etl_facets"] = _json("etl_facets", str(raw["etl_facets"]))
         try:
             return msgspec.convert(raw, cls, strict=False)
         except msgspec.ValidationError as error:
             raise ConfigError(_explain(error)) from error
+
+
+def _json(field: str, text: str) -> object:
+    try:
+        return msgspec.json.decode(text)
+    except msgspec.DecodeError as error:
+        raise ConfigError(f"{PREFIX}{field.upper()}: not JSON ({error})") from error
 
 
 def _explain(error: msgspec.ValidationError) -> str:

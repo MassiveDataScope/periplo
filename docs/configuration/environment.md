@@ -65,6 +65,8 @@ The ETL section talks to [Prefect](https://www.prefect.io/). It is off until
 | `PERIPLO_PREFECT_TAGS` | empty | Comma-separated tags. Only deployments that carry **all** of them are shown, and the runs Periplo asks Prefect for are filtered by them. Empty shows every deployment of the workspace. |
 | `PERIPLO_PREFECT_TIMEOUT_SECONDS` | `10` | Time limit of each call to Prefect, in seconds. |
 | `PERIPLO_ETL_ALLOW_OPERATE` | `false` | Whether the console may start runs and pause or resume schedules. Read {ref}`the warning below <allow-operate>` before turning it on. |
+| `PERIPLO_ETL_ALLOW_ARCHIVE` | same as `PERIPLO_ETL_ALLOW_OPERATE` | Whether the console may archive and restore ETLs (kept by Periplo; nothing changes in the orchestrator). |
+| `PERIPLO_ETL_FACETS` | empty | How the console names the facets your ETL tags form: a JSON object keyed by tag prefix, each with optional `label`, `order`, `hidden` and `role` (`reads` or `writes` for lineage; `expects_schedule` with a non-empty `values` list for the values that mean an ETL should be scheduled). See {ref}`ETL facets <etl-facets>`. |
 | `PERIPLO_ETL_LOG_NOISE` | empty | Comma-separated log line prefixes that the log viewer folds as noise by default. Empty folds nothing. |
 
 (allow-operate)=

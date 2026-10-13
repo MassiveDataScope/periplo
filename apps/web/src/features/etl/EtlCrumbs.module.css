@@ -1,0 +1,22 @@
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nt-space-1-5);
+  color: var(--nt-color-text-subtle);
+  font-size: var(--nt-font-size-sm);
+}
+
+.crumbs a {
+  color: var(--nt-color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.crumbs a:hover {
+  color: var(--nt-color-accent-hover);
+}
+
+.current {
+  color: var(--nt-color-text-muted);
+  font-family: var(--nt-font-family-mono);
+}

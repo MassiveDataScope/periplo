@@ -1,5 +1,5 @@
 /** The parts of a click that say who should handle it: a DOM `MouseEvent` and React's both have them. */
-export type ClickModifiers = Pick<MouseEvent, "defaultPrevented" | "button" | "metaKey" | "ctrlKey" | "shiftKey" | "altKey">;
+type ClickModifiers = Pick<MouseEvent, "defaultPrevented" | "button" | "metaKey" | "ctrlKey" | "shiftKey" | "altKey">;
 
 /**
  * Whether a click on a link is a plain primary click that the page may take over. A modifier (Cmd,

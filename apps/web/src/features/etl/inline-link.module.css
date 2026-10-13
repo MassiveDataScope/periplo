@@ -1,0 +1,16 @@
+/* A link inside a sentence ("Runs after X completes", "Triggered by X › run"): the sentence's own colour and size,
+   underlined, the accent on hover, in both themes. */
+.inlineLink {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.inlineLink:hover {
+  color: var(--nt-color-accent-hover);
+}
+
+.inlineLink:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: var(--nt-space-0-5);
+}

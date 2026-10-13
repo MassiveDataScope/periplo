@@ -1,0 +1,48 @@
+.panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--nt-space-1-5);
+  block-size: 100%;
+  min-block-size: 0;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nt-space-1) var(--nt-space-4);
+  font-size: var(--nt-font-size-sm);
+}
+
+.title {
+  font-weight: var(--nt-font-weight-medium);
+}
+
+/* Not every line is here: said where the reader looks first. */
+.partial {
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-xs);
+}
+
+.only {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nt-space-1);
+  color: var(--nt-color-text-muted);
+}
+
+.hide {
+  margin-inline-start: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nt-color-accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.hide:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: var(--nt-space-0-5);
+}

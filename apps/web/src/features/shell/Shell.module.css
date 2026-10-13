@@ -1,4 +1,4 @@
-/* rail | catalog | work: three siblings. The column is a real column, never a layer over the work. */
+/* rail | side column | work: three siblings. The column is a real column, never a layer over the work. */
 .frame {
   display: grid;
   grid-template-columns: auto var(--catalog-width) minmax(0, 1fr);
@@ -10,7 +10,7 @@
   grid-template-columns: auto var(--nt-size-catalog-strip) minmax(0, 1fr);
 }
 
-.catalog {
+.column {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -20,12 +20,20 @@
   background: var(--nt-color-surface);
 }
 
+/* Always the last column, even when the side column overlays the work and leaves its own cell empty. Something brought
+   into view lands below a view's sticky bar (`useWorkScrollPadding`). */
 .work {
+  grid-column: -2 / -1;
   display: flex;
   flex-direction: column;
   min-inline-size: 0;
   min-block-size: 0;
   overflow: auto;
+}
+
+/* The room stays for what lies under the sticky bar, not for the bar itself: focusing inside it must not scroll. */
+.work:not(:has([data-work-sticky]:focus-within)) {
+  scroll-padding-block-start: var(--work-scroll-padding, 0px);
 }
 
 /* The folded column: one strip with the icon and, written downwards, where you are. */
@@ -78,7 +86,7 @@
   grid-template-columns: auto var(--nt-size-catalog-strip) minmax(0, 1fr);
 }
 
-.frame[data-narrow][data-catalog="open"] .catalog {
+.frame[data-narrow][data-catalog="open"] .column {
   position: fixed;
   inset-block: 0;
   inset-inline-start: var(--nt-size-rail-collapsed);

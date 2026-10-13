@@ -1,86 +1,3 @@
-.overline {
-  display: flex;
-  align-items: baseline;
-  gap: var(--nt-space-3);
-  margin: 0 0 var(--nt-space-3);
-}
-
-/* Needs attention: the same shape as Home's issue panel (see Home.module.css), duplicated here rather than shared
-   since Home keeps its issue markup inline. */
-.attentionCount {
-  padding: 0 var(--nt-space-1-5);
-  border-radius: var(--nt-radius-full);
-  background: var(--nt-color-warning-surface);
-  color: var(--nt-color-warning);
-  font-family: var(--nt-font-family-mono);
-  font-weight: var(--nt-font-weight-medium);
-  letter-spacing: 0;
-}
-
-.panel {
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  border: var(--nt-border-width) solid var(--nt-color-border);
-  border-radius: var(--nt-radius-md);
-  background: var(--nt-color-bg);
-  list-style: none;
-}
-
-.issue {
-  display: grid;
-  grid-template-columns: auto 14rem minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--nt-space-3);
-  min-block-size: var(--nt-size-control-xl);
-  padding-inline: var(--nt-space-4);
-  color: var(--nt-color-text);
-  text-decoration: none;
-}
-
-li + li > .issue {
-  border-block-start: var(--nt-border-width) solid var(--nt-color-border-subtle);
-}
-
-.issue:hover {
-  background: var(--nt-color-surface-hover);
-}
-
-.issue[data-severity="danger"] > svg:first-child {
-  color: var(--nt-color-danger);
-}
-
-.issue[data-severity="warning"] > svg:first-child {
-  color: var(--nt-color-warning);
-}
-
-.issueSubject {
-  overflow: hidden;
-  font-family: var(--nt-font-family-mono);
-  font-weight: var(--nt-font-weight-medium);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.issueMessage {
-  overflow: hidden;
-  color: var(--nt-color-text-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.issueGo {
-  display: flex;
-  align-items: center;
-  gap: var(--nt-space-3);
-  color: var(--nt-color-text-subtle);
-  font-size: var(--nt-font-size-sm);
-}
-
-.issue:hover .issueGo {
-  color: var(--nt-color-accent);
-}
-
 .ghost {
   min-block-size: var(--nt-space-5, 20px);
   padding: 0 var(--nt-space-2);
@@ -94,7 +11,6 @@ li + li > .issue {
   cursor: pointer;
 }
 
-.issue:hover .ghost,
 tr:hover .ghost {
   border-color: var(--nt-color-text);
   background: var(--nt-color-text);
@@ -304,14 +220,105 @@ tr:hover .ghost {
   .colNext {
     display: none;
   }
+}
 
-  .issue {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    padding-block: var(--nt-space-2);
+/* A narrow pane keeps the ETL, how its last run went and its action: the Last 12 strip and the next run go rather than
+   the table scrolling sideways or crushing the names. The ETL column takes most of the row (its name and tags), the
+   last run says its state alone, and Resume stays in the panel's row above rather than squeezing both. */
+@container (max-width: 36rem) {
+  .colStrip,
+  .colNext,
+  .colActions {
+    display: none;
   }
 
-  .issueMessage {
-    grid-column: 2;
-    white-space: normal;
+  .colEtl {
+    inline-size: 55%;
   }
+
+  .table th,
+  .table td {
+    padding-inline: var(--nt-space-2);
+  }
+
+  .table td .age,
+  .table td .message {
+    display: none;
+  }
+}
+
+/* A sortable header: the whole label is the button; the arrow says which way the column is read. */
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nt-space-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.sortButton:hover {
+  color: var(--nt-color-text);
+}
+
+.sortButton:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: 2px;
+}
+
+.sortArrow[data-direction="ascending"]::after {
+  content: "↑";
+}
+
+.sortArrow[data-direction="descending"]::after {
+  content: "↓";
+}
+
+/* Filters letting none of a tab's ETLs through: what to do about it, each way back its own link. */
+.noMatchBlock {
+  display: grid;
+  gap: var(--nt-space-2);
+  margin: 0 0 var(--nt-space-3);
+  padding: var(--nt-space-3);
+  border: var(--nt-border-width) dashed var(--nt-color-border);
+  border-radius: var(--nt-radius-md);
+}
+
+.noMatchText {
+  margin: 0;
+  font-size: var(--nt-font-size-sm);
+}
+
+.noMatchActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nt-space-2) var(--nt-space-4);
+  font-size: var(--nt-font-size-sm);
+}
+
+/* Above the table while filters are on: how many ETLs they let through, and a way back to all of them. */
+.filteredLine {
+  margin: 0 0 var(--nt-space-2);
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-sm);
+}
+
+.clearFilters {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nt-color-accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* The last run's state, age and message stay in their cell: a long one is cut, never drawn over the next column. */
+.lastRunCell {
+  overflow: hidden;
 }

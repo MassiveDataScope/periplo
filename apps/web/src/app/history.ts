@@ -1,10 +1,9 @@
 import { readSessionJson, removeSessionJson, writeSessionJson } from "./session-json";
 
 /**
- * The trail of this browser tab, so "Back to …" and "Close" can step back for real instead of pushing a
- * new entry (which made Back bounce between two screens). Every entry carries its position in
- * `history.state`, with the document that made it, and session storage maps each document's positions to hashes: both survive a reload of the tab, and
- * both stay right through the browser's own Back and Forward.
+ * The trail of this browser tab, so "Back to …" and "Close" step back instead of pushing a new entry. Every entry
+ * carries its position in `history.state`, with the document that made it, and session storage maps each document's
+ * positions to hashes: both survive a reload and the browser's own Back and Forward.
  *
  * A hashchange without a position is a new entry (a link or `navigate`); one with a position is the
  * browser moving through entries it already knows; `replaceRoute` keeps the position and only renames it.
@@ -12,14 +11,14 @@ import { readSessionJson, removeSessionJson, writeSessionJson } from "./session-
  */
 
 /** How the browser reached the entry it is on: a new one, Back/Forward through known ones, or a replacement in place. */
-export type HistoryMove = "new" | "traversal" | "replace";
+type HistoryMove = "new" | "traversal" | "replace";
 /** How a replaced entry counts: in place (a tab, a filter), or as a new view (Close, a redirect). */
-export type ReplacementMove = Extract<HistoryMove, "new" | "replace">;
+type ReplacementMove = Extract<HistoryMove, "new" | "replace">;
 
-export interface HistoryRegistry {
+interface HistoryRegistry {
   /**
-   * Starts following the browser: stamps the entry it is on and listens to its hashchanges. At startup; a
-   * second call does nothing. Every method but `subscribe` and `dispose` throws before it in development and tests.
+   * Stamps the entry the browser is on and follows its hashchanges; a second call does nothing. Every method but
+   * `subscribe` and `dispose` throws before it in development and tests.
    */
   install(): void;
   /**
@@ -46,7 +45,7 @@ export interface HistoryRegistry {
 const INDEX_KEY = "periploIndex";
 const DOCUMENT_KEY = "periploDocument";
 
-/** Where an entry sits: the document that made it (one per fresh open of the console in this tab; a reload keeps it) and its position in that document's trail. */
+/** The document that made an entry (one per fresh open of the console; a reload keeps it) and its position there. */
 interface Stamp {
   readonly document: string;
   readonly index: number;

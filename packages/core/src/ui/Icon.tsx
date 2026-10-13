@@ -4,6 +4,7 @@ import styles from "./Icon.module.css";
 const PATHS = {
   "chevron-right": "M6 3.5 10.5 8 6 12.5",
   close: "M4 4l8 8M12 4l-8 8",
+  stop: "M6 6h4v4H6z",
   search: "M7 12A5 5 0 1 0 7 2a5 5 0 0 0 0 10zM10.6 10.6 14 14",
   clock: "M8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12zM8 4.5V8l2.5 1.5",
   key: "M6 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.2 7.8 13.5 2.5M11 5l2 2",

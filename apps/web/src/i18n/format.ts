@@ -37,3 +37,9 @@ export function formatClock(then: Date, now: Date, language: string): string {
   const date = new Intl.DateTimeFormat(language, { month: "short", day: "numeric" }).format(then);
   return `${date}, ${time}`;
 }
+
+/** "Sep 19, 2026, 4:05 AM": a moment named in full, for a run's tooltip or accessible name where the bar alone says
+ * nothing of when; to the `second` ("4:05:09 AM") where seconds matter, as a run's own start and end. */
+export function formatMoment(then: Date, language: string, precision: "minute" | "second" = "minute"): string {
+  return new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: precision === "second" ? "medium" : "short" }).format(then);
+}

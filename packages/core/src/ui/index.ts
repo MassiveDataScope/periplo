@@ -7,6 +7,7 @@ export { Panel, type PanelProps } from "./Panel";
 export { Progress } from "./Progress";
 export { TabPanel, Tabs, type TabItem, type TabsProps } from "./Tabs";
 export { StatusBar, type StatusBarProps, type StatusItem } from "./StatusBar";
+export { StatusSwatch, type ExecutionStatus, type StatusSwatchProps } from "./StatusSwatch";
 export { TitleMark } from "./TitleMark";
 export { TypeBadge, type TypeBadgeProps } from "./TypeBadge";
 export { TYPE_FAMILIES, isIdentifierName, typeFamily, type TypeFamily } from "./type-family";

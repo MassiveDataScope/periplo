@@ -207,6 +207,8 @@ def _grid_run(
         state_message=None,
         expected_start_at=start_at,
         start_at=start_at,
+        attempt_started_at=start_at,
+        waiting_since=None,
         end_at=start_at,
         duration_seconds=10.0,
         created_by=None,
@@ -502,3 +504,132 @@ def test_run_attempts_of_a_single_attempt_run() -> None:
         "COMPLETED",
         12.0,
     )
+
+
+# --- a step's tries -------------------------------------------------------------------
+
+
+def _try(id_: str, name: str, *, start: datetime, seconds: float, state: str) -> TaskRunIn:
+    return TaskRunIn(
+        id=id_,
+        name=name,
+        task_key=f"_step_marker-{id_}",
+        tags=["loom-step"],
+        state_type=state,  # type: ignore[arg-type]
+        start_time=start,
+        end_time=start + timedelta(seconds=seconds),
+        expected_start_time=start,
+        total_run_time=seconds,
+    )
+
+
+def _steps_of(*task_runs: TaskRunIn) -> RunTasks:
+    start = datetime(2026, 9, 23, 8, 0, tzinfo=UTC)
+    states = [
+        _flow_state("RUNNING", "Running", start),
+        _flow_state("COMPLETED", "Completed", start + timedelta(minutes=10)),
+    ]
+    return group_task_runs(list(task_runs), states, [])
+
+
+def test_a_step_run_again_after_failing_is_one_step_with_its_tries() -> None:
+    """loom makes a task run each time a step starts: the same step started again in its
+    process after failing is one step, its state the last try's, its tries each its own."""
+    t0 = datetime(2026, 9, 23, 8, 0, 1, tzinfo=UTC)
+    tasks = _steps_of(
+        _try("e", "ExtractStep", start=t0, seconds=5, state="COMPLETED"),
+        _try("w1", "WriteStep", start=t0 + timedelta(seconds=6), seconds=12, state="FAILED"),
+        _try("w2", "WriteStep", start=t0 + timedelta(seconds=30), seconds=14, state="FAILED"),
+        _try("w3", "WriteStep", start=t0 + timedelta(seconds=60), seconds=18, state="COMPLETED"),
+    )
+    [process] = tasks.attempts[0].processes
+    assert [s.name for s in process.steps] == ["ExtractStep", "WriteStep"]
+    extract, write = process.steps
+    assert extract.tries is None
+    assert (write.state, write.task_run_id) == ("COMPLETED", "w3")
+    assert (write.start_at, write.end_at) == (t0 + timedelta(seconds=6), t0 + timedelta(seconds=78))
+    assert write.tries is not None
+    assert [(t.index, t.task_run_id, t.state, t.duration_seconds) for t in write.tries] == [
+        (1, "w1", "FAILED", 12.0),
+        (2, "w2", "FAILED", 14.0),
+        (3, "w3", "COMPLETED", 18.0),
+    ]
+
+
+def test_earlier_failed_tries_do_not_fail_a_process_whose_step_then_completed() -> None:
+    t0 = datetime(2026, 9, 23, 8, 0, 1, tzinfo=UTC)
+    tasks = _steps_of(
+        _try("w1", "WriteStep", start=t0, seconds=12, state="FAILED"),
+        _try("w2", "WriteStep", start=t0 + timedelta(seconds=30), seconds=18, state="COMPLETED"),
+    )
+    [process] = tasks.attempts[0].processes
+    assert process.state == "COMPLETED"
+
+
+def test_a_step_that_failed_every_try_is_one_failed_step() -> None:
+    t0 = datetime(2026, 9, 23, 8, 0, 1, tzinfo=UTC)
+    tasks = _steps_of(
+        _try("w1", "WriteStep", start=t0, seconds=12, state="FAILED"),
+        _try("w2", "WriteStep", start=t0 + timedelta(seconds=30), seconds=14, state="FAILED"),
+    )
+    [process] = tasks.attempts[0].processes
+    [write] = process.steps
+    assert write.state == "FAILED"
+    assert write.tries is not None
+    assert len(write.tries) == 2
+    assert process.state == "FAILED"
+
+
+def test_a_step_run_again_after_completing_is_a_step_of_its_own() -> None:
+    """Only a run after a failure is a try: a step that completed and ran again ran twice."""
+    t0 = datetime(2026, 9, 23, 8, 0, 1, tzinfo=UTC)
+    tasks = _steps_of(
+        _try("a", "WriteStep", start=t0, seconds=12, state="COMPLETED"),
+        _try("b", "WriteStep", start=t0 + timedelta(seconds=30), seconds=14, state="COMPLETED"),
+    )
+    [process] = tasks.attempts[0].processes
+    assert [(s.task_run_id, s.tries) for s in process.steps] == [("a", None), ("b", None)]
+
+
+def test_a_same_name_step_that_starts_before_the_failed_one_ends_is_a_step_of_its_own() -> None:
+    """A try follows the one before it: a same-name step overlapping a failed one ran
+    alongside it (two branches), so it is not a retry of it."""
+    t0 = datetime(2026, 9, 23, 8, 0, 1, tzinfo=UTC)
+    tasks = _steps_of(
+        _try("a", "WriteStep", start=t0, seconds=12, state="FAILED"),
+        _try("b", "WriteStep", start=t0 + timedelta(seconds=5), seconds=14, state="COMPLETED"),
+    )
+    [process] = tasks.attempts[0].processes
+    assert [(s.task_run_id, s.tries) for s in process.steps] == [("a", None), ("b", None)]
+
+
+def test_a_try_starting_as_the_failed_one_ends_is_one_more_try() -> None:
+    t0 = datetime(2026, 9, 23, 8, 0, 1, tzinfo=UTC)
+    tasks = _steps_of(
+        _try("a", "WriteStep", start=t0, seconds=12, state="FAILED"),
+        _try("b", "WriteStep", start=t0 + timedelta(seconds=12), seconds=14, state="COMPLETED"),
+    )
+    [process] = tasks.attempts[0].processes
+    [write] = process.steps
+    assert write.tries is not None
+    assert [t.task_run_id for t in write.tries] == ["a", "b"]
+
+
+def test_a_markerless_process_whose_step_was_cancelled_is_cancelled() -> None:
+    t0 = datetime(2026, 9, 23, 8, 0, 1, tzinfo=UTC)
+    tasks = _steps_of(
+        _try("e", "ExtractStep", start=t0, seconds=5, state="COMPLETED"),
+        _try("w", "WriteStep", start=t0 + timedelta(seconds=6), seconds=3, state="CANCELLED"),
+    )
+    [process] = tasks.attempts[0].processes
+    assert process.state == "CANCELLED"
+
+
+def test_a_failed_step_outweighs_a_cancelled_one_in_a_markerless_process() -> None:
+    t0 = datetime(2026, 9, 23, 8, 0, 1, tzinfo=UTC)
+    tasks = _steps_of(
+        _try("e", "ExtractStep", start=t0, seconds=5, state="FAILED"),
+        _try("w", "WriteStep", start=t0 + timedelta(seconds=6), seconds=3, state="CANCELLED"),
+    )
+    [process] = tasks.attempts[0].processes
+    assert process.state == "FAILED"

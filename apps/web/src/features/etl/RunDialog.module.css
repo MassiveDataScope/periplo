@@ -1,12 +1,16 @@
-/* On the core Dialog: wide enough for a parameters object to read without wrapping. */
+/* On the core Dialog: wide enough for a parameter's value to read on one line. */
 dialog.dialog {
-  inline-size: min(36rem, 92vw);
+  inline-size: min(38rem, 92vw);
 }
 
 .form {
   display: grid;
-  gap: var(--nt-space-3);
-  padding: var(--nt-space-4);
+}
+
+.head {
+  display: grid;
+  gap: var(--nt-space-1);
+  padding: var(--nt-space-5) var(--nt-space-6) var(--nt-space-2);
 }
 
 .title {
@@ -16,39 +20,96 @@ dialog.dialog {
   font-weight: var(--nt-font-weight-strong);
 }
 
-.label {
+.intro {
+  margin: 0;
   color: var(--nt-color-text-muted);
-  font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-2xs);
-  font-weight: var(--nt-font-weight-medium);
-  letter-spacing: var(--nt-font-tracking-wide);
-  text-transform: uppercase;
+  font-size: var(--nt-font-size-sm);
 }
 
-.editor {
+.fields {
+  display: grid;
+  gap: var(--nt-space-4);
+  max-block-size: min(60vh, 32rem);
+  padding: var(--nt-space-3) var(--nt-space-6);
+  overflow: auto;
+}
+
+.field {
+  display: grid;
+  gap: var(--nt-space-1-5);
+}
+
+.fieldHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--nt-space-2);
+}
+
+.fieldName {
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+  font-weight: var(--nt-font-weight-medium);
+}
+
+.fieldLabel {
+  font-size: var(--nt-font-size-sm);
+  font-weight: var(--nt-font-weight-medium);
+}
+
+.note {
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-sm);
+}
+
+.input {
   box-sizing: border-box;
   inline-size: 100%;
-  min-block-size: 12rem;
-  padding: var(--nt-space-2) var(--nt-space-3);
+  min-block-size: var(--nt-size-control-lg);
+  padding: var(--nt-space-2) var(--nt-space-2-5);
   border: var(--nt-border-width) solid var(--nt-color-border-strong);
-  border-radius: var(--nt-radius-sm);
+  border-radius: var(--nt-radius-md);
   background: var(--nt-color-bg);
   color: var(--nt-color-text);
   font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-sm);
+  font-size: var(--nt-font-size-md);
+}
+
+select.input {
+  font-family: inherit;
+}
+
+textarea.input {
   line-height: var(--nt-font-line-height);
   resize: vertical;
   tab-size: 2;
 }
 
-.editor:focus-visible {
+.checkbox {
+  justify-self: start;
+  inline-size: 1rem;
+  block-size: 1rem;
+  accent-color: var(--nt-color-accent);
+}
+
+.input:focus-visible,
+.checkbox:focus-visible {
   border-color: var(--nt-color-focus);
   outline: var(--nt-focus-width) solid var(--nt-color-focus);
   outline-offset: var(--nt-focus-offset);
 }
 
-.editor[aria-invalid="true"] {
+/* A changed value: a heavier accent outline and a soft fill, beside the "Changed · usually X" words. */
+.field[data-changed] .input {
+  border-color: var(--nt-color-accent);
+  box-shadow: inset 0 0 0 var(--nt-border-width) var(--nt-color-accent);
+  background: var(--nt-color-accent-surface);
+}
+
+.field .input[aria-invalid="true"] {
   border-color: var(--nt-color-danger);
+  box-shadow: inset 0 0 0 var(--nt-border-width) var(--nt-color-danger);
 }
 
 .problem {
@@ -57,18 +118,58 @@ dialog.dialog {
   font-size: var(--nt-font-size-sm);
 }
 
-.notice {
+.json {
   margin: 0;
   padding: var(--nt-space-2) var(--nt-space-3);
-  border: var(--nt-border-width) solid var(--nt-color-border);
   border-radius: var(--nt-radius-sm);
-  background: var(--nt-color-surface);
+  background: var(--nt-color-surface-sunken);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+  white-space: pre-wrap;
+}
+
+/* A quiet action that reads as a link: Reset, See as JSON. */
+.linkButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nt-color-accent);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.linkButton:hover {
+  color: var(--nt-color-accent-hover);
+}
+
+.linkButton:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: var(--nt-focus-offset);
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nt-space-3);
+  margin-block-start: var(--nt-space-2);
+  padding: var(--nt-space-3) var(--nt-space-6);
+  border-block-start: var(--nt-border-width) solid var(--nt-color-border-subtle);
+}
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nt-space-3);
   color: var(--nt-color-text-muted);
   font-size: var(--nt-font-size-sm);
 }
 
 .actions {
   display: flex;
-  justify-content: flex-end;
   gap: var(--nt-space-2);
 }

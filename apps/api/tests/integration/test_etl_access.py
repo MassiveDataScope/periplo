@@ -20,16 +20,19 @@ from loom.core.logger import get_logger
 from periplo import access as access_module
 from periplo.access import Action, AuditEvent, AuditSink, Authorizer, Denied, etl_of
 from periplo.bootstrap import create_app
-from periplo.etl.errors import ETL_NOT_KNOWN, RUN_NOT_KNOWN
+from periplo.etl.archive import ArchiveMark, ArchiveMode, ArchiveStore
+from periplo.etl.errors import ETL_NOT_KNOWN, RUN_NOT_KNOWN, NotCancellable
 from periplo.etl.ports import (
     Deployment,
     EtlList,
+    EtlTrigger,
     FlowRun,
     History,
     LogPage,
     Orchestrator,
     RunDetail,
     RunGrid,
+    RunLink,
     RunningRun,
     RunTasks,
     Summary,
@@ -56,6 +59,8 @@ RUN = FlowRun(
     state_message=None,
     expected_start_at=STARTED,
     start_at=STARTED,
+    attempt_started_at=STARTED,
+    waiting_since=None,
     end_at=None,
     duration_seconds=1.0,
     created_by=None,
@@ -72,6 +77,9 @@ DETAIL = RunDetail(
     deployment_name="daily-orders",
     flow_name="daily-orders",
     terminal=True,
+    state_since=None,
+    triggered_by_run=None,
+    triggered_runs=[],
 )
 
 
@@ -131,6 +139,14 @@ class _FakeOrchestrator:
         self._record("set_schedule", name, active)
         raise AssertionError("not exercised by these tests")
 
+    async def cancel_run(self, run_id: str, *, force: bool, by: str | None) -> RunDetail:
+        self._record("cancel_run", run_id, force, by)
+        raise AssertionError("not exercised by these tests")
+
+    async def retry_run(self, run_id: str, *, by: str | None) -> RunDetail:
+        self._record("retry_run", run_id, by)
+        raise AssertionError("not exercised by these tests")
+
     async def aclose(self) -> None:
         self.calls.append(("aclose",))
 
@@ -175,6 +191,7 @@ def _build_app(
     authorizer: Authorizer | None = None,
     audit: AuditSink | None = None,
     settings: Settings | None = None,
+    archives: ArchiveStore | None = None,
 ) -> FastAPI:
     return create_app(
         write_lake(tmp_path),
@@ -182,7 +199,7 @@ def _build_app(
         lister=LocalLister(),
         opener=CountingOpener(),
         orchestrator=orchestrator,
-        extensions=Extensions(authorizer=authorizer, audit=audit),
+        extensions=Extensions(authorizer=authorizer, audit=audit, archives=archives),
     )
 
 
@@ -601,7 +618,13 @@ def test_status_operate_needs_view_too(tmp_path: Path) -> None:
         response = client.get(f"{ETL}/status")
 
     assert response.status_code == 200
-    assert response.json() == {"configured": True, "operate_enabled": False}
+    assert response.json() == {
+        "configured": True,
+        "operate_enabled": False,
+        "archive_enabled": False,
+        "archive_mode": "process",
+        "facets": {},
+    }
 
 
 # --- filtering: a hidden ETL, and its runs, answer exactly like a missing one --------------
@@ -828,6 +851,9 @@ def _leaking(listing: EtlList, part: str, etl: str) -> EtlList:
         etl=etl,
         state="RUNNING",
         start_at=STARTED,
+        attempt_started_at=STARTED,
+        waiting_since=None,
+        expected_start_at=STARTED,
         created_by=None,
         trigger="manual",
         current=None,
@@ -835,8 +861,16 @@ def _leaking(listing: EtlList, part: str, etl: str) -> EtlList:
     )
     upcoming = Upcoming(etl=etl, expected_start_at=STARTED)
     history = msgspec.structs.replace(listing.summary.history, upcoming=[upcoming])
+    [shown, *rest] = listing.etls
+    trigger = EtlTrigger(etl=etl, on="completed", passes=[], sets={})
     leaks = {
         "etls": lambda: msgspec.structs.replace(listing, etls=[*listing.etls, CUSTOMERS]),
+        "triggered_by": lambda: msgspec.structs.replace(
+            listing, etls=[msgspec.structs.replace(shown, triggered_by=trigger), *rest]
+        ),
+        "triggers": lambda: msgspec.structs.replace(
+            listing, etls=[msgspec.structs.replace(shown, triggers=[etl]), *rest]
+        ),
         "running": lambda: msgspec.structs.replace(listing, running=[running]),
         "upcoming": lambda: msgspec.structs.replace(
             listing, summary=msgspec.structs.replace(listing.summary, history=history)
@@ -845,7 +879,7 @@ def _leaking(listing: EtlList, part: str, etl: str) -> EtlList:
     return leaks[part]()
 
 
-@pytest.mark.parametrize("leak", ["etls", "running", "upcoming"])
+@pytest.mark.parametrize("leak", ["etls", "running", "upcoming", "triggered_by", "triggers"])
 def test_a_filtered_list_naming_a_hidden_etl_fails_closed(tmp_path: Path, leak: str) -> None:
     authorizer = _EtlFilteringAuthorizer(shown=frozenset({"daily-orders"}))
     app = _build_app(tmp_path, orchestrator=_LeakyOrchestrator(leak), authorizer=authorizer)
@@ -859,9 +893,82 @@ def test_a_filtered_list_naming_a_hidden_etl_fails_closed(tmp_path: Path, leak: 
     assert "nightly-customers" not in response.text
 
 
+class _ChainedOrchestrator(_ResolvingOrchestrator):
+    """``run-1`` was started by a run of a hidden ETL and started runs of both ETLs."""
+
+    async def get_run(self, run_id: str) -> RunDetail:
+        found = await super().get_run(run_id)
+        hidden = RunLink(etl="nightly-customers", run_id="run-9", run_name="quiet-heron")
+        shown = RunLink(etl="daily-orders", run_id="run-2", run_name="brave-otter")
+        return msgspec.structs.replace(
+            found, triggered_by_run=hidden, triggered_runs=[hidden, shown]
+        )
+
+
+def test_a_run_names_only_the_chained_runs_whose_etl_the_caller_may_see(tmp_path: Path) -> None:
+    authorizer = _EtlFilteringAuthorizer(shown=frozenset({"daily-orders"}))
+    app = _build_app(tmp_path, orchestrator=_ChainedOrchestrator(), authorizer=authorizer)
+
+    with TestClient(app) as client:
+        wait_ready(client)
+        response = client.get(f"{ETL}/runs/run-1")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["triggered_by_run"] is None
+    assert [link["etl"] for link in body["triggered_runs"]] == ["daily-orders"]
+    assert "nightly-customers" not in response.text
+
+
+def test_a_run_names_every_chained_run_when_all_are_visible(tmp_path: Path) -> None:
+    authorizer = _EtlFilteringAuthorizer(shown=frozenset({"daily-orders", "nightly-customers"}))
+    app = _build_app(tmp_path, orchestrator=_ChainedOrchestrator(), authorizer=authorizer)
+
+    with TestClient(app) as client:
+        wait_ready(client)
+        body = client.get(f"{ETL}/runs/run-1").json()
+
+    assert body["triggered_by_run"]["etl"] == "nightly-customers"
+    assert [link["etl"] for link in body["triggered_runs"]] == ["nightly-customers", "daily-orders"]
+
+
+class _BrokenOnChainsAuthorizer(_EtlFilteringAuthorizer):
+    """Shows ``daily-orders``, and breaks when asked about any other ETL."""
+
+    def __init__(self) -> None:
+        super().__init__(shown=frozenset({"daily-orders"}))
+
+    async def visible(
+        self, context: RequestContext, action: StrEnum, targets: Sequence[tuple[str, ...]]
+    ) -> Collection[tuple[str, ...]]:
+        if any(etl_of(target) == "nightly-customers" for target in targets):
+            raise RuntimeError("visible boom, do not leak")
+        return await super().visible(context, action, targets)
+
+
+def test_a_broken_visible_fails_a_chained_run_as_the_list_does(tmp_path: Path) -> None:
+    """The authorizer's failure is the console's (500), never blamed on the orchestrator."""
+    authorizer = _BrokenOnChainsAuthorizer()
+    app = _build_app(tmp_path, orchestrator=_ChainedOrchestrator(), authorizer=authorizer)
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        wait_ready(client)
+        response = client.get(f"{ETL}/runs/run-1")
+
+    assert response.status_code == 500
+    assert "visible boom" not in response.text
+
+
+class _IgnoringOnly(FakeOrchestrator):
+    """An orchestrator that answers its whole list whatever ``only`` asks."""
+
+    async def list_deployments(self, only: Collection[str] | None = None) -> EtlList:
+        return await super().list_deployments()
+
+
 def test_an_orchestrator_ignoring_only_fails_closed(tmp_path: Path) -> None:
     authorizer = _EtlFilteringAuthorizer(shown=frozenset({"daily-orders"}))
-    app = _build_app(tmp_path, orchestrator=FakeOrchestrator(), authorizer=authorizer)
+    app = _build_app(tmp_path, orchestrator=_IgnoringOnly(), authorizer=authorizer)
 
     with TestClient(app) as client:
         wait_ready(client)
@@ -869,3 +976,145 @@ def test_an_orchestrator_ignoring_only_fails_closed(tmp_path: Path) -> None:
 
     assert response.status_code == 502
     assert "nightly-customers" not in response.text
+
+
+# --- archiving: a product's own store, and the access rules around it ---------------------
+
+
+class _DurableArchives:
+    """A product's store: it says archives outlive the process, and records what it is asked."""
+
+    def __init__(self) -> None:
+        self.archived: dict[tuple[str, str], ArchiveMark] = {}
+
+    @property
+    def mode(self) -> ArchiveMode:
+        return "durable"
+
+    async def archive(
+        self, tenant: Tenant, name: str, *, by: str | None, reason: str | None
+    ) -> ArchiveMark:
+        mark = ArchiveMark(at=STARTED, by=by, reason=reason)
+        return self.archived.setdefault((tenant.id, name), mark)
+
+    async def restore(self, tenant: Tenant, name: str) -> None:
+        self.archived.pop((tenant.id, name), None)
+
+    async def list(self, tenant: Tenant) -> dict[str, ArchiveMark]:
+        return {name: mark for (owner, name), mark in self.archived.items() if owner == tenant.id}
+
+
+def test_a_products_archive_store_is_the_one_used_and_said_durable(tmp_path: Path) -> None:
+    archives = _DurableArchives()
+    app = _build_app(tmp_path, orchestrator=_ResolvingOrchestrator(), archives=archives)
+
+    with TestClient(app) as client:
+        wait_ready(client)
+        status = client.get(f"{ETL}/status").json()
+        archived = client.post(f"{ETL}/daily-orders/archive", json={})
+
+    assert (status["archive_enabled"], status["archive_mode"]) == (True, "durable")
+    assert archived.status_code == 200
+    assert list(archives.archived) == [("default", "daily-orders")]
+
+
+def test_archiving_a_hidden_etl_is_404_and_audited_as_denied(tmp_path: Path) -> None:
+    audit = _RecordingAudit()
+    authorizer = _EtlFilteringAuthorizer(shown=frozenset({"nightly-customers"}))
+    app = _build_app(
+        tmp_path, orchestrator=_ResolvingOrchestrator(), authorizer=authorizer, audit=audit
+    )
+
+    with TestClient(app) as client:
+        wait_ready(client)
+        response = client.post(f"{ETL}/daily-orders/archive", json={})
+
+    assert response.status_code == 404
+    assert [(e.action, e.outcome) for e in audit.events] == [(Action.ARCHIVE_ETL, "denied")]
+
+
+def test_archiving_is_audited_as_a_state_change(tmp_path: Path) -> None:
+    audit = _RecordingAudit()
+    app = _build_app(tmp_path, orchestrator=_ResolvingOrchestrator(), audit=audit)
+
+    with TestClient(app) as client:
+        wait_ready(client)
+        client.post(f"{ETL}/daily-orders/archive", json={})
+        client.post(f"{ETL}/daily-orders/restore")
+
+    target = ("etl", "daily-orders")
+    assert [(e.action, e.target, e.outcome) for e in audit.events] == [
+        (Action.ARCHIVE_ETL, target, "requested"),
+        (Action.ARCHIVE_ETL, target, "succeeded"),
+        (Action.ARCHIVE_ETL, target, "requested"),
+        (Action.ARCHIVE_ETL, target, "succeeded"),
+    ]
+
+
+# --- cancel and retry: run targets, the operate switch, and the audit trail ----------------
+
+OPERATING = Settings(etl_allow_operate=True)
+
+
+@pytest.mark.parametrize(
+    ("suffix", "action"), [("cancel", Action.CANCEL_RUN), ("retry", Action.RETRY_RUN)]
+)
+def test_a_run_of_a_hidden_etl_is_never_changed_and_the_attempt_is_audited(
+    tmp_path: Path, suffix: str, action: Action
+) -> None:
+    fake = _ResolvingOrchestrator()
+    audit = _RecordingAudit()
+    authorizer = _EtlFilteringAuthorizer(shown=frozenset({"nightly-customers"}))
+    app = _build_app(tmp_path, orchestrator=fake, authorizer=authorizer, audit=audit)
+
+    with TestClient(app) as client:
+        wait_ready(client)
+        response = client.post(f"{ETL}/runs/run-1/{suffix}", json={})
+        reached = [call[0] for call in fake.calls]
+
+    assert response.json() == _not_found(RUN_NOT_KNOWN.format(run_id="run-1"))
+    assert reached == ["run_etl"]
+    assert [(e.action, e.target, e.outcome, e.detail) for e in audit.events] == [
+        (action, ("run", "run-1", "daily-orders"), "denied", {"code": "hidden"})
+    ]
+
+
+@pytest.mark.parametrize(
+    ("suffix", "action", "state"),
+    [("cancel", Action.CANCEL_RUN, "CANCELLING"), ("retry", Action.RETRY_RUN, "SCHEDULED")],
+)
+def test_a_change_to_a_run_is_audited_with_the_run_and_its_new_state(
+    tmp_path: Path, suffix: str, action: Action, state: str
+) -> None:
+    audit = _RecordingAudit()
+    app = _build_app(
+        tmp_path, orchestrator=_ResolvingOrchestrator(), audit=audit, settings=OPERATING
+    )
+
+    with TestClient(app) as client:
+        wait_ready(client)
+        response = client.post(f"{ETL}/runs/run-1/{suffix}", json={})
+
+    assert response.status_code == 202
+    target = ("run", "run-1", "daily-orders")
+    assert [(e.action, e.target, e.outcome, e.detail) for e in audit.events] == [
+        (action, target, "requested", {}),
+        (action, target, "succeeded", {"state": state}),
+    ]
+
+
+def test_a_refused_cancel_is_audited_as_failed_with_its_code_only(tmp_path: Path) -> None:
+    fake = _ResolvingOrchestrator()
+    fake.refusal = NotCancellable("This run has already finished")
+    audit = _RecordingAudit()
+    app = _build_app(tmp_path, orchestrator=fake, audit=audit, settings=OPERATING)
+
+    with TestClient(app) as client:
+        wait_ready(client)
+        response = client.post(f"{ETL}/runs/run-1/cancel", json={})
+
+    assert response.status_code == 409
+    assert [(e.outcome, e.detail) for e in audit.events] == [
+        ("requested", {}),
+        ("failed", {"code": "etl_run_not_cancellable"}),
+    ]

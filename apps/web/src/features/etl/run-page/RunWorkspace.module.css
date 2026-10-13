@@ -1,0 +1,79 @@
+/* Open, the pair has a fixed height so each scrolls on its own: the timeline takes as much as its rows need, up to its
+   share (--split, set by the divider), and the log the rest, never under --log-min. Closed, nothing is sized: the bar
+   that opens the log follows the timeline's last row. */
+.split,
+.tabbed {
+  --frame: max(26rem, 80dvh);
+  --log-min: 180px;
+  display: grid;
+  min-block-size: 0;
+}
+
+.split[data-log="open"] {
+  grid-template-rows: auto auto minmax(var(--log-min), 1fr);
+  block-size: var(--frame);
+}
+
+.split[data-log="open"] > .pane:first-child {
+  max-block-size: calc(var(--frame) * var(--split));
+}
+
+.split[data-log="closed"] {
+  grid-template-rows: auto auto;
+  gap: var(--nt-space-2);
+}
+
+.tabbed {
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--nt-space-2);
+}
+
+/* The log tab keeps a height of its own for its viewer to scroll in; the timeline tab is as tall as its rows. */
+.tabbed[data-log="open"] {
+  block-size: max(22rem, 75dvh);
+}
+
+.pane {
+  min-block-size: 0;
+  overflow: auto;
+}
+
+.divider {
+  block-size: var(--nt-space-2);
+  margin-block: var(--nt-space-1);
+  border-radius: var(--nt-radius-full);
+  background: var(--nt-color-border);
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.divider:hover,
+.divider[data-dragging="true"] {
+  background: var(--nt-color-border-strong);
+}
+
+.divider:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: var(--nt-space-0-5);
+}
+
+.logBar {
+  padding: var(--nt-space-2) var(--nt-space-3);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-surface);
+  color: var(--nt-color-text);
+  font: inherit;
+  font-size: var(--nt-font-size-sm);
+  text-align: start;
+  cursor: pointer;
+}
+
+.logBar:hover {
+  background: var(--nt-color-surface-hover);
+}
+
+.logBar:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: var(--nt-space-0-5);
+}

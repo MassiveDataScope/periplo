@@ -1,0 +1,7 @@
+.failed {
+  display: grid;
+  justify-items: start;
+  gap: var(--nt-space-3);
+  max-inline-size: 48rem;
+  padding: var(--nt-space-6) var(--nt-space-8);
+}

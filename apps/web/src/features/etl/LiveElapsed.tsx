@@ -14,8 +14,8 @@ export interface LiveElapsedProps {
  */
 export function LiveElapsed({ start, end }: LiveElapsedProps) {
   const live = end === null;
-  // Always subscribed to the shared clock (never a conditional hook call); ignored once `end` freezes the value.
-  const now = useNow();
+  // On the shared clock while the run goes; not subscribed once `end` freezes the value.
+  const now = useNow(live ? 1000 : null);
   const startMs = Date.parse(start);
   const endMs = live ? now : Date.parse(end);
   const seconds = Number.isNaN(startMs) || Number.isNaN(endMs) ? null : Math.max(0, (endMs - startMs) / 1000);

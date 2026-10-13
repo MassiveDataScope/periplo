@@ -1,0 +1,47 @@
+.days {
+  display: grid;
+  grid-template-columns: repeat(14, minmax(0, 1fr));
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.swatch,
+.empty {
+  box-sizing: border-box;
+  inline-size: 14px;
+  block-size: 14px;
+  border-radius: 3px;
+}
+
+/* No run, or nothing due: an empty slot, quieter than a scheduled one. */
+.empty[data-outcome="none"] {
+  border: var(--nt-border-width) solid var(--nt-color-border-subtle);
+}
+
+/* Not known: a dash, not a slot. */
+.empty[data-outcome="unknown"] {
+  block-size: 2px;
+  margin-block: 6px;
+  background: var(--nt-color-border);
+}
+
+.number {
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-2xs);
+  font-feature-settings: var(--nt-font-features-data);
+}
+
+.day[data-when="today"] .number {
+  color: var(--nt-color-text);
+  font-weight: var(--nt-font-weight-strong);
+}

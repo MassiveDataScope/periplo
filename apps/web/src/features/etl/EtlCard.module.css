@@ -1,0 +1,95 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nt-space-2-5);
+  min-inline-size: 0;
+  padding: var(--nt-space-3) var(--nt-space-4);
+  border: var(--nt-border-width) solid var(--nt-color-border);
+  border-radius: var(--nt-radius-md);
+}
+
+.title {
+  margin: 0;
+  color: var(--nt-color-text-subtle);
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-xs);
+  font-weight: var(--nt-font-weight-medium);
+  letter-spacing: var(--nt-font-tracking-caps);
+  text-transform: uppercase;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--nt-space-2) var(--nt-space-4);
+  align-items: baseline;
+  margin: 0;
+}
+
+/* Each row's own name and value share the grid's two columns. */
+.fact {
+  display: contents;
+}
+
+.fact dt {
+  color: var(--nt-color-text-subtle);
+  font-size: var(--nt-font-size-sm);
+}
+
+.fact dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.facts[data-mono] dt,
+.facts[data-mono] dd {
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+}
+
+.muted {
+  margin: 0;
+  color: var(--nt-color-text-muted);
+  font-size: var(--nt-font-size-sm);
+}
+
+.code {
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-sm);
+}
+
+/* A quiet action that reads as a link: "Run once with others". */
+.linkButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nt-color-accent);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.linkButton:hover {
+  color: var(--nt-color-accent-hover);
+}
+
+.linkButton:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: var(--nt-focus-offset);
+}
+
+/* A fact's values, each a link: side by side, wrapping. */
+.values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nt-space-1) var(--nt-space-2);
+}
+
+.values a {
+  color: var(--nt-color-accent);
+}
+
+.values a:hover {
+  color: var(--nt-color-accent-hover);
+}

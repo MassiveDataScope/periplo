@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Dependencies } from "../../app/dependencies";
 import { useEtlStatus, type EtlStatus } from "./useEtlStatus";
 
-const status: EtlStatus = { configured: true, operate_enabled: false };
+const status: EtlStatus = { configured: true, operate_enabled: false, archive_enabled: false, archive_mode: "process", facets: {} };
 
 function fakeDependencies(GET: ReturnType<typeof vi.fn>): { dependencies: Dependencies; GET: ReturnType<typeof vi.fn> } {
   return { dependencies: { client: { GET } } as unknown as Dependencies, GET };

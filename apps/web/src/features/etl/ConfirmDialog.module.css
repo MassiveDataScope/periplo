@@ -1,0 +1,41 @@
+/* On the core Dialog: a short confirmation, a sentence or two wide. */
+dialog.dialog {
+  inline-size: min(30rem, 92vw);
+}
+
+.body {
+  display: grid;
+  gap: var(--nt-space-3);
+  padding: var(--nt-space-5) var(--nt-space-6);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--nt-font-family-mono);
+  font-size: var(--nt-font-size-lg);
+  font-weight: var(--nt-font-weight-strong);
+  overflow-wrap: anywhere;
+}
+
+.intro,
+.warning {
+  margin: 0;
+  font-size: var(--nt-font-size-sm);
+}
+
+.intro {
+  color: var(--nt-color-text-muted);
+}
+
+/* Worth knowing before going ahead, though nothing stops it. */
+.warning {
+  padding: var(--nt-space-2) var(--nt-space-3);
+  border-radius: var(--nt-radius-md);
+  background: var(--nt-color-warning-surface);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--nt-space-2);
+}

@@ -6,6 +6,10 @@ and what comes next. It works with any Prefect deployment, and shows more detail
 pipelines built with [loom-kernel](https://github.com/MassiveDataScope/loom-py), whose
 structured logs describe processes and steps.
 
+**Prefect 3** is supported; the console is tested against 3.7. On a Prefect older than
+3.7, which cannot filter runs by the automation that created them, the runs a chained
+ETL's run started are found by a wider query instead.
+
 The section is off until `PERIPLO_PREFECT_API_URL` is set. Without it, the console
 reports the ETL integration as not configured and everything else keeps working.
 
@@ -50,9 +54,44 @@ to show one lake's ETLs, not the whole workspace. Every setting is described in
   compares with its typical duration.
 - **Needs attention**: for example a schedule that was switched off after a failed run,
   a last run that crashed, or a daily ETL without a schedule.
-- The list of ETLs in two tabs, **Scheduled** and **On demand**, each with its schedule,
-  last run, next run and a strip of its last 12 runs. It can be filtered by name, tag and
-  state, and the filters are kept in the URL so a view can be shared.
+- The list of ETLs in tabs, **Scheduled**, **On demand** and **Archived**, each with its
+  schedule, last run, next run and a strip of its last 12 runs. It can be filtered by name,
+  state and the facets your tags form, and the filters are kept in the URL so a view can be
+  shared.
+
+(etl-facets)=
+### Facets: filters from your own tags
+
+The console knows none of your tag prefixes in advance. Every `prefix:value` tag forms a
+facet named after its prefix (`owner:ana` and `owner:bo` make an "Owner" facet with two
+values); tags without a colon form one "Labels" facet; a tag equal to the ETL's own name is
+ignored. A facet is offered once it has two values or more, ordered by how many ETLs carry
+it. Values of one facet are ORed, facets are ANDed.
+
+`PERIPLO_ETL_FACETS` lets you name them: a JSON object keyed by prefix, each entry optional.
+
+```json
+{
+  "system": {"label": "Source system", "order": 1, "role": "reads"},
+  "writes": {"label": "Writes to", "order": 2, "role": "writes"},
+  "tier": {"hidden": true},
+  "cadence": {"label": "Runs", "role": "expects_schedule", "values": ["daily", "hourly"]}
+}
+```
+
+`label` names the facet, `order` puts it first (lowest first), `hidden` leaves it out, and
+`role` gives its values a meaning:
+
+- `reads` and `writes` declare lineage: each table row and ETL page then says what the ETL
+  reads and writes ("Daily at 09:45 · crm → customers_daily").
+- `expects_schedule`, with a non-empty `values` list (required with this role, refused with
+  any other), marks the ETLs that should run on a schedule: one carrying a listed value
+  (`cadence:daily` above) that has no schedule, and that no other ETL starts, needs
+  attention ("Expects a schedule, but nothing schedules it"). The side list also says each
+  ETL's value of that facet ("Completed 2h ago · daily") instead of its schedule in words.
+
+With no configuration nothing more is said: no tag means anything to the console, and no
+ETL is expected to be scheduled.
 
 ### One ETL
 
