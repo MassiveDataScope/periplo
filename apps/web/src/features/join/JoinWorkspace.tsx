@@ -1,13 +1,12 @@
-import { useEffect, useId, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { settled, useQuerySession } from "@periplo/core/api/react";
 import type { ResultBuffer } from "@periplo/core/arrow";
-import { Button, ErrorNotice, Icon, Progress, typeFamily } from "@periplo/core/ui";
+import { Button, ErrorNotice, Progress, typeFamily } from "@periplo/core/ui";
 import type { Dependencies } from "../../app/dependencies";
 import type { PreferencesStore } from "../../app/preferences";
 import { href, navigate, type Route } from "../../app/routes";
-import { tableKey, type Catalog } from "../catalog-tree/catalog-model";
-import { matchTokens } from "../catalog-tree/names";
+import type { Catalog } from "../catalog-tree/catalog-model";
 import { ResultPane } from "../table/data/ResultPane";
 import { TableHeader } from "../table/TableHeader";
 import { crumbsFor } from "../lake/crumbs";
@@ -37,7 +36,7 @@ import {
 } from "./join-model";
 import { SqlReceipt } from "./SqlReceipt";
 import { TableCard, type Armed, type BandRow } from "./TableCard";
-import { MAX_STEPS } from "./join-spec";
+import { TablePicker } from "./TablePicker";
 import { readJoinTable } from "./join-tables";
 import { RestoreNotice } from "./RestoreNotice";
 import { useJoinFromUrl } from "./useJoinFromUrl";
@@ -61,7 +60,6 @@ export interface JoinWorkspaceProps {
   onSpecChange(spec: string | undefined): void;
 }
 
-const MAX_CHOICES = 8;
 /** Below this, a pointer release is a click that missed, not a drag: click keeps handling it. */
 const DRAG_THRESHOLD_PX = 4;
 
@@ -140,17 +138,12 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
   const [status, announce] = useState("");
   /** Open or closed by hand; until then, open while the join has no other table to show. */
   const [pickerChoice, setPickerOpen] = useState<boolean | null>(null);
-  const [search, setSearch] = useState("");
-  const [pickError, setPickError] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [checkState, setCheckState] = useState<CheckJoinState>("idle");
   const [checkGeneration, setCheckGeneration] = useState<number | null>(null);
   const claimedArm = useRef(false);
   const boardRef = useRef<HTMLDivElement>(null);
   const bandNodes = useRef(new Map<string, HTMLElement>());
-  const atLimit = def !== null && def.joins.length >= MAX_STEPS;
-  const pickerOpen = !atLimit && (pickerChoice ?? (def === null || def.joins.length === 0));
-  const pickerId = useId();
 
   useEffect(() => {
     if (claimedArm.current || def === null || detail.kind !== "ready") return;
@@ -207,28 +200,18 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
     forgetSuggestion(`${owner}:${rightColumn}`);
   };
 
-  const pick = async (otherDatabase: string, otherTable: string) => {
-    setPickError(false);
-    if (!def) return;
+  /** Adds a table the picker chose to `current`; false when it could not be read. */
+  const pick = async (current: JoinDefinition, otherDatabase: string, otherTable: string): Promise<boolean> => {
     const picked = await readJoinTable(dependencies.tableFacts, otherDatabase, otherTable);
-    if (picked.kind !== "ready") {
-      setPickError(true);
-      return;
-    }
-    const next = addTable(def, picked.table);
+    if (picked.kind !== "ready") return false;
+    const next = addTable(current, picked.table);
     const step = next.joins.at(-1);
     setDef(next);
     markStale();
-    if (step) setSuggestedKeys((current) => new Set([...current, ...step.pairs.map((pair) => `${step.alias}:${pair.right}`)]));
+    if (step) setSuggestedKeys((keys) => new Set([...keys, ...step.pairs.map((pair) => `${step.alias}:${pair.right}`)]));
     setPickerOpen(false);
-    setSearch("");
+    return true;
   };
-
-  const choices = useMemo(() => {
-    if (!catalog || search.trim() === "" || !def) return [];
-    const already = new Set(joinedTables(def).map((entry) => `${entry.table.database}.${entry.table.table}`));
-    return catalog.tables.filter((candidate) => !already.has(tableKey(candidate)) && matchTokens(search, tableKey(candidate)) !== null).slice(0, MAX_CHOICES);
-  }, [catalog, search, def]);
 
   const runJoin = () => {
     if (!built.ok) return;
@@ -345,64 +328,13 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
 
       {def && !collapsed ? (
         <div className={styles.workspace}>
-          <div className={styles.chain}>
-            {joinedTables(def).map((entry2) => (
-              <span key={entry2.alias} className={styles.chainItem}>
-                {entry2.table.table}
-              </span>
-            ))}
-            <button
-              type="button"
-              className={styles.addTable}
-              aria-expanded={pickerOpen}
-              aria-controls={pickerId}
-              disabled={atLimit}
-              title={atLimit ? t("join.addTableLimit", { count: MAX_STEPS }) : undefined}
-              onClick={() => setPickerOpen(!pickerOpen)}
-            >
-              <Icon name="insert" /> {t("join.addTable")}
-            </button>
-          </div>
-
-          {/* In the page, not floating: it pushes the tables down instead of covering them. */}
-          {pickerOpen ? (
-            <div id={pickerId} className={styles.pickerRow}>
-              <label className={styles.finder}>
-                <Icon name="search" />
-                <input
-                  type="search"
-                  autoFocus
-                  aria-label={t("join.pickerSearch")}
-                  placeholder={t("join.pickPlaceholder")}
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Escape") return;
-                    event.preventDefault();
-                    setPickerOpen(false);
-                    setSearch("");
-                  }}
-                />
-              </label>
-              {pickError ? (
-                <p role="alert" className={styles.warning}>
-                  {t("join.unreadable")}
-                </p>
-              ) : null}
-              {choices.length > 0 ? (
-                <ul className={styles.choices}>
-                  {choices.map((candidate) => (
-                    <li key={tableKey(candidate)}>
-                      <button type="button" className={styles.choice} onClick={() => void pick(candidate.database, candidate.name)}>
-                        <span className={styles.dim}>{candidate.database}.</span>
-                        {candidate.name}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-          ) : null}
+          <TablePicker
+            catalog={catalog}
+            joined={joinedTables(def)}
+            open={pickerChoice ?? def.joins.length === 0}
+            onOpenChange={setPickerOpen}
+            onPick={(otherDatabase, otherTable) => pick(def, otherDatabase, otherTable)}
+          />
 
           <div className={styles.board} ref={boardRef} onPointerMove={onBoardPointerMove} onPointerUp={() => setDrag(null)}>
             <Connectors board={boardRef} nodes={bandNodes.current} links={links} live={liveWire} />
