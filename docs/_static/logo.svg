@@ -1,8 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- The sm Logo (apps/web/src/features/shell/Logo.tsx) with the token colours; apps/web/public/favicon.svg and docs/_static/logo.svg are the same file: change them together. -->
   <style>
-    .ink { fill: #0b0c0d; stroke: #0b0c0d; }
-    @media (prefers-color-scheme: dark) { .ink { fill: #f1f2f3; stroke: #f1f2f3; } }
+    .ink { stroke: #141819; }
+    .lens { fill: #ff441e; }
+    @media (prefers-color-scheme: dark) { .ink { stroke: #e6ebea; } .lens { fill: #ff5a36; } }
   </style>
-  <path class="ink" fill-rule="evenodd" stroke="none" d="M4 19c0-4 4-7 10-7h7c5 0 8 3 8 7s-3 7-8 7h-7c-6 0-10-3-10-7zM18 19a3 3 0 1 0 6 0a3 3 0 1 0 -6 0zM12 12.4V8h8v4.4z"/>
-  <path class="ink" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M16 8V3.5h4"/>
+  <path class="ink" fill="none" stroke-width="6.5" d="M15.1 43.2V15a6.75 6.75 0 0 1 6.75-6.74h2.7"/>
+  <circle class="lens" cx="31.1" cy="8.26" r="5"/>
 </svg>
