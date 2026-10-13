@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TableFactsStore } from "../../api/table-facts";
 import { href, replaceRoute } from "../../app/routes";
-import { addTable, setKind, type JoinTable } from "./join-model";
+import { addTable, setKind, setOutput, type JoinTable } from "./join-model";
 import { encodeJoinSpec, restoreJoin } from "./join-spec";
 import { readJoinTable } from "./join-tables";
 import { useJoinFromUrl } from "./useJoinFromUrl";
@@ -73,6 +73,23 @@ describe("useJoinFromUrl", () => {
     const { result, unmount } = renderHook(() => useJoinFromUrl(STORE, ORDER, SPEC, writeLink));
     await waitFor(() => expect(result.current.notice).toEqual({ kind: "dropped", tables: 1, keys: 0, unreadable: [] }));
     expect(window.location.hash).toBe(LINK);
+    unmount();
+  });
+
+  it("keeps the last link that reads back while the join would not, and says so", async () => {
+    vi.mocked(readJoinTable).mockResolvedValue({ kind: "ready", table: ORDERS });
+    const { result, unmount } = renderHook(() => useJoinFromUrl(STORE, ORDER, SPEC, writeLink));
+    await waitFor(() => expect(result.current.def?.joins).toHaveLength(1));
+    // Names that each fit, but together make a spec longer than a link may carry.
+    const tooMany = Array.from({ length: 300 }, (_, index) => `${"c".repeat(240)}${index}`);
+    act(() => result.current.setDef((current) => (current ? setOutput(current, "o", tooMany) : current)));
+    await waitFor(() => expect(result.current.notice).toEqual({ kind: "unwritable" }));
+    expect(window.location.hash).toBe(LINK);
+
+    act(() => result.current.setDef((current) => (current ? setOutput(current, "o", []) : current)));
+    await waitFor(() => expect(result.current.notice).toBeNull());
+    act(() => result.current.setDef((current) => (current ? setKind(current, "o2", "inner") : current)));
+    await waitFor(() => expect(window.location.hash).not.toBe(LINK));
     unmount();
   });
 

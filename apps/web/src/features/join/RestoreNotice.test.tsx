@@ -27,6 +27,15 @@ describe("RestoreNotice", () => {
     expect(screen.getByRole("status").textContent).toBe("1 key of this join no longer matches its tables and was left out.");
   });
 
+  it("says when the join no longer fits in its link", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <RestoreNotice notice={{ kind: "unwritable" }} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByRole("status").textContent).toBe("This join is too large to keep in its link: the link still holds the last version that fit.");
+  });
+
   it("names the tables that could not be loaded, and says the link still holds them", () => {
     render(
       <I18nextProvider i18n={i18n}>

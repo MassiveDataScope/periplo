@@ -5,13 +5,15 @@ import { decodeJoinSpec, encodeJoinSpec, restoreJoin, type DroppedFromSpec, type
 import { readJoinTable, type JoinTableRead } from "./join-tables";
 
 /**
- * What the workspace says about the link a join came from: it could not be read, or parts of it were left out.
- * `unreadable` names (`database.table`) the tables that could not be loaded right now; `tables` counts the
- * other tables left out (gone from the catalog, or named twice in the link).
+ * What the workspace says about the link of its join: the link it came from could not be read, or parts of it
+ * were left out, or the join as edited no longer fits in a link. `unreadable` names (`database.table`) the tables
+ * that could not be loaded right now; `tables` counts the other tables left out (gone from the catalog, or named
+ * twice in the link).
  */
 export type JoinRestoreNotice =
   | ({ readonly kind: "dropped"; readonly unreadable: readonly string[] } & DroppedFromSpec)
-  | { readonly kind: "broken" };
+  | { readonly kind: "broken" }
+  | { readonly kind: "unwritable" };
 
 export interface JoinFromUrl {
   readonly def: JoinDefinition | null;
@@ -43,7 +45,8 @@ function specOf(def: JoinDefinition): string | undefined {
  * shared link find the same join, and editing it never piles up Back presses. A restore that left anything
  * out (a table that could not be read, a key that no longer holds, a restore that threw) leaves the URL as
  * it was until the join is edited, so a reload can still restore what this one could not. A spec that does
- * not decode never will, so it is replaced like any other.
+ * not decode never will, so it is replaced like any other. An edit whose spec would not read back is not
+ * written: the URL keeps the last one that does, and the notice says so.
  */
 export function useJoinFromUrl(
   tableFacts: TableFactsStore,
@@ -103,6 +106,11 @@ export function useJoinFromUrl(
     const next = specOf(def);
     // Compared with what this page wrote, not with the URL: a link opened over it is restored above, not overwritten.
     if (written.current !== null && written.current.spec === next) return;
+    if (next !== undefined && decodeJoinSpec(next) === null) {
+      // Written, it would read back as broken and a reload would lose the whole join: the URL keeps the last spec that reads.
+      setNotice({ kind: "unwritable" });
+      return;
+    }
     written.current = { spec: next };
     if (next !== spec) onSpecChange(next);
   }, [def, spec, onSpecChange]);
