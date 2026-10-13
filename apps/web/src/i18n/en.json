@@ -54,14 +54,7 @@
     "catalog": "Catalog",
     "catalogHint": "Open or fold the catalog column (Ctrl B)",
     "join": "Join",
-    "etl": "ETL",
-    "etlUnderConstruction": "ETL (under construction)",
-    "underConstruction": "Under construction"
-  },
-  "underConstruction": {
-    "title": "{{section}} is under construction",
-    "message": "This section is not available in this release yet.",
-    "home": "Back to home"
+    "etl": "ETL"
   },
   "home": {
     "yourLake": "Your lake",

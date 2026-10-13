@@ -8,7 +8,7 @@ import { NavRail } from "./NavRail";
 
 const i18n = await createI18n();
 
-function renderRail(route: Route, etl: boolean, etlUnderConstruction = false, preferences = createPreferences(undefined)) {
+function renderRail(route: Route, etl: boolean, preferences = createPreferences(undefined)) {
   render(
     <I18nextProvider i18n={i18n}>
       <NavRail
@@ -16,7 +16,6 @@ function renderRail(route: Route, etl: boolean, etlUnderConstruction = false, pr
         route={route}
         troubled={0}
         etl={etl}
-        etlUnderConstruction={etlUnderConstruction}
         theme="system"
         onThemeToggle={() => undefined}
         onSearch={() => undefined}
@@ -33,7 +32,7 @@ describe("NavRail", () => {
   it.each([false, true])("names the brand link after the product alone (collapsed: %s)", (railCollapsed) => {
     const preferences = createPreferences(undefined);
     preferences.update({ railCollapsed });
-    renderRail({ kind: "home" }, false, false, preferences);
+    renderRail({ kind: "home" }, false, preferences);
     const brand = screen.getByRole("link", { name: "Periplo" });
     expect(brand.getAttribute("href")).toBe("#/");
   });
@@ -65,22 +64,6 @@ describe("NavRail", () => {
       expect(rail.getByRole("link", { name: "Home" }).getAttribute("aria-current")).toBeNull();
     },
   );
-
-  it.each([true, false])("shows ETL under construction, focusable but not a way in, whether or not it is configured (configured: %s)", (etl) => {
-    const rail = renderRail({ kind: "home" }, etl, true);
-    const entry = rail.getByRole("link", { name: "ETL (under construction)" });
-    expect(entry.getAttribute("aria-disabled")).toBe("true");
-    expect(entry.getAttribute("href")).toBeNull();
-    expect(entry.getAttribute("title")).toBe("Under construction");
-    expect(entry.tabIndex).toBe(0);
-    expect(entry.querySelector("svg")).not.toBeNull();
-    expect(rail.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["#/", "#/sql", "#/join", null, "#/discovery"]);
-  });
-
-  it("never marks the ETL entry under construction as the current section", () => {
-    const rail = renderRail({ kind: "etl" }, true, true);
-    expect(rail.getByRole("link", { name: "ETL (under construction)" }).getAttribute("aria-current")).toBeNull();
-  });
 });
 
 describe("NavRail on a narrow screen", () => {
@@ -90,7 +73,7 @@ describe("NavRail on a narrow screen", () => {
     vi.stubGlobal("matchMedia", (query: string) => ({ matches: true, media: query, addEventListener() {}, removeEventListener() {} }));
     const preferences = createPreferences(undefined);
     expect(preferences.get().railCollapsed).toBe(false);
-    renderRail({ kind: "home" }, false, false, preferences);
+    renderRail({ kind: "home" }, false, preferences);
     expect(screen.getByRole("navigation", { name: "Sections" }).parentElement?.getAttribute("data-collapsed")).toBe("true");
     expect(screen.queryByRole("button", { name: "Collapse menu" })).toBeNull();
   });

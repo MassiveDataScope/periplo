@@ -16,13 +16,6 @@ import { navigate } from "./routes";
 import { createI18n } from "../i18n";
 import { encodeJoinSpec } from "../features/join/join-spec";
 
-const release = vi.hoisted(() => ({ etlUnderConstruction: false }));
-vi.mock("./sections", () => ({
-  get ETL_UNDER_CONSTRUCTION() {
-    return release.etlUnderConstruction;
-  },
-}));
-
 // CodeMirror needs real layout; the workspace only depends on this small contract.
 vi.mock("../features/query/QueryEditor", () => ({
   QueryEditor: (props: { value: string; label: string; onChange(value: string): void; ref?: { current: unknown } }) => {
@@ -73,7 +66,6 @@ function openTab(hash = ""): void {
 }
 
 beforeEach(() => {
-  release.etlUnderConstruction = false;
   openTab();
 });
 afterEach(() => {
@@ -1363,37 +1355,6 @@ describe("App", () => {
       vi.unstubAllGlobals();
       Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 });
     }
-  });
-
-  it("shows ETL under construction, in the rail, the palette and every ETL route, and never asks the ETL API", async () => {
-    release.etlUnderConstruction = true;
-    const api = renderApp(
-      fakeApi({
-        "GET /api/v1/etl/status": () => Response.json({ configured: true, operate_enabled: true, ui_url: null, facets: {} }),
-      }),
-    );
-    await screen.findByRole("tree", { name: "Tables" });
-    const rail = within(screen.getByRole("navigation", { name: "Sections" }));
-    const entry = rail.getByRole("link", { name: "ETL (under construction)" });
-    expect(entry.getAttribute("aria-disabled")).toBe("true");
-    expect(entry.getAttribute("href")).toBeNull();
-
-    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
-    const input = within(screen.getByRole("dialog", { name: "Command palette" })).getByRole("combobox");
-    fireEvent.change(input, { target: { value: "open etl" } });
-    expect(screen.queryAllByRole("option")).toEqual([]);
-    fireEvent.keyDown(input, { key: "Escape" });
-
-    for (const hash of ["#/etl", "#/etl?tab=on-demand", "#/etl/daily-orders", "#/etl/runs/run-1"]) {
-      goTo(hash);
-      const page = await screen.findByRole("region", { name: "ETL is under construction" });
-      expect(within(page).getByText("This section is not available in this release yet.")).toBeTruthy();
-      expect(within(page).getByRole("link", { name: "Back to home" }).getAttribute("href")).toBe("#/");
-      expect(page.querySelector("svg")).not.toBeNull();
-      expect(window.location.hash).toBe(hash);
-      expect(screen.queryByRole("heading", { name: "ETL", level: 2 })).toBeNull();
-    }
-    expect(api.requests.filter((request) => request.includes("/etl"))).toEqual([]);
   });
 
   it("keeps the inline theme script identical to the core snippet", async () => {
