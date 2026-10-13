@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
 // Tests run on UTC's clock everywhere, as on CI: a test that assumes the machine's own zone fails here too.
