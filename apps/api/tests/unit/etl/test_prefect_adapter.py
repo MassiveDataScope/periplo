@@ -14,6 +14,7 @@ import pytest
 import structlog.testing
 
 from periplo.etl.adapters import prefect as prefect_adapter
+from periplo.etl.adapters import prefect_run_control
 from periplo.etl.adapters.prefect import PrefectOrchestrator
 from periplo.etl.errors import (
     ETL_NOT_KNOWN,
@@ -3904,20 +3905,31 @@ async def test_cancel_moves_a_run_that_never_started_straight_to_cancelled() -> 
 
 
 @pytest.mark.asyncio
-async def test_a_never_started_run_a_worker_takes_before_the_cancel_asks_for_cancelling() -> None:
+async def test_a_never_started_run_a_worker_takes_before_the_cancel_asks_for_cancelling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake = FakePrefect()
     stuck = control_run(
         state_type="PENDING", state_name="Pending", start_time=None, infrastructure_pid=None
     )
     controllable(fake, stuck)
-    # Read for the answer's fallback and for the decision; a worker records infrastructure
-    # for it before any later read.
-    reads = [stuck, stuck, {**stuck, "infrastructure_pid": "arn:ecs:task/1"}]
+    runs = {CONTROL_ID: stuck}
 
     def flow_runs(body: dict[str, Any]) -> httpx2.Response:
-        return httpx2.Response(200, json=[reads.pop(0) if len(reads) > 1 else reads[0]])
+        return httpx2.Response(
+            200, json=[runs[run_id] for run_id in body["flow_runs"]["id"]["any_"]]
+        )
 
     fake.respond("POST", "/flow_runs/filter", flow_runs)
+    decide = prefect_run_control.cancel_proposal
+
+    def decided_then_taken(*args: Any, **kwargs: Any) -> Any:
+        """The worker records the run's infrastructure as soon as a cancel is decided."""
+        proposal = decide(*args, **kwargs)
+        runs[CONTROL_ID] = {**stuck, "infrastructure_pid": "arn:ecs:task/1"}
+        return proposal
+
+    monkeypatch.setattr(prefect_adapter, "cancel_proposal", decided_then_taken)
 
     await orchestrator(fake, now=lambda: CONTROL_NOW).cancel_run(CONTROL_ID, force=False, by=None)
 
