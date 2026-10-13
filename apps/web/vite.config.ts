@@ -1,6 +1,10 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
+// Tests run on UTC's clock everywhere, as on CI: a test that assumes the machine's own zone fails here too.
+// Set before Vitest starts its workers, which inherit it; only under Vitest, so `vite dev` keeps the machine's clock.
+if (process.env.VITEST) process.env.TZ = "UTC";
+
 const apiTarget = process.env.PERIPLO_API_URL ?? "http://localhost:8000";
 
 export default defineConfig({

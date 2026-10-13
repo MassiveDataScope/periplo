@@ -1,5 +1,9 @@
 import { defineConfig } from "vitest/config";
 
+// Tests run on UTC's clock everywhere, as on CI: a test that assumes the machine's own zone fails here too.
+// Set before Vitest starts its workers, which inherit it.
+process.env.TZ = "UTC";
+
 export default defineConfig({
   test: {
     environment: "node",
