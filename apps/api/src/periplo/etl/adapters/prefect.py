@@ -163,6 +163,8 @@ class _PrefectTaskRun(msgspec.Struct):
     id: str
     name: str
     task_key: str
+    # Optional in Prefect's schema, but only for a run created without any state, which
+    # neither Prefect's client nor its scheduler does; required here so it stays a ``RunState``.
     state_type: RunState
     tags: list[str] = []
     start_time: datetime | None = None
@@ -200,9 +202,16 @@ class _CreatedBy(msgspec.Struct):
 
 
 class _EmpiricalPolicy(msgspec.Struct):
-    retries: int = 0
-    # Prefect exposes either shape depending on version; whichever is present wins.
-    retry_delay: float | int | None = None
+    """Prefect 3's ``FlowRunPolicy``, reduced to its retry settings.
+
+    ``retries`` and ``retry_delay`` are the live fields, ``null`` (or ``0``) for a flow
+    with no retry policy. ``retry_delay_seconds`` is deprecated: Prefect 3 still sends it, as
+    ``0`` whatever the live delay is, so it is only a fallback for a ``retry_delay``
+    that is absent or ``null``. A list of delays is a task-run policy, never a flow run's.
+    """
+
+    retries: int | None = None
+    retry_delay: float | None = None
     retry_delay_seconds: float | None = None
 
 
@@ -210,6 +219,8 @@ class _PrefectRun(msgspec.Struct):
     id: str
     name: str
     flow_id: str
+    # Optional in Prefect's schema, but only for a run created without any state, which
+    # neither Prefect's client nor its scheduler does; required here so it stays a ``RunState``.
     state_type: RunState
     state_name: str
     state: _State | None = None
@@ -1665,13 +1676,19 @@ def _recent_or_empty(deployment: str, result: list[FlowRun] | BaseException) -> 
 
 
 def _retry_delay_seconds(policy: _EmpiricalPolicy | None) -> float:
+    """The live ``retry_delay``, else the deprecated ``retry_delay_seconds``, else 0."""
     if policy is None:
         return 0.0
-    if policy.retry_delay_seconds is not None:
-        return policy.retry_delay_seconds
     if policy.retry_delay is not None:
-        return float(policy.retry_delay)
-    return 0.0
+        return policy.retry_delay
+    return policy.retry_delay_seconds or 0.0
+
+
+def _retries(policy: _EmpiricalPolicy | None) -> int:
+    """A run with no retry policy (``null`` in Prefect 3) is never retried."""
+    if policy is None or policy.retries is None:
+        return 0
+    return policy.retries
 
 
 def _deployment_url(ui_url: str | None, deployment_id: str) -> str | None:
@@ -1703,7 +1720,7 @@ def _flow_run(raw: _PrefectRun, *, ui_url: str | None) -> FlowRun:
         duration_seconds=raw.total_run_time or 0.0,
         created_by=_creator(raw),
         run_count=raw.run_count,
-        retries=raw.empirical_policy.retries if raw.empirical_policy else 0,
+        retries=_retries(raw.empirical_policy),
         retry_delay_seconds=_retry_delay_seconds(raw.empirical_policy),
         trigger=_trigger_kind(raw),
         external_url=_run_url(ui_url, raw.id),
