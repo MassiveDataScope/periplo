@@ -17,7 +17,10 @@ export type HistoryMove = "new" | "traversal" | "replace";
 export type ReplacementMove = Extract<HistoryMove, "new" | "replace">;
 
 export interface HistoryRegistry {
-  /** Starts following the browser: stamps the entry it is on and listens to its hashchanges. At startup; a second call does nothing. */
+  /**
+   * Starts following the browser: stamps the entry it is on and listens to its hashchanges. At startup; a
+   * second call does nothing. Every method but `subscribe` and `dispose` throws before it in development and tests.
+   */
   install(): void;
   /**
    * The test reset: stops following the browser and forgets the trail in memory, while session storage keeps
@@ -160,6 +163,15 @@ function createHistoryRegistry(): HistoryRegistry {
     update();
   }
 
+  /**
+   * Before `install()` the trail is empty and hears no hashchange, so every answer would be wrong without a
+   * sign: in development and tests that is an error; in production the caller gets the empty trail.
+   */
+  function whenInstalled<T>(method: string, read: () => T): T {
+    if (!installed && import.meta.env.DEV) throw new Error(`appHistory.${method}() called before appHistory.install()`);
+    return read();
+  }
+
   return {
     install() {
       if (installed) return;
@@ -176,16 +188,18 @@ function createHistoryRegistry(): HistoryRegistry {
       reachedBy = "new";
     },
     sync(replacedAs) {
-      if (installed) update(replacedAs);
+      whenInstalled("sync", () => {
+        if (installed) update(replacedAs);
+      });
     },
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    currentEntryKey: () => entryKey(documentId ?? "", current),
-    keepsEntry: (key) => keptDocuments.has(documentOfEntryKey(key)),
-    lastMove: () => reachedBy,
-    previousHash: () => entries[current - 1] ?? null,
+    currentEntryKey: () => whenInstalled("currentEntryKey", () => entryKey(documentId ?? "", current)),
+    keepsEntry: (key) => whenInstalled("keepsEntry", () => keptDocuments.has(documentOfEntryKey(key))),
+    lastMove: () => whenInstalled("lastMove", () => reachedBy),
+    previousHash: () => whenInstalled("previousHash", () => entries[current - 1] ?? null),
   };
 }
 

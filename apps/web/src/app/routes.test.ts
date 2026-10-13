@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 // `replaceRoute` reads and writes `window.location`; every other test here is plain data in, data out.
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { appHistory } from "./history";
 import { href, parseRoute, replaceRoute, sameView, type Route } from "./routes";
 
 describe("routes", () => {
@@ -118,7 +119,9 @@ describe("routes", () => {
   });
 
   describe("replaceRoute", () => {
+    beforeEach(() => appHistory.install());
     afterEach(() => {
+      appHistory.dispose();
       window.location.hash = "";
     });
 

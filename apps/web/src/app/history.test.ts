@@ -94,10 +94,22 @@ describe("history", () => {
     expect(appHistory.previousHash()).toBe("#/d/c");
   });
 
-  it("follows the browser only once installed, and stops when disposed", () => {
+  it("stops following the browser when disposed", () => {
+    const listener = vi.fn();
+    const unsubscribe = appHistory.subscribe(listener);
     appHistory.dispose();
-    navigate(database);
-    expect(appHistory.previousHash()).toBeNull();
+    window.history.replaceState(null, "", "#/sql");
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    unsubscribe();
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("refuses to be read or moved before it is installed, in development and tests, rather than answer from an empty trail", () => {
+    appHistory.dispose();
+    expect(() => navigate(database)).toThrow(/install/);
+    expect(() => appHistory.previousHash()).toThrow(/install/);
+    expect(() => appHistory.currentEntryKey()).toThrow(/install/);
+    expect(() => appHistory.lastMove()).toThrow(/install/);
   });
 
   it("tells a new entry, a replacement and a step back apart", async () => {
