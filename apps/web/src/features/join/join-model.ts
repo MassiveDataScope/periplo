@@ -67,15 +67,20 @@ function namesTable(column: string, table: string): boolean {
  * relation, read the other way (one order, many payments). A shared identifier name alone says nothing
  * about which side owns it.
  */
-type PairRank = "shared-name" | "owned-by-earlier" | "owned-by-added";
+type PairRank = "owned-by-added" | "owned-by-earlier" | "shared-name";
 
-const PAIR_WEIGHT: Readonly<Record<PairRank, number>> = { "shared-name": 1, "owned-by-earlier": 2, "owned-by-added": 3 };
+const PAIR_WEIGHT: Readonly<Record<PairRank, number>> = { "owned-by-added": 3, "owned-by-earlier": 2, "shared-name": 1 };
+
+/** Column names compare case-insensitively everywhere a pair is ranked, as `namesTable` and `id` already do. */
+function sameName(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
 
 function rankPair(mine: JoinColumn, theirs: JoinColumn, left: JoinTable, right: JoinTable): PairRank | null {
   if (!canPair(mine.type, theirs.type)) return null;
-  if (namesTable(mine.name, right.table) && (theirs.name === mine.name || theirs.name.toLowerCase() === "id")) return "owned-by-added";
-  if (namesTable(theirs.name, left.table) && (mine.name === theirs.name || mine.name.toLowerCase() === "id")) return "owned-by-earlier";
-  if (mine.name === theirs.name && isIdentifierName(mine.name)) return "shared-name";
+  if (namesTable(mine.name, right.table) && (sameName(theirs.name, mine.name) || sameName(theirs.name, "id"))) return "owned-by-added";
+  if (namesTable(theirs.name, left.table) && (sameName(mine.name, theirs.name) || sameName(mine.name, "id"))) return "owned-by-earlier";
+  if (sameName(mine.name, theirs.name) && isIdentifierName(mine.name)) return "shared-name";
   return null;
 }
 
@@ -147,8 +152,8 @@ function bestPair(def: JoinDefinition, table: JoinTable): JoinPairRef | null {
 }
 
 /**
- * Adds a table to a join: gives it a fresh alias, suggests pairs against every table already present, and
- * starts its output with `defaultOutput`.
+ * Adds a table to a join: gives it a fresh alias, proposes the single likeliest key against any table already
+ * present (none when no column looks like one), and starts its output with `defaultOutput`.
  */
 export function addTable(def: JoinDefinition, table: JoinTable, kind: JoinKind = "left"): JoinDefinition {
   const taken = new Set(aliasesInOrder(def));
