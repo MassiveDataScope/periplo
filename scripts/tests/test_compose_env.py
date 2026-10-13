@@ -48,3 +48,10 @@ def test_compose_forwards_every_setting(compose: str) -> None:
     missing = sorted(expected - _forwarded(compose))
 
     assert not missing, f"{compose} does not forward {missing}"
+
+
+@pytest.mark.parametrize("compose", sorted(SERVICES))
+def test_every_exclusion_is_still_a_setting(compose: str) -> None:
+    stale = sorted(NOT_FORWARDED[compose] - set(_variables()))
+
+    assert not stale, f"NOT_FORWARDED[{compose!r}] names no setting: {stale}"
