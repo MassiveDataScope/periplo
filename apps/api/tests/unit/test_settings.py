@@ -166,3 +166,24 @@ def test_etl_facets_read_an_expects_schedule_role_with_its_values() -> None:
 def test_etl_facets_that_do_not_parse_name_the_variable(raw: str) -> None:
     with pytest.raises(ConfigError, match="PERIPLO_ETL_FACETS"):
         Settings.from_environment({"PERIPLO_ETL_FACETS": raw})
+
+
+def test_an_empty_variable_counts_as_unset() -> None:
+    # Compose forwards an optional variable the operator left out as `${VAR:-}`, an empty string.
+    environ = {
+        "PERIPLO_ETL_ALLOW_OPERATE": "true",
+        "PERIPLO_ETL_ALLOW_ARCHIVE": "",
+        "PERIPLO_ETL_FACETS": "",
+        "PERIPLO_PREFECT_API_URL": "",
+        "PERIPLO_WEB_DIR": "",
+        "PERIPLO_MAX_RESULT_ROWS": "",
+    }
+
+    settings = Settings.from_environment(environ)
+
+    assert settings.etl_allow_archive is None
+    assert settings.etl_archive_allowed is True, "archiving follows operating"
+    assert settings.etl_facets == {}
+    assert settings.prefect_api_url is None
+    assert settings.web_dir is None
+    assert settings.max_result_rows == 100_000

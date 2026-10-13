@@ -4,6 +4,7 @@ Periplo is configured with environment variables. Every setting is named
 `PERIPLO_<SETTING>`, is read once when the application starts, and is validated before
 anything else happens: a missing or malformed value stops the start-up with an error
 that names the variable, for example ``PERIPLO_MAX_RESULT_ROWS: Expected `int` >= 1``.
+An empty variable counts as unset: it takes the default.
 
 Numbers are written as plain digits (`67108864`, not `64MiB`). Booleans accept `true`,
 `false`, `1` and `0`. Lists are comma-separated; spaces around each item are ignored and
