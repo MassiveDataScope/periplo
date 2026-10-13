@@ -419,6 +419,58 @@ describe("App", () => {
     expect((screen.getByLabelText("SQL query") as HTMLTextAreaElement).value).toBe(expected);
   });
 
+  it("marks the check stale when the join changes while the check is running", async () => {
+    const release = { check: () => {}, customers: () => {} };
+    const checkHeld = new Promise<void>((resolve) => (release.check = resolve));
+    const customersHeld = new Promise<void>((resolve) => (release.customers = resolve));
+    const sql: string[] = [];
+    const api = fakeApi({
+      "POST /api/v1/queries": async (request) => {
+        sql.push(((await request.json()) as { sql: string }).sql);
+        if (!sql.at(-1)?.includes("step_order")) throw new Error(`unexpected query ${sql.at(-1)}`);
+        await checkHeld;
+        const check = tableFromArrays({
+          step_order: new Int32Array([0]),
+          step: ["o2"],
+          matched: new BigInt64Array([9n]),
+          left_without_match: new BigInt64Array([1n]),
+          right_without_match: new BigInt64Array([0n]),
+          rows_after_join: new BigInt64Array([10n]),
+          left_repeated_keys: new BigInt64Array([2n]),
+          right_repeated_keys: new BigInt64Array([0n]),
+        });
+        return new Response(new Uint8Array(tableToIPC(check, "stream")), { headers: { "x-query-id": QUERY_ID } });
+      },
+      "GET /api/v1/catalog/tables/landing_shop/customers": async () => {
+        await customersHeld;
+        return Response.json({ ...catalogBefore.tables[1], delta_version: 2, fields: FIELDS });
+      },
+    });
+    renderApp(api);
+    await goTo("#/join/landing_shop/order");
+    await screen.findByRole("heading", { level: 2, name: "Join · order" });
+    fireEvent.change(screen.getByLabelText("Find a table to add"), { target: { value: "shop orders" } });
+    fireEvent.click(await screen.findByRole("button", { name: /landing_shop\.orders/ }));
+    await waitFor(() => expect(screen.getByLabelText("SQL this join runs").textContent).toContain("LEFT JOIN landing_shop.orders AS o2"));
+
+    // Check, then pick another table while the check is still running.
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    await waitFor(() => expect(sql.at(-1)).toContain("step_order"));
+    fireEvent.click(screen.getByRole("button", { name: "Add table" }));
+    fireEvent.change(screen.getByLabelText("Find a table to add"), { target: { value: "customers" } });
+    fireEvent.click(await screen.findByRole("button", { name: /landing_shop\.customers/ }));
+
+    // The check finishes while the picked table is still being read...
+    release.check();
+    const checkCard = () => within(screen.getByRole("region", { name: "Check join" }));
+    await waitFor(() => expect(checkCard().getByText("×1.00")).toBeTruthy());
+
+    // ...so its figures describe the join before that table was added.
+    release.customers();
+    await waitFor(() => expect(screen.getByLabelText("SQL this join runs").textContent).toContain("landing_shop.customers"));
+    expect(checkCard().getByText("The join changed since the last check.")).toBeTruthy();
+  });
+
   it("pairs columns by dragging a live wire from one card's column to a compatible column on another", async () => {
     const api = renderApp();
     await goTo("#/join/landing_shop/order");

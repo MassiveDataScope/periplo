@@ -173,8 +173,9 @@ export function JoinWorkspace({ dependencies, preferences, catalog, database, ta
 
   const checkState: CheckJoinState = checkPhase === "running" && checkSettled && checkSession.state.kind === "completed" ? "done" : checkPhase;
 
+  /** Any change after Check was pressed outdates its figures, finished or still running; reads the phase at update time, not this render's. */
   const markStale = () => {
-    if (checkState === "done") setCheckPhase("stale");
+    setCheckPhase((phase) => (phase === "idle" ? phase : "stale"));
   };
 
   const mutate = (change: (current: JoinDefinition) => JoinDefinition) => {
