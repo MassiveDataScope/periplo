@@ -1,19 +1,14 @@
-import { useCallback, useMemo, useState, type RefObject } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { TFunction } from "i18next";
 import type { Loadable } from "../../api/loadable";
 import type { Dependencies } from "../../app/dependencies";
-import { etlListQuery, isEtlRoute, withEtlListQuery, type EtlSectionRoute, type EtlStatusFilter } from "../../app/etl-routes";
-import { parseRoute, replaceRoute, type Route } from "../../app/routes";
+import { isEtlRoute, type EtlSectionRoute } from "../../app/etl-routes";
+import type { Route } from "../../app/routes";
 import type { ColumnTexts } from "../shell/Shell";
 import { activeList, archivedEtls } from "./archive";
-import { EtlDashboard } from "./EtlDashboard";
-import { EtlPage } from "./EtlPage";
-import { EtlSideList } from "./EtlSideList";
 import type { RunsNowByEtl } from "./etl-groups";
 import { etlOfRun } from "./etl-of-run";
 import type { FacetConfigs } from "./facets";
-import { RunPage } from "./RunPage";
-import { SectionLinks } from "./SectionLinks";
 import { NO_ETLS, useEtlList, type Etl, type EtlList } from "./useEtl";
 import type { EtlStatus } from "./useEtlStatus";
 import { useRunsNow } from "./useRunsNow";
@@ -32,13 +27,6 @@ function currentEtl(route: EtlSectionRoute, list: Loadable<EtlList>, owner: RunO
   if (route.kind !== "etl-run") return null;
   if (owner?.runId === route.id) return owner.etl;
   return list.kind === "ready" ? etlOfRun(list.value, route.id) : null;
-}
-
-/** The ETL page has taken a link's Run-once values: they leave the URL (the rest of it kept), so Back or a reload does
- * not ask again. Read at call time, not from a render's route. */
-function dropRunOnce(): void {
-  const now = parseRoute(window.location.hash);
-  if (now.kind === "etl-deployment") replaceRoute({ ...now, runOnce: undefined });
 }
 
 export interface EtlSection {
@@ -92,79 +80,4 @@ export function useEtlSection(dependencies: Dependencies, route: Route, status: 
 
 export function etlColumnTexts(t: TFunction): ColumnTexts {
   return { label: t("etl.side.title"), collapse: t("etl.side.collapse"), expand: t("etl.side.expand"), resize: t("etl.side.resize") };
-}
-
-interface SlotProps {
-  readonly section: EtlSection;
-  /** The section's one search, for the console to focus (Ctrl/Cmd+Shift+F). */
-  readonly searchRef: RefObject<HTMLInputElement | null>;
-}
-
-const NO_TAGS: readonly string[] = [];
-const NO_STATES: readonly EtlStatusFilter[] = [];
-
-/** The side column on the section's routes: every active ETL, the one on screen marked, filtered by the URL's `q`. */
-export function EtlColumn({ section, searchRef }: SlotProps) {
-  const { route, status, active, runsNow, reload, current } = section;
-  return (
-    <SectionLinks route={route}>
-      <EtlSideList
-        list={active}
-        runsNow={runsNow}
-        facets={status.facets}
-        current={current}
-        onDashboard={route.kind === "etl"}
-        query={etlListQuery(route)}
-        onQueryChange={(query) => replaceRoute(withEtlListQuery(route, query))}
-        facetFilters={route.kind === "etl" ? { tags: route.filters?.tags ?? NO_TAGS, state: route.filters?.state ?? NO_STATES } : undefined}
-        filterRef={searchRef}
-        onRetry={reload}
-      />
-    </SectionLinks>
-  );
-}
-
-export function EtlView({ section, searchRef, dependencies }: SlotProps & { readonly dependencies: Dependencies }) {
-  const { route, status, list, active, archived, runsNow, reload, onRunEtlKnown } = section;
-  return (
-    <SectionLinks route={route}>
-      {route.kind === "etl" ? (
-        <EtlDashboard
-          dependencies={dependencies}
-          status={status}
-          list={active}
-          archived={archived}
-          runsNow={runsNow}
-          onListChanged={reload}
-          searchRef={searchRef}
-        />
-      ) : null}
-      {route.kind === "etl-deployment" ? (
-        <EtlPage
-          key={route.name}
-          dependencies={dependencies}
-          name={route.name}
-          status={status}
-          list={list}
-          runsNow={runsNow}
-          onListChanged={reload}
-          selectedRunId={route.run ?? null}
-          runOnce={route.runOnce}
-          onRunOnceTaken={dropRunOnce}
-        />
-      ) : null}
-      {route.kind === "etl-run" ? (
-        <RunPage
-          key={route.id}
-          dependencies={dependencies}
-          id={route.id}
-          view={route.view}
-          list={list}
-          onEtlKnown={onRunEtlKnown}
-          canOperate={status.operate_enabled}
-          onListChanged={reload}
-        />
-      ) : null}
-    </SectionLinks>
-  );
 }
