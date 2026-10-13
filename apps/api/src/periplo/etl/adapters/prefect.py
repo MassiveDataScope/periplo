@@ -1833,7 +1833,6 @@ def _deployment(
         accepts_processes=_accepts_processes(raw.parameter_openapi_schema),
         triggered_by=None,
         triggers=[],
-        archived=None,
         external_url=_deployment_url(ui_url, raw.id),
     )
 

@@ -95,7 +95,6 @@ def deployment(id_: str, name: str, flow_name: str | None = None) -> Deployment:
         external_url=None,
         triggered_by=None,
         triggers=[],
-        archived=None,
     )
 
 

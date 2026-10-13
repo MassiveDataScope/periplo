@@ -1,8 +1,10 @@
 """What the ETL feature needs from an orchestrator, and the shapes it answers with.
 
-The structs are the HTTP bodies of the ETL routes verbatim: the router encodes
-them with ``msgspec`` and adds nothing. They are frozen and keyword-only so an adapter
-cannot build one positionally and silently swap two fields of the same type.
+The structs are the HTTP bodies of the ETL routes verbatim: the router encodes them
+with ``msgspec`` and adds nothing but each ETL's archive state, which Periplo keeps
+itself and :mod:`periplo.etl.http` adds to the list and to a schedule change. They are
+frozen and keyword-only so an adapter cannot build one positionally and silently swap
+two fields of the same type.
 """
 
 from __future__ import annotations
@@ -13,7 +15,7 @@ from typing import Any, Literal, Protocol, runtime_checkable
 
 import msgspec
 
-from periplo.etl.archive import ArchiveMark, ArchiveMode
+from periplo.etl.archive import ArchiveMode
 from periplo.etl.facets import FacetConfig
 from periplo.etl.loomlog import StepFacts
 
@@ -215,9 +217,6 @@ class Deployment(msgspec.Struct, frozen=True, kw_only=True):
     chains them; only ETLs in the same list are named."""
     triggers: list[str]
     """The ETLs this one's completed run starts, sorted; only ETLs in the same list."""
-    archived: ArchiveMark | None
-    """When it was archived in Periplo, by whom and why; ``None`` for an active ETL. The
-    orchestrator knows nothing of it: the HTTP layer reads it from the archive store."""
 
 
 class RunDetail(FlowRun, frozen=True, kw_only=True):

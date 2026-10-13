@@ -23,8 +23,9 @@ call, and asked again with ``only`` when something is hidden, so no count covers
 deployment the caller cannot see; an answer that names any other deployment is a 502.
 
 Archiving (:mod:`periplo.etl.archive`) is kept by Periplo, never by the orchestrator:
-the list marks each ETL with its archive state, and its counts, history and live runs
-are asked again with ``only`` the active ones when something is archived.
+the list and a schedule change answer each ETL with its archive state (``ListedEtl``),
+and the list's counts and history are asked again with ``only`` the active ones when
+something is archived.
 """
 
 from __future__ import annotations
@@ -49,7 +50,7 @@ from periplo.access import (
     run_target,
 )
 from periplo.errors import denial_response
-from periplo.etl.archive import ArchiveState, ArchiveStore
+from periplo.etl.archive import ArchiveMark, ArchiveState, ArchiveStore
 from periplo.etl.errors import (
     ETL_NOT_KNOWN,
     RUN_NOT_KNOWN,
@@ -60,13 +61,16 @@ from periplo.etl.errors import (
 )
 from periplo.etl.facets import FacetConfig
 from periplo.etl.ports import (
+    Deployment,
     EtlList,
     EtlStatus,
     FlowRun,
     Orchestrator,
     RunDetail,
     RunList,
+    RunningRun,
     RunResolver,
+    Summary,
 )
 from periplo.etl.provider import OrchestratorProvider
 from periplo.tenancy import RequestContext, current_context
@@ -109,6 +113,27 @@ class CancelRequest(BaseModel):
 
 class ArchiveRequest(BaseModel):
     reason: str | None = Field(None, max_length=MAX_ARCHIVE_REASON_LENGTH)
+
+
+class ListedEtl(Deployment, frozen=True, kw_only=True):
+    """An ETL as the console is answered it: the orchestrator's deployment and its archive
+    state, which Periplo keeps itself."""
+
+    archived: ArchiveMark | None
+    """When it was archived in Periplo, by whom and why; ``None`` for an active ETL."""
+
+
+class ListedEtls(msgspec.Struct, frozen=True, kw_only=True):
+    """``EtlList`` with each ETL's archive state."""
+
+    etls: list[ListedEtl]
+    summary: Summary
+    running: list[RunningRun]
+    running_truncated: bool
+
+
+def _listed(deployment: Deployment, marks: Mapping[str, ArchiveMark]) -> ListedEtl:
+    return ListedEtl(**msgspec.structs.asdict(deployment), archived=marks.get(deployment.name))
 
 
 def _error(error: EtlError) -> JSONResponse:
@@ -280,23 +305,24 @@ def create_router(
         names = _etl_names(shown)
         return _within(await _call(orchestrator.list_deployments(only=names)), names)
 
-    async def listed(orchestrator: Orchestrator) -> EtlList:
+    async def listed(orchestrator: Orchestrator) -> ListedEtls:
         """The visible list, each ETL marked with its archive state, its summary and history
         counted over the active ones alone. Live runs stay every visible ETL's: an archived
         ETL's own page still says its run is stuck (the console keeps them out of its counts)."""
         visible = await visible_deployments(orchestrator)
         archived = await archives.list(current_context().tenant)
-        etls = [
-            msgspec.structs.replace(etl, archived=archived.get(etl.name)) for etl in visible.etls
-        ]
         active_names = frozenset(etl.name for etl in visible.etls if etl.name not in archived)
-        if len(active_names) == len(visible.etls):
-            return msgspec.structs.replace(visible, etls=etls)
-        counted = _within(
-            await _call(orchestrator.list_deployments(only=active_names)), active_names
-        )
-        return msgspec.structs.replace(
-            counted, etls=etls, running=visible.running, running_truncated=visible.running_truncated
+        summary = visible.summary
+        if len(active_names) < len(visible.etls):
+            counted = _within(
+                await _call(orchestrator.list_deployments(only=active_names)), active_names
+            )
+            summary = counted.summary
+        return ListedEtls(
+            etls=[_listed(etl, archived) for etl in visible.etls],
+            summary=summary,
+            running=visible.running,
+            running_truncated=visible.running_truncated,
         )
 
     async def change[T: msgspec.Struct](
@@ -381,6 +407,17 @@ def create_router(
             status_code=202,
             describe=describe,
         )
+
+    async def set_schedule(name: str, active: bool) -> Response:
+        """*name*'s schedules turned on or off, answered with its archive state. The archive
+        is read before the change, so a failing store never fails a change already made."""
+
+        async def change_schedule(orchestrator: Orchestrator) -> ListedEtl:
+            marks = await archives.list(current_context().tenant)
+            deployment = await _call(orchestrator.set_schedule(name, active))
+            return _listed(deployment, marks)
+
+        return await etl_change(name, Action.OPERATE_ETL, change_schedule, status_code=202)
 
     @router.get("/status")
     async def status() -> Response:
@@ -473,11 +510,11 @@ def create_router(
     # A distinct suffix from ``/{name}/runs``: no deployment name can make the two collide.
     @router.post("/{name}/schedule/resume", status_code=202)
     async def resume_schedule(name: DeploymentName) -> Response:
-        return await operate(name, lambda o: o.set_schedule(name, True))
+        return await set_schedule(name, True)
 
     @router.post("/{name}/schedule/pause", status_code=202)
     async def pause_schedule(name: DeploymentName) -> Response:
-        return await operate(name, lambda o: o.set_schedule(name, False))
+        return await set_schedule(name, False)
 
     # Kept by Periplo: nothing changes in the orchestrator.
     @router.post("/{name}/archive")
