@@ -19,6 +19,7 @@ import { EtlStatusLine } from "./EtlStatusLine";
 import { EtlTable } from "./EtlTable";
 import { EtlTabs } from "./EtlTabs";
 import { EtlToolbar, stuckHeight } from "./EtlToolbar";
+import { useEtlRowActions } from "./row-actions";
 import { RunningAnnouncer } from "./RunningAnnouncer";
 import type { Etl, EtlList } from "./useEtl";
 import type { EtlStatus } from "./useEtlStatus";
@@ -123,6 +124,7 @@ function DashboardTables({ view, change, model, archived, dependencies, status, 
   const tab = model.tabs[view.tab];
   const runningById = useMemo(() => new Map(model.going.map((run) => [run.id, run])), [model.going]);
   const toTab = (next: EtlTab) => change({ tab: next });
+  const actions = useEtlRowActions(dependencies, status, onChanged);
   return (
     <section aria-label={t("etl.title")}>
       <EtlTabs
@@ -143,15 +145,13 @@ function DashboardTables({ view, change, model, archived, dependencies, status, 
         onTabChange={toTab}
       />
       {view.tab === "archived" ? (
-        <ArchivedTable etls={tab.shown} total={archived.length} dependencies={dependencies} status={status} onChanged={onChanged} />
+        <ArchivedTable etls={tab.shown} total={archived.length} archiveMode={status.archive_mode} onRestore={actions.restore} />
       ) : (
         <EtlTable
           etls={model.table}
           original={tab.all}
           runningById={runningById}
-          dependencies={dependencies}
-          status={status}
-          onChanged={onChanged}
+          onResume={actions.resume}
           sort={model.sort}
           sortKeys={sortKeysOf(view.tab)}
           onSortChange={(sort) => change({ sort })}

@@ -83,6 +83,19 @@ export function useEtlList(
   return { list, reload };
 }
 
+/** Sends one change and answers null once it is made (after `onChanged`), or the error it failed with; an empty
+ * answer is a failure too. */
+export async function changeOutcome(send: () => Promise<{ readonly data?: unknown }>, onChanged: () => void): Promise<ApiError | null> {
+  try {
+    const { data } = await send();
+    if (!data) throw new Error("The response was empty");
+    onChanged();
+    return null;
+  } catch (err: unknown) {
+    return asApiError(err);
+  }
+}
+
 /**
  * One change asked of the API at a time: `pending` while it is, its error kept until `reset`, and `onChanged` once
  * it is made. `make` answers whether it was (an empty answer is a failure too).
@@ -99,17 +112,10 @@ function useChange(onChanged: () => void): {
     async (send: () => Promise<{ readonly data?: unknown }>): Promise<boolean> => {
       setPending(true);
       setError(null);
-      try {
-        const { data } = await send();
-        if (!data) throw new Error("The response was empty");
-        onChanged();
-        return true;
-      } catch (err: unknown) {
-        setError(asApiError(err));
-        return false;
-      } finally {
-        setPending(false);
-      }
+      const failure = await changeOutcome(send, onChanged);
+      setError(failure);
+      setPending(false);
+      return failure === null;
     },
     [onChanged],
   );
