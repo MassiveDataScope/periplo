@@ -86,6 +86,20 @@ describe("useScrollRestoration", () => {
     await vi.waitFor(() => expect(work.scrollTop).toBe(0));
   });
 
+  it("puts the scroll back where it was after a reload of the tab", async () => {
+    render(<Work />);
+    act(() => navigate({ kind: "database", database: "landing_shop" }));
+    scrollTo(screen.getByRole("main", { name: "Work area" }), 640);
+    cleanup();
+
+    // A reload: the entry keeps its stamp, the page and its work area start over.
+    appHistory.dispose();
+    appHistory.install();
+    render(<Work />);
+    const work = screen.getByRole("main", { name: "Work area" });
+    await vi.waitFor(() => expect(work.scrollTop).toBe(640));
+  });
+
   it("forgets the positions of the documents whose trails are gone, so session storage does not grow with every reopening", () => {
     for (const hash of ["#/sql", "#/discovery", "#/etl", "#/d/a", "#/d/b", "#/d/c", "#/d/d"]) {
       appHistory.dispose();

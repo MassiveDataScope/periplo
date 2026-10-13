@@ -22,8 +22,8 @@ function savePositions(positions: Record<string, number>): void {
 }
 
 /**
- * Keeps the scroll of the work area per history entry: Back and Forward return to where the user was,
- * a new entry starts at the top, and a replacement in place (a tab, a filter) leaves the scroll alone.
+ * Keeps the scroll of the work area per history entry: Back, Forward and a reload return to where the
+ * user was, a new entry starts at the top, and a replacement in place (a tab, a filter) leaves the scroll alone.
  * Retries stop as soon as the user scrolls, types or touches the page.
  */
 export function useScrollRestoration(ref: RefObject<HTMLElement | null>): void {
@@ -37,6 +37,15 @@ export function useScrollRestoration(ref: RefObject<HTMLElement | null>): void {
       timers = [];
     };
 
+    /** Applies `target` now and again while the view fills in, until the user takes over the scroll. */
+    const restore = (target: number) => {
+      timers = RETRIES_MS.map((delay) =>
+        window.setTimeout(() => {
+          element.scrollTop = target;
+        }, delay),
+      );
+    };
+
     const onScroll = () => {
       positions[appHistory.currentEntryKey()] = element.scrollTop;
     };
@@ -48,13 +57,12 @@ export function useScrollRestoration(ref: RefObject<HTMLElement | null>): void {
       if (move === "new") delete positions[appHistory.currentEntryKey()];
       savePositions(positions);
       if (move === "replace") return;
-      const target = positions[appHistory.currentEntryKey()] ?? 0;
-      timers = RETRIES_MS.map((delay) =>
-        window.setTimeout(() => {
-          element.scrollTop = target;
-        }, delay),
-      );
+      restore(positions[appHistory.currentEntryKey()] ?? 0);
     };
+
+    // After a reload the entry on screen may have a saved position: it comes back as on Back.
+    const saved = positions[appHistory.currentEntryKey()];
+    if (saved !== undefined) restore(saved);
 
     element.addEventListener("scroll", onScroll, { passive: true });
     for (const type of USER_INTENT_EVENTS) element.addEventListener(type, onUserIntent, { passive: true });
