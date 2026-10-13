@@ -20,9 +20,10 @@ const TAG_WORDS = new Set(["cadence", "mode", "daily", "weekly", "hourly", "back
 /** A whole string that starts like a tag (`prefix:` or `prefix:value`), as one would match tags against. */
 const TAG_LIKE = /^[a-z][\w-]*:/;
 
-/** Plain strings of the console's own that look like a tag prefix but never meet a tag: a task's `name:` key. */
+/** Plain strings that look like a tag prefix but never meet a tag: a task's `name:` key, Vite's preload event. */
 const NOT_TAGS: Readonly<Record<string, ReadonlySet<string>>> = {
   "./task-keys.ts": new Set(["name:"]),
+  "../../app/stale-chunks.ts": new Set(["vite:preloadError"]),
 };
 
 interface Literal {
