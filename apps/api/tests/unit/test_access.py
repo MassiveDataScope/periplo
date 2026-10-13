@@ -957,6 +957,19 @@ async def test_require_does_not_audit_a_refused_product_action() -> None:
 
 
 @pytest.mark.asyncio
+async def test_require_audits_a_refusal_as_the_target_it_names_not_the_one_asked() -> None:
+    audit = _RecordingAudit()
+    authorizer = _RecordingAuthorizer(error=Denied("no", code="etl_operate_disabled"))
+    access = Access(authorizer, audit)
+
+    with running_as(), pytest.raises(Denied):
+        await access.require(Action.CANCEL_RUN, (), audited_as=run_target("run-1"))
+
+    assert [call[2] for call in authorizer.calls] == [()]
+    assert [(e.target, e.outcome) for e in audit.events] == [(("run", "run-1", ""), "denied")]
+
+
+@pytest.mark.asyncio
 async def test_the_justifying_grant_lands_in_every_operate_event() -> None:
     audit = _RecordingAudit()
     access = Access(_GrantingAuthorizer(), audit)

@@ -385,7 +385,9 @@ def create_router(
         which ETL the run belongs to."""
 
         async def target(orchestrator: Orchestrator) -> Target:
-            await access.require(action, WHOLE)
+            # Audited as the run attempted, its ETL unknown: authorizing against that target
+            # would have a per-ETL authorizer decide on an empty ETL.
+            await access.require(action, WHOLE, audited_as=run_target(run_id))
             return run_target(run_id, await resolved_etl(orchestrator, run_id))
 
         return change(

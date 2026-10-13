@@ -338,15 +338,18 @@ class Access:
         self._filter = authorizer if isinstance(authorizer, FilteringAuthorizer) else None
         self._audit = audit
 
-    async def require(self, action: StrEnum, target: Target = WHOLE) -> RequestContext:
+    async def require(
+        self, action: StrEnum, target: Target = WHOLE, *, audited_as: Target | None = None
+    ) -> RequestContext:
         """Authorize *action* for the current request, or raise a denial.
 
         Any loom ``Forbidden`` is re-raised through :func:`as_403` and any
         ``Unauthenticated`` through :func:`as_401`, so each answers the same status on
-        every surface.
+        every surface. A refusal is audited with *audited_as* when given (what the caller
+        was after, when *target* is broader), else with *target*.
         """
         context = current_context()
-        await self._authorize(context, action, target)
+        await self._authorize(context, action, target, audited_as=audited_as)
         return context
 
     async def visible(self, action: StrEnum, targets: Sequence[Target]) -> list[Target]:
@@ -523,14 +526,22 @@ class Access:
             raise hidden()
 
     async def _authorize(
-        self, context: RequestContext, action: StrEnum, target: Target, *, always: bool = False
+        self,
+        context: RequestContext,
+        action: StrEnum,
+        target: Target,
+        *,
+        always: bool = False,
+        audited_as: Target | None = None,
     ) -> Justification | None:
-        """The authorizer's grant for *action*, or its refusal re-raised through ``_refuse``."""
+        """The authorizer's grant for *action*, or its refusal re-raised through ``_refuse``,
+        audited with *audited_as* when given."""
         _vet(action)
         try:
             return await self._authorizer.authorize(context, action, target)
         except (Forbidden, Unauthenticated) as error:
-            await self._refuse(context, action, target, error, always=always)
+            audited = target if audited_as is None else audited_as
+            await self._refuse(context, action, audited, error, always=always)
 
     async def _refuse(
         self,

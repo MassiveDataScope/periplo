@@ -174,4 +174,7 @@ def test_a_change_to_a_run_with_operating_off_asks_prefect_nothing(
     assert response.status_code == 403
     assert response.json()["detail"]["code"] == "etl_operate_disabled"
     assert prefect.requests == []
-    assert [(e.action, e.outcome) for e in audit.events] == [(action, "denied")]
+    # The run attempted, with its ETL unknown: the orchestrator was never asked for it.
+    assert [(e.action, e.target, e.outcome) for e in audit.events] == [
+        (action, ("run", CONTROL_ID, ""), "denied")
+    ]
