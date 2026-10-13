@@ -6,6 +6,12 @@ import styles from "./Logo.module.css";
  */
 export type LogoProps = { readonly size?: "sm"; readonly className?: string } | { readonly size: "lg"; readonly busy?: boolean; readonly className?: string };
 
+/** The `sm` drawing, shared with the favicon and the docs logo, which the brand icon test holds to it. */
+export const SMALL_LOGO = {
+  tube: "M15.1 43.2V15a6.75 6.75 0 0 1 6.75-6.74h2.7",
+  lens: { cx: 31.1, cy: 8.26, r: 5 },
+} as const;
+
 /**
  * The product mark (provisional, until the designer's final drawing): the periscope drawn as the l of the
  * wordmark, with the brand dot as its lens. At `lg` the tube crosses a waterline: what is under the surface
@@ -17,8 +23,8 @@ export function Logo(props: LogoProps) {
   if (props.size !== "lg") {
     return (
       <svg aria-hidden="true" focusable="false" viewBox="0 0 48 48" className={classes}>
-        <path className={styles.tube} d="M15.1 43.2V15a6.75 6.75 0 0 1 6.75-6.74h2.7" />
-        <circle className={styles.lens} cx="31.1" cy="8.26" r="5" />
+        <path className={styles.tube} d={SMALL_LOGO.tube} />
+        <circle className={styles.lens} {...SMALL_LOGO.lens} />
       </svg>
     );
   }
