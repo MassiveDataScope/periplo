@@ -100,11 +100,12 @@ textarea.input {
   outline-offset: var(--nt-focus-offset);
 }
 
-/* A changed value: a heavier accent outline and a soft fill, beside the "Changed · usually X" words. */
+/* A changed value: a heavier ink outline and the selection fill, beside the "Changed · usually X" words.
+   Not the accent, which is never a state, and far from the crimson of an invalid value. */
 .field[data-changed] .input {
-  border-color: var(--nt-color-accent);
-  box-shadow: inset 0 0 0 var(--nt-border-width) var(--nt-color-accent);
-  background: var(--nt-color-accent-surface);
+  border-color: var(--nt-color-indicator);
+  box-shadow: inset 0 0 0 var(--nt-border-width) var(--nt-color-indicator);
+  background: var(--nt-color-selection);
 }
 
 .field .input[aria-invalid="true"] {

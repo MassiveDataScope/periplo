@@ -72,16 +72,25 @@ describe("design tokens", () => {
     }
   };
 
-  /** Whether a #rrggbb colour reads as blue: a hue between cyan and violet, saturated enough not to pass for a grey
-   * (the nested family's slate sits at a blue hue but reads grey). */
-  const isBlue = (hex: string): boolean => {
+  /** The hue of a #rrggbb colour, in degrees (0 for a grey, which has none). */
+  const hueOf = (hex: string): number => {
     const [r, g, b] = toRgb(hex).map((channel) => channel / 255);
     if (r === undefined || g === undefined || b === undefined) throw new Error(`${hex} is not #rrggbb`);
     const max = Math.max(r, g, b);
     const delta = max - Math.min(r, g, b);
-    if (delta === 0 || delta / max < 0.35) return false;
+    if (delta === 0) return 0;
     const sector = max === r ? ((g - b) / delta + 6) % 6 : max === g ? (b - r) / delta + 2 : (r - g) / delta + 4;
-    const hue = sector * 60;
+    return sector * 60;
+  };
+
+  /** Whether a #rrggbb colour reads as blue: a hue between cyan and violet, saturated enough not to pass for a grey
+   * (the nested family's slate sits at a blue hue but reads grey). */
+  const isBlue = (hex: string): boolean => {
+    const channels = toRgb(hex).map((channel) => channel / 255);
+    const max = Math.max(...channels);
+    const delta = max - Math.min(...channels);
+    if (delta === 0 || delta / max < 0.35) return false;
+    const hue = hueOf(hex);
     return hue > 190 && hue < 250;
   };
 
@@ -95,17 +104,6 @@ describe("design tokens", () => {
   it("keeps the brand signature visible (>= 3:1) on the page background and the chrome surface", () => {
     expectContrast("--nt-color-brand", ["--nt-color-bg", "--nt-color-surface"], 3);
   });
-
-  /** The hue of a #rrggbb colour, in degrees. */
-  const hueOf = (hex: string): number => {
-    const [r, g, b] = toRgb(hex).map((channel) => channel / 255);
-    if (r === undefined || g === undefined || b === undefined) throw new Error(`${hex} is not #rrggbb`);
-    const max = Math.max(r, g, b);
-    const delta = max - Math.min(r, g, b);
-    if (delta === 0) return 0;
-    const sector = max === r ? ((g - b) / delta + 6) % 6 : max === g ? (b - r) / delta + 2 : (r - g) / delta + 4;
-    return sector * 60;
-  };
 
   /** The shortest distance between two hues on the colour wheel. */
   const hueDistance = (a: string, b: string): number => {
@@ -146,13 +144,16 @@ describe("design tokens", () => {
     for (const theme of themes) expect(hueDistance(colour[theme], accent[theme]), `${name}, ${theme}`).toBeGreaterThanOrEqual(30);
   });
 
-  it("keeps every data-type family at least 25 degrees of hue away from the orange accent", () => {
-    const accent = lightDark("--nt-color-accent");
-    for (const family of TYPE_FAMILIES) {
-      const colour = lightDark(`--nt-color-type-${family}`);
-      for (const theme of themes) expect(hueDistance(colour[theme], accent[theme]), `${family}, ${theme}`).toBeGreaterThanOrEqual(25);
-    }
-  });
+  it.each(["--nt-color-accent", "--nt-color-danger", "--nt-color-state-failed"])(
+    "keeps every data-type family at least 25 degrees of hue away from %s, so a type never reads as an action or a failure",
+    (name) => {
+      const other = lightDark(name);
+      for (const family of TYPE_FAMILIES) {
+        const colour = lightDark(`--nt-color-type-${family}`);
+        for (const theme of themes) expect(hueDistance(colour[theme], other[theme]), `${family}, ${theme}`).toBeGreaterThanOrEqual(25);
+      }
+    },
+  );
 
   it("styles a bare link in the accent", () => {
     expect(tokens).toMatch(/:where\(a\)\s*\{[^}]*color:\s*var\(--nt-color-accent\)/);

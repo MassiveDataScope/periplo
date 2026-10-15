@@ -2,12 +2,12 @@
  * Periplo design tokens — "Chart room, softened": ink on white over cool green-grey chrome, one orange accent,
  * names and figures in mono, with thin borders and 6 px corners. Neutrals match massivedatascope.info.
  * The orange is the action and the signature: buttons, links and focus in --nt-color-accent (a darker orange that
- * reads as text on every surface), and the brand orange for the logo's lens, the full stop of page titles, the
- * current rail entry and the "now" line of the ETL chart. It is never a state.
+ * reads as text on every surface), and the brand orange for the logo's lens, the full stop of page titles, the dot
+ * of the current rail entry and the "now" line of the ETL chart. Neither orange is ever a state.
  * The frame stays quiet so the data carries the contrast: colour means action, data type or state, never decoration.
  * Status colours keep one meaning each: blue only means "running" and crimson only means failure or danger, kept
- * at least 30 degrees of hue from the orange so an error never reads as a link. The teal of earlier versions now
- * only marks the selection and the boolean type. No state is told by colour alone: see StatusSwatch.
+ * at least 30 degrees of hue from the orange so an error never reads as a link. Teal marks the selection (a selected
+ * row, tree item or log step) and the boolean type. No state is told by colour alone: see StatusSwatch.
  * Components use only these custom properties: literal colours and pixel values live here and nowhere else.
  * Theme resolution: explicit [data-theme] wins, otherwise the system preference.
  * Each colour is declared once with light-dark(), so the two themes cannot drift apart.
@@ -45,7 +45,7 @@
   --nt-color-accent-hover: light-dark(#9e2f0f, #ff8a6b);
   --nt-color-on-accent: light-dark(#ffffff, #0e1213);
   --nt-color-focus: light-dark(#bd3812, #ff8a6b);
-  /* the brand's signature, never a state: the logo's lens, the full stop of page titles, the current rail entry, the ETL chart's "now" */
+  /* the brand's signature, never a state: the logo's lens, the full stop of page titles, the current rail entry's dot, the ETL chart's "now" */
   --nt-color-brand: light-dark(#ff441e, #ff5a36);
 
   /* ── Semantic ─────────────────────────────────────────────────────────── */
@@ -76,8 +76,8 @@
   --nt-color-type-decimal-surface: light-dark(#eee9f9, #241c3d);
   --nt-color-type-text: light-dark(#2a6b3a, #7fcf95); /* green   glyph "Aa"  */
   --nt-color-type-text-surface: light-dark(#e6f1e8, #14291b);
-  --nt-color-type-temporal: light-dark(#a02c6c, #f08cc0); /* magenta glyph clock */
-  --nt-color-type-temporal-surface: light-dark(#f8e8f0, #38172a);
+  --nt-color-type-temporal: light-dark(#8a2a9c, #dd94ee); /* plum    glyph clock (not magenta: magenta reads as a failure) */
+  --nt-color-type-temporal-surface: light-dark(#f4e6f7, #33183b);
   --nt-color-type-boolean: light-dark(#1d6874, #7cc4cf); /* teal    glyph "tf"  (not rust: rust reads as the accent) */
   --nt-color-type-boolean-surface: light-dark(#e6f0f1, #122a2e);
   --nt-color-type-nested: light-dark(#4d5863, #a6b0ba); /* slate   glyph "{}"  (binary, struct, list, map) */
@@ -192,7 +192,8 @@ body {
 }
 
 /* A link nobody styled still reads as a link in the product's accent, never the browser's blue and purple.
-   :where() keeps it at zero specificity, so any component's own link style wins. */
+   :where() keeps it at zero specificity: a component's own rule wins for every property it sets, and the underline
+   thickness and offset below apply wherever a component leaves them unset. */
 :where(a) {
   color: var(--nt-color-accent);
   text-decoration-thickness: 1px;
