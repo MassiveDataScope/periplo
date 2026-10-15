@@ -96,6 +96,68 @@ describe("design tokens", () => {
     expectContrast("--nt-color-brand", ["--nt-color-bg", "--nt-color-surface"], 3);
   });
 
+  /** The hue of a #rrggbb colour, in degrees. */
+  const hueOf = (hex: string): number => {
+    const [r, g, b] = toRgb(hex).map((channel) => channel / 255);
+    if (r === undefined || g === undefined || b === undefined) throw new Error(`${hex} is not #rrggbb`);
+    const max = Math.max(r, g, b);
+    const delta = max - Math.min(r, g, b);
+    if (delta === 0) return 0;
+    const sector = max === r ? ((g - b) / delta + 6) % 6 : max === g ? (b - r) / delta + 2 : (r - g) / delta + 4;
+    return sector * 60;
+  };
+
+  /** The shortest distance between two hues on the colour wheel. */
+  const hueDistance = (a: string, b: string): number => {
+    const distance = Math.abs(hueOf(a) - hueOf(b)) % 360;
+    return Math.min(distance, 360 - distance);
+  };
+
+  const ACCENT_GROUNDS = [
+    "--nt-color-bg",
+    "--nt-color-surface",
+    "--nt-color-surface-raised",
+    "--nt-color-surface-sunken",
+    "--nt-color-surface-hover",
+    "--nt-color-selection",
+    "--nt-color-accent-surface",
+  ];
+
+  it("keeps the orange accent readable as text (>= 4.5:1) on every surface it can sit on, so links need no second token", () => {
+    expectContrast("--nt-color-accent", ACCENT_GROUNDS, 4.5);
+  });
+
+  it("keeps a label on the accent fill readable (>= 4.5:1)", () => {
+    expectContrast("--nt-color-on-accent", ["--nt-color-accent", "--nt-color-accent-hover"], 4.5);
+  });
+
+  it("keeps the focus ring visible (>= 3:1) on every surface", () => {
+    expectContrast("--nt-color-focus", ACCENT_GROUNDS, 3);
+  });
+
+  it("keeps danger readable as text (>= 4.5:1) on the page, the chrome and its own surface, and its label on its fill", () => {
+    expectContrast("--nt-color-danger", ["--nt-color-bg", "--nt-color-surface", "--nt-color-danger-surface"], 4.5);
+    expectContrast("--nt-color-on-danger", ["--nt-color-danger", "--nt-color-danger-hover"], 4.5);
+  });
+
+  it.each(["--nt-color-danger", "--nt-color-state-failed"])("keeps %s at least 30 degrees of hue away from the orange accent, so an error never reads as a link", (name) => {
+    const accent = lightDark("--nt-color-accent");
+    const colour = lightDark(name);
+    for (const theme of themes) expect(hueDistance(colour[theme], accent[theme]), `${name}, ${theme}`).toBeGreaterThanOrEqual(30);
+  });
+
+  it("keeps every data-type family at least 25 degrees of hue away from the orange accent", () => {
+    const accent = lightDark("--nt-color-accent");
+    for (const family of TYPE_FAMILIES) {
+      const colour = lightDark(`--nt-color-type-${family}`);
+      for (const theme of themes) expect(hueDistance(colour[theme], accent[theme]), `${family}, ${theme}`).toBeGreaterThanOrEqual(25);
+    }
+  });
+
+  it("styles a bare link in the accent", () => {
+    expect(tokens).toMatch(/:where\(a\)\s*\{[^}]*color:\s*var\(--nt-color-accent\)/);
+  });
+
   it("keeps the slow label readable as text (>= 4.5:1) on the page background and the chrome surface", () => {
     expectContrast("--nt-color-state-slow", ["--nt-color-bg", "--nt-color-surface"], 4.5);
   });
