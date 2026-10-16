@@ -30,7 +30,7 @@
 
 /* Without the sheet's frame around it, a status notice keeps its own inset from the container's edges. */
 .wrapper[data-framed="false"] > .notice {
-  margin: var(--nt-space-3) var(--nt-space-3) 0;
+  margin: var(--nt-space-3) var(--nt-space-3) var(--nt-space-2);
 }
 
 .canvas {

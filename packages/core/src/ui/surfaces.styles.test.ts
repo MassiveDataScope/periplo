@@ -52,6 +52,6 @@ describe("the results grid", () => {
   });
 
   it("keeps a status notice off the edges when it has no frame to sit in", () => {
-    expect(rule(css, '.wrapper[data-framed="false"] > .notice')).toMatch(/margin:\s*var\(--nt-space-3\) var\(--nt-space-3\) 0/);
+    expect(rule(css, '.wrapper[data-framed="false"] > .notice')).toMatch(/margin:\s*var\(--nt-space-3\) var\(--nt-space-3\) var\(--nt-space-2\)/);
   });
 });
