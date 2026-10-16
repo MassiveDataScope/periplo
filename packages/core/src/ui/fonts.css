@@ -1,4 +1,5 @@
 /* Served by Periplo itself: the same look on every operating system, and no third-party requests.
-   Geist and Geist Mono (OFL), one variable file per family covering weights 400 to 600. */
+   Geist and Geist Mono (OFL): each package declares one variable face (weights 100 to 900) split into
+   unicode-range subsets, so a page downloads only the scripts it shows. */
 @import "@fontsource-variable/geist";
 @import "@fontsource-variable/geist-mono";

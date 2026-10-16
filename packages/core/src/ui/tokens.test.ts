@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync } from "node:fs";
+import { createRequire } from "node:module";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -148,14 +149,18 @@ describe("design tokens", () => {
 
   it("names first the families fonts.css loads, so the console never falls back to a system face", () => {
     const fonts = readFileSync(join(SRC, "ui", "fonts.css"), "utf8");
-    const loaded = [...fonts.matchAll(/@import "@fontsource-variable\/([a-z-]+)";/g)].map((match) => match[1]);
-    expect(loaded).toEqual(["geist", "geist-mono"]);
-    expect(tokens).toMatch(/--nt-font-family:\s*"Geist Variable",/);
-    expect(tokens).toMatch(/--nt-font-family-mono:\s*"Geist Mono Variable",/);
+    const packages = [...fonts.matchAll(/@import\s+["'](@fontsource[^"']*)["']/g)].map((match) => match[1] ?? "");
+    const resolve = createRequire(import.meta.url).resolve;
+    const declared = new Set(
+      packages.flatMap((name) => [...readFileSync(resolve(name), "utf8").matchAll(/font-family:\s*'([^']+)'/g)].map((match) => match[1])),
+    );
+    const firstFamily = (token: string): string | undefined => tokens.match(new RegExp(`${token}:\\s*"([^"]+)"`))?.[1];
+    expect(declared.has(firstFamily("--nt-font-family")), "sans").toBe(true);
+    expect(declared.has(firstFamily("--nt-font-family-mono")), "mono").toBe(true);
   });
 
   it("has no type size below 11px: Geist does not hold up at 10", () => {
-    const sizes = [...tokens.matchAll(/--nt-font-size-[a-z0-9-]+:\s*([\d.]+)rem/g)].map((match) => Number(match[1]) * 16);
+    const sizes = [...tokens.matchAll(/--nt-font-size-[a-z0-9-]+:\s*([\d.]+)(rem|px)/g)].map((match) => Number(match[1]) * (match[2] === "rem" ? 16 : 1));
     expect(sizes.length).toBeGreaterThan(4);
     expect(sizes.filter((size) => size < 11)).toEqual([]);
   });
