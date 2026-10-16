@@ -14,11 +14,19 @@
   vertical-align: middle;
 }
 
-/* A glyph keeps its square in the middle of any box: the icon's viewBox meets it. */
+/* A glyph is a mark, not a fill: it stops at a fixed size, and in a bar larger than that (a chart bar) it sits in
+   the middle. A dot keeps its inline-block, so it stays on the line of its words. */
+.swatch[data-shape="bar"]:has(> .glyph) {
+  display: grid;
+  place-items: center;
+}
+
 .swatch > .glyph {
   display: block;
   inline-size: 100%;
   block-size: 100%;
+  max-inline-size: var(--nt-size-swatch-glyph);
+  max-block-size: var(--nt-size-swatch-glyph);
   stroke-width: 3;
 }
 
