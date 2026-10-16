@@ -20,11 +20,17 @@
   line-height: var(--nt-font-line-height-tight);
 }
 
-/* Inside a container that already draws the frame (a flush panel), the sheet drops its own. */
+/* Inside a container that already draws the frame (a flush panel), the sheet drops its own; its bottom corners
+   follow the container's, inside its border, so the gutter and the row lines do not paint square over the arc. */
 .wrapper[data-framed="false"] > .scroll {
   margin: 0;
   border: 0;
-  border-radius: 0;
+  border-radius: 0 0 calc(var(--nt-radius-md) - var(--nt-border-width)) calc(var(--nt-radius-md) - var(--nt-border-width));
+}
+
+/* Without the sheet's frame around it, a status notice keeps its own inset from the container's edges. */
+.wrapper[data-framed="false"] > .notice {
+  margin: var(--nt-space-3) var(--nt-space-3) 0;
 }
 
 .canvas {

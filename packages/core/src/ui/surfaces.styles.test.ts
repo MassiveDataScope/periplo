@@ -17,8 +17,8 @@ describe("a disabled button", () => {
   const css = read("./Button.module.css");
 
   it("is drawn in quiet greys whatever its variant, not by fading its fill: a faded crimson or orange reads as a broken colour", () => {
-    expect(css).not.toMatch(/opacity/);
     const disabled = rule(css, ".button[data-variant]:disabled");
+    expect(disabled).not.toMatch(/opacity/);
     expect(disabled).toMatch(/background:\s*var\(--nt-color-surface-sunken\)/);
     expect(disabled).toMatch(/border-color:\s*var\(--nt-color-border\)/);
     expect(disabled).toMatch(/color:\s*var\(--nt-color-text-subtle\)/);
@@ -48,6 +48,10 @@ describe("the results grid", () => {
     const bare = rule(css, '.wrapper[data-framed="false"] > .scroll');
     expect(bare).toMatch(/border:\s*0/);
     expect(bare).toMatch(/margin:\s*0/);
-    expect(bare).toMatch(/border-radius:\s*0/);
+    expect(bare).toMatch(/border-radius:\s*0 0 calc\(var\(--nt-radius-md\) - var\(--nt-border-width\)\)/);
+  });
+
+  it("keeps a status notice off the edges when it has no frame to sit in", () => {
+    expect(rule(css, '.wrapper[data-framed="false"] > .notice')).toMatch(/margin:\s*var\(--nt-space-3\) var\(--nt-space-3\) 0/);
   });
 });

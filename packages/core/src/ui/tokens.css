@@ -101,7 +101,7 @@
   --nt-font-family-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --nt-font-features: normal;
   --nt-font-features-data: "tnum"; /* tabular figures; Geist Mono's zero is already marked, and neither face has "zero" */
-  --nt-font-size-xs: 0.6875rem; /* 11 — the smallest size: badges, overlines, status bar keys, sheet/grid headers, figures keys */
+  --nt-font-size-xs: 0.6875rem; /* 11 — the smallest size: badges, overlines, status bar keys, sheet headers, figures keys */
   --nt-font-size-sm: 0.75rem; /* 12 (was 13) — types, counters, meta */
   --nt-font-size-md: 0.8125rem; /* 13 (was 14) — body, tree, grid, controls */
   --nt-font-size-lg: 0.875rem; /* 14 (was 15) — section, panel and dialog titles, rail entries, the palette input */
