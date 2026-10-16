@@ -466,12 +466,14 @@ def test_a_hidden_table_and_a_missing_one_cost_the_same_questions(tmp_path: Path
     with TestClient(app) as client:
         wait_ready(client)
         client.post("/api/v1/queries", json={"sql": "SELECT * FROM landing_shop.orders"})
-        hidden_calls = [action for action, _ in authorizer.visible_calls]
+        hidden_calls = list(authorizer.visible_calls)
         authorizer.visible_calls.clear()
         client.post("/api/v1/queries", json={"sql": "SELECT * FROM landing_shop.nope"})
-        missing_calls = [action for action, _ in authorizer.visible_calls]
+        missing_calls = list(authorizer.visible_calls)
 
-    assert hidden_calls == missing_calls == [Action.QUERY, Action.READ_CATALOG]
+    nope = ("table", "landing_shop", "nope")
+    assert hidden_calls == [(Action.QUERY, [ORDERS]), (Action.READ_CATALOG, [ORDERS])]
+    assert missing_calls == [(Action.QUERY, [nope]), (Action.READ_CATALOG, [nope])]
 
 
 def test_a_query_refused_by_visible_is_a_denial(tmp_path: Path) -> None:
