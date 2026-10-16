@@ -36,6 +36,20 @@ function renderWorkspace(logsOpen: boolean) {
 }
 
 describe("RunWorkspace", () => {
+  it("keeps the log under the steps on a wide but short screen (a laptop), so a step and its log show together", () => {
+    // A laptop window: wide, under 760px tall. Only a query about height matches it.
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-height"),
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    renderWorkspace(true);
+    expect(screen.queryByText("the timeline")).not.toBeNull();
+    expect(screen.queryByText("the log")).not.toBeNull();
+    expect(screen.queryByRole("tab")).toBeNull();
+  });
+
   it("docks the log under the timeline, past a divider, while it is open", () => {
     viewport(false);
     renderWorkspace(true);
