@@ -89,7 +89,8 @@ class RequestContextMiddleware:
     3. Any other exception from either port propagates and ends in ``500``:
        an extension that misbehaves must never fall back to the
        default in silence.
-    4. On success, the identity and the request context are published
+    4. On success, the identity and the request context, with the credentials of
+       step 1, are published
        (``loom.core.identity.set_identity`` and :func:`periplo.tenancy.set_context`)
        and reset in a ``finally``, together, so a reused task never inherits
        either from a previous request.

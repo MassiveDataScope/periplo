@@ -47,7 +47,12 @@ class RequestContext:
     identity: Identity
     credentials: RequestCredentials | None = field(default=None, repr=False, compare=False)
     """What the request presented, for an authorizer that asks another service on the caller's
-    behalf. Never printed and not part of equality; ``None`` outside an HTTP request."""
+    behalf. Left out of ``repr(context)`` and of equality; ``None`` outside an HTTP request.
+
+    ``repr(context.credentials)`` itself shows every header, tokens and cookies included:
+    never log or audit it. Its type is imported for type checkers only, so this module stays
+    importable without the HTTP layer; ``typing.get_type_hints(RequestContext)`` needs
+    ``loom.rest.auth.abc.RequestCredentials`` in its namespace."""
 
 
 _context: ContextVar[RequestContext] = ContextVar("_context")
