@@ -245,7 +245,7 @@
 
 .checkFigures dt {
   color: var(--nt-color-text-muted);
-  font-size: var(--nt-font-size-2xs);
+  font-size: var(--nt-font-size-xs);
   text-transform: uppercase;
 }
 

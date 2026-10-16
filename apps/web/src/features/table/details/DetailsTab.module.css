@@ -40,7 +40,7 @@
   inline-size: 8rem;
   color: var(--nt-color-text-subtle);
   font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-2xs);
+  font-size: var(--nt-font-size-xs);
   font-weight: var(--nt-font-weight-medium);
   letter-spacing: var(--nt-font-tracking-caps);
   text-transform: uppercase;
@@ -158,7 +158,7 @@
   background: var(--nt-color-surface);
   color: var(--nt-color-text-muted);
   font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-2xs);
+  font-size: var(--nt-font-size-xs);
   font-weight: var(--nt-font-weight-medium);
   letter-spacing: var(--nt-font-tracking-wide);
   text-transform: uppercase;
@@ -212,7 +212,7 @@
   border-inline-start: var(--nt-focus-width) solid var(--nt-color-text-muted);
   color: var(--nt-color-text);
   font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-2xs);
+  font-size: var(--nt-font-size-xs);
   font-weight: var(--nt-font-weight-medium);
   letter-spacing: var(--nt-font-tracking-caps);
   text-transform: uppercase;

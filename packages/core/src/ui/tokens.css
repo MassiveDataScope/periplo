@@ -96,15 +96,14 @@
   --nt-space-12: 3rem;
 
   /* ── Type ─────────────────────────────────────────────────────────────── */
-  --nt-font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --nt-font-family-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --nt-font-family: "Geist Variable", "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --nt-font-family-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --nt-font-features: normal;
-  --nt-font-features-data: "tnum", "zero"; /* tabular figures + slashed zero */
-  --nt-font-size-2xs: 0.625rem; /* 10 — instrument labels: sheet/grid headers, figures keys */
-  --nt-font-size-xs: 0.6875rem; /* 11 — badges, overlines, status bar keys */
+  --nt-font-features-data: "tnum"; /* tabular figures; Geist Mono's zero is already marked, and neither face has "zero" */
+  --nt-font-size-xs: 0.6875rem; /* 11 — the smallest size: badges, overlines, status bar keys, sheet/grid headers, figures keys */
   --nt-font-size-sm: 0.75rem; /* 12 (was 13) — types, counters, meta */
   --nt-font-size-md: 0.8125rem; /* 13 (was 14) — body, tree, grid, controls */
-  --nt-font-size-lg: 0.9375rem; /* 15 (was 16) — section titles */
+  --nt-font-size-lg: 0.875rem; /* 14 — section and panel titles */
   --nt-font-size-xl: 1.25rem; /* 20 — table name */
   --nt-font-size-2xl: 1.75rem; /* 28 — Home title */
   --nt-font-size-figure: 1.125rem; /* 18 — figures strip values */
@@ -113,8 +112,8 @@
   --nt-font-weight-strong: 600; /* titles and the current rail entry */
   --nt-font-line-height: 1.45;
   --nt-font-line-height-tight: 1.2; /* single-line rows, headers */
-  --nt-font-tracking-caps: 0.08em; /* for xs uppercase overlines (mono-caps instrument labels) */
-  --nt-font-tracking-wide: 0.1em; /* sheet/grid header labels, figures keys */
+  --nt-font-tracking-caps: 0.04em; /* for xs uppercase overlines (mono-caps instrument labels) */
+  --nt-font-tracking-wide: 0.06em; /* sheet/grid header labels, figures keys */
 
   /* ── Shape & size ─────────────────────────────────────────────────────── */
   --nt-radius-sm: 4px;

@@ -141,7 +141,7 @@
   block-size: 1.25rem;
   color: var(--nt-color-text-subtle);
   font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-2xs);
+  font-size: var(--nt-font-size-xs);
 }
 
 .tick {

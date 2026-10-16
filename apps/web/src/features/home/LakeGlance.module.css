@@ -17,7 +17,7 @@
   background: var(--nt-color-surface);
   color: var(--nt-color-text-muted);
   font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-2xs);
+  font-size: var(--nt-font-size-xs);
   font-weight: var(--nt-font-weight-medium);
   letter-spacing: var(--nt-font-tracking-wide);
   text-transform: uppercase;
@@ -265,7 +265,7 @@ a.layerName:hover {
   min-block-size: var(--nt-space-6);
   color: var(--nt-color-text-subtle);
   font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-2xs);
+  font-size: var(--nt-font-size-xs);
   font-weight: var(--nt-font-weight-medium);
   letter-spacing: var(--nt-font-tracking-wide);
   text-transform: uppercase;

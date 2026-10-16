@@ -146,6 +146,24 @@ describe("design tokens", () => {
     expect(reducedMotionBlock?.[1]).toMatch(/--nt-motion-march:\s*0s/);
   });
 
+  it("names first the families fonts.css loads, so the console never falls back to a system face", () => {
+    const fonts = readFileSync(join(SRC, "ui", "fonts.css"), "utf8");
+    const loaded = [...fonts.matchAll(/@import "@fontsource-variable\/([a-z-]+)";/g)].map((match) => match[1]);
+    expect(loaded).toEqual(["geist", "geist-mono"]);
+    expect(tokens).toMatch(/--nt-font-family:\s*"Geist Variable",/);
+    expect(tokens).toMatch(/--nt-font-family-mono:\s*"Geist Mono Variable",/);
+  });
+
+  it("has no type size below 11px: Geist does not hold up at 10", () => {
+    const sizes = [...tokens.matchAll(/--nt-font-size-[a-z0-9-]+:\s*([\d.]+)rem/g)].map((match) => Number(match[1]) * 16);
+    expect(sizes.length).toBeGreaterThan(4);
+    expect(sizes.filter((size) => size < 11)).toEqual([]);
+  });
+
+  it("asks for tabular figures only: neither Geist face has a slashed-zero feature", () => {
+    expect(tokens).toMatch(/--nt-font-features-data:\s*"tnum";/);
+  });
+
   it("keeps component styles free of loose colours and pixel values", () => {
     const files = moduleCssFiles(SRC);
     expect(files.length).toBeGreaterThan(0);

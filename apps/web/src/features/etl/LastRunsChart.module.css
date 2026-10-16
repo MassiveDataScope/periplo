@@ -104,7 +104,7 @@
 .days {
   color: var(--nt-color-text-subtle);
   font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-2xs);
+  font-size: var(--nt-font-size-xs);
   font-feature-settings: var(--nt-font-features-data);
   text-align: center;
 }
