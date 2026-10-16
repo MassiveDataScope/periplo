@@ -86,7 +86,7 @@ function Tabbed({ logsOpen, onLogsChange, timeline, log }: RunWorkspaceProps) {
 }
 
 /** The timeline and the run's log: one above the other past a divider, the log folding to a bar while closed; on a
- * small screen, two tabs instead, the Log tab standing for an open log. */
+ * narrow screen, two tabs instead, the Log tab standing for an open log. */
 export function RunWorkspace(props: RunWorkspaceProps) {
   return useMediaQuery(COMPACT_LAYOUT) ? <Tabbed {...props} /> : <Split {...props} />;
 }
