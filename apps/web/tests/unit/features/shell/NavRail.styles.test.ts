@@ -68,3 +68,18 @@ describe("the rail's footer", () => {
     expect(rule('.item[aria-current="page"]:focus-visible::after {')).toMatch(/inset-inline-start:\s*calc\(2 \* var\(--nt-focus-width\)\)/);
   });
 });
+
+describe("the rail's footer", () => {
+  it("lays search, theme and collapse out as one row of 28px icon buttons", () => {
+    const tools = rule(".tools {");
+    expect(tools).toMatch(/display:\s*flex/);
+    expect(tools).not.toMatch(/flex-direction:\s*column/);
+    const tool = rule(".tool {");
+    expect(tool).toMatch(/inline-size:\s*var\(--nt-size-control\)/);
+    expect(tool).toMatch(/block-size:\s*var\(--nt-size-control\)/);
+  });
+
+  it("stacks them when the rail is collapsed, where a row of three does not fit", () => {
+    expect(rule('.rail[data-collapsed="true"] .tools {')).toMatch(/flex-direction:\s*column/);
+  });
+});

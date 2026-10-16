@@ -14,7 +14,7 @@ export function FreshnessMark({ value }: { value: Freshness }) {
   return (
     <span className={styles.mark} data-state={value.state} title={t(HINTS[value.state])}>
       <span aria-hidden="true" className={styles.dot} />
-      {value.state === "late" ? t("freshness.late", { age }) : t("freshness.written", { age })}
+      <span className={styles.text}>{value.state === "late" ? t("freshness.late", { age }) : t("freshness.written", { age })}</span>
     </span>
   );
 }

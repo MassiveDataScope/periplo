@@ -46,7 +46,6 @@
     "search": "Search or jump to a table",
     "collapse": "Collapse menu",
     "expand": "Expand menu",
-    "searchShort": "Search",
     "searchShortcut": "Ctrl K",
     "readOnly": "Read-only",
     "readOnlyHint": "Periplo only reads your lake. It cannot write, change or delete anything.",

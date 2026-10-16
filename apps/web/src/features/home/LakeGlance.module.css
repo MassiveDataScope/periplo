@@ -1,7 +1,7 @@
 /* One sheet for the whole lake: a band per layer; database rows and their child rows share one column template. */
 .glance {
   --col-layer: 16rem;
-  --cols: minmax(0, 1fr) 4rem 6rem 9rem var(--nt-space-6);
+  --cols: minmax(0, 1fr) 4rem 6rem 10rem var(--nt-space-6);
   overflow: hidden;
   border: var(--nt-border-width) solid var(--nt-color-border);
   border-radius: var(--nt-radius-md);

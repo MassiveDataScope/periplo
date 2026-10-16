@@ -15,9 +15,8 @@
   inline-size: var(--nt-size-rail-collapsed);
 }
 
-/* Collapsed, names and shortcuts leave the layout but stay as each control's accessible name. */
-.rail[data-collapsed="true"] .label,
-.rail[data-collapsed="true"] .shortcut {
+/* Collapsed, names leave the layout but stay as each control's accessible name. */
+.rail[data-collapsed="true"] .label {
   display: none;
 }
 
@@ -49,6 +48,52 @@
 
 nav.items {
   flex: 1;
+}
+
+/* Search, theme and collapse: tools, not destinations, so one quiet row of icons under the sections.
+   Each keeps its name as its accessible name and its tooltip. */
+.tools {
+  display: flex;
+  gap: var(--nt-space-1);
+  padding-inline: var(--nt-space-1);
+}
+
+.rail[data-collapsed="true"] .tools {
+  flex-direction: column;
+  align-items: center;
+  padding-inline: 0;
+}
+
+.tool {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  inline-size: var(--nt-size-control);
+  block-size: var(--nt-size-control);
+  padding: 0;
+  border: 0;
+  border-radius: var(--nt-radius-sm);
+  background: transparent;
+  color: var(--nt-color-text-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--nt-motion-fast),
+    color var(--nt-motion-fast);
+}
+
+.tool svg {
+  inline-size: var(--nt-size-icon);
+  block-size: var(--nt-size-icon);
+}
+
+.tool:hover {
+  background: var(--nt-color-surface-hover);
+  color: var(--nt-color-text);
+}
+
+.tool:focus-visible {
+  outline: var(--nt-focus-width) solid var(--nt-color-focus);
+  outline-offset: var(--nt-focus-offset);
 }
 
 .item {
@@ -91,14 +136,6 @@ nav.items {
   white-space: nowrap;
 }
 
-.shortcut {
-  padding: 0 var(--nt-space-1);
-  border: var(--nt-border-width) solid var(--nt-color-border);
-  border-radius: var(--nt-radius-sm);
-  color: var(--nt-color-text-subtle);
-  font-family: var(--nt-font-family);
-  font-size: var(--nt-font-size-xs);
-}
 
 .item:hover {
   --item-ground: var(--nt-color-surface-hover);
