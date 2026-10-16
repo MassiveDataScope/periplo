@@ -7,8 +7,8 @@ Authorization: ``POST /queries`` resolves the data plane of the request's tenant
 requires ``QUERY`` and ``READ_CATALOG`` on the whole resource, before doing anything
 else. It then asks whether the caller may query every table the query names, found or not;
 when any is refused or missing, it asks whether the caller may see those: a table it sees
-answers ``403``, one it may not see answers exactly like one not in the catalog. The tenant's storage
-credentials are asked for last, once a slot is taken. A data plane that cannot be
+answers ``403``, one it may not see answers exactly like one not in the catalog. The
+tenant's storage credentials are asked for last, once a slot is taken. A data plane that cannot be
 resolved answers the JSON ``500`` of any internal failure, audited as failed.
 ``GET``/``DELETE /queries/{id}`` authorize the action itself but never reach a data
 plane, and answer ``404`` for a query admitted by another tenant, indistinguishable from
