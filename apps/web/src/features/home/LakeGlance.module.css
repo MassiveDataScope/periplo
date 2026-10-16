@@ -1,7 +1,7 @@
-/* One sheet for the whole lake: a band per layer; database rows and their child rows share one column template. */
+/* One sheet for the whole lake: a band per layer. Child rows keep the database rows' column order with their own template: a wider count column and an actions column. */
 .glance {
   --col-layer: 16rem;
-  --cols: minmax(0, 1fr) 4rem 6rem 9rem var(--nt-space-6);
+  --cols: minmax(0, 1fr) 4rem 6rem 10rem var(--nt-space-6);
   overflow: hidden;
   border: var(--nt-border-width) solid var(--nt-color-border);
   border-radius: var(--nt-radius-md);
@@ -199,6 +199,11 @@ a.layerName:hover {
   color: var(--nt-color-bg);
 }
 
+/* The freshness mark sets its own muted grey, which reads 2:1 on the inverted ink: here it takes the row's colour. */
+.dbRow[aria-expanded="true"] .fresh * {
+  color: inherit;
+}
+
 .dbRow[aria-expanded="true"] .skeleton {
   background: var(--nt-color-text-muted);
 }
@@ -248,7 +253,7 @@ a.layerName:hover {
 /* Child rows: the same sheet, one level down. 28 px, on surface, an ink edge that says "these belong to the row above". */
 /* Child rows have a real actions column instead of the chevron track of a database row. */
 .kids {
-  --cols: minmax(0, 1fr) 5.5rem 6rem 9rem 4.5rem;
+  --cols: minmax(0, 1fr) 5.5rem 6rem 10rem 4.5rem;
   background: var(--nt-color-surface);
   box-shadow: inset var(--nt-focus-width) 0 0 var(--nt-color-text);
 }

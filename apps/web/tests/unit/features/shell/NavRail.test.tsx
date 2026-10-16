@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nextProvider } from "react-i18next";
 import { createPreferences } from "../../../../src/app/preferences";
@@ -64,6 +64,24 @@ describe("NavRail", () => {
       expect(rail.getByRole("link", { name: "Home" }).getAttribute("aria-current")).toBeNull();
     },
   );
+});
+
+describe("the rail's tools", () => {
+  it("names each icon button, since no label shows beside it", () => {
+    renderRail({ kind: "home" }, false);
+    expect(screen.getByRole("button", { name: "Search or jump to a table" }).getAttribute("aria-keyshortcuts")).toBe("Control+K Meta+K");
+    expect(screen.getByRole("button", { name: "Theme: system" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Collapse menu" })).toBeTruthy();
+  });
+
+  it("collapses the rail from its tool and says so", () => {
+    const preferences = createPreferences(undefined);
+    renderRail({ kind: "home" }, false, preferences);
+    const toggle = screen.getByRole("button", { name: "Collapse menu" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(toggle);
+    expect(preferences.get().railCollapsed).toBe(true);
+  });
 });
 
 describe("NavRail on a narrow screen", () => {

@@ -102,27 +102,23 @@ export function NavRail({ preferences, route, troubled, etl, theme, brand, onThe
         <Icon name="lock" />
         <span className={styles.label}>{t("nav.readOnly")}</span>
       </p>
-      <div className={styles.items}>
-        <button type="button" className={styles.item} aria-label={t("nav.search")} title={t("nav.commandPalette")} onClick={onSearch}>
+      <div className={styles.tools}>
+        <button type="button" className={styles.tool} aria-label={t("nav.search")} aria-keyshortcuts="Control+K Meta+K" title={t("nav.commandPalette")} onClick={onSearch}>
           <Icon name="search" />
-          <span className={styles.label}>{t("nav.searchShort")}</span>
-          <kbd className={styles.shortcut}>{t("nav.searchShortcut")}</kbd>
         </button>
-        <button type="button" className={styles.item} aria-label={t("nav.theme", { theme })} title={t("nav.theme", { theme })} onClick={onThemeToggle}>
+        <button type="button" className={styles.tool} aria-label={t("nav.theme", { theme })} title={t("nav.theme", { theme })} onClick={onThemeToggle}>
           <Icon name={THEME_ICONS[theme]} />
-          <span className={styles.label}>{t("nav.theme", { theme })}</span>
         </button>
         {narrow ? null : (
           <button
             type="button"
-            className={styles.item}
+            className={styles.tool}
             aria-label={railLabel}
             title={railLabel}
             aria-expanded={!railCollapsed}
             onClick={() => preferences.update({ railCollapsed: !railCollapsed })}
           >
             <Icon name="sidebar" />
-            <span className={styles.label}>{t("nav.collapse")}</span>
           </button>
         )}
       </div>

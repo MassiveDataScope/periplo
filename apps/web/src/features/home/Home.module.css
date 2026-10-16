@@ -16,11 +16,18 @@
   gap: var(--nt-space-4);
 }
 
-.homeLogo,
+/* The mark beside the title is a signature, not a picture: no taller than the title and its summary. */
+.homeLogo {
+  flex: none;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+}
+
+/* A workspace's own logo may be wide, so it gets room across but the same height. */
 .brandLogo {
   flex: none;
-  inline-size: 4.5rem;
-  block-size: 4rem;
+  max-inline-size: 7rem;
+  block-size: 2.5rem;
   object-fit: contain;
 }
 

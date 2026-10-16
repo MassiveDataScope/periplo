@@ -45,7 +45,7 @@ describe("the rail's entries", () => {
   });
 });
 
-describe("the rail's footer", () => {
+describe("the rail's workspace, seal and badge", () => {
   it("names the workspace without a card around it", () => {
     const workspace = rule(".workspace {");
     expect(workspace).not.toMatch(/border[a-z-]*:/);
@@ -66,5 +66,20 @@ describe("the rail's footer", () => {
 
   it("moves the bar clear of the focus ring while the current entry has focus, so the two oranges never merge", () => {
     expect(rule('.item[aria-current="page"]:focus-visible::after {')).toMatch(/inset-inline-start:\s*calc\(2 \* var\(--nt-focus-width\)\)/);
+  });
+});
+
+describe("the rail's tools", () => {
+  it("lays search, theme and collapse out as one row of 28px icon buttons", () => {
+    const tools = rule(".tools {");
+    expect(tools).toMatch(/display:\s*flex/);
+    expect(tools).not.toMatch(/flex-direction:\s*column/);
+    const tool = rule(".tool {");
+    expect(tool).toMatch(/inline-size:\s*var\(--nt-size-control\)/);
+    expect(tool).toMatch(/block-size:\s*var\(--nt-size-control\)/);
+  });
+
+  it("stacks them when the rail is collapsed, where a row of three does not fit", () => {
+    expect(rule('.rail[data-collapsed="true"] .tools {')).toMatch(/flex-direction:\s*column/);
   });
 });
