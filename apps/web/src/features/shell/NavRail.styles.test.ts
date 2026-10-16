@@ -24,9 +24,10 @@ describe("the rail's current entry", () => {
     expect(css).not.toContain('.item[aria-current="page"]::before');
   });
 
-  it("stands out as a light tab on the grey rail, without a weight change that would shift the label", () => {
+  it("stands out as a raised tab on the rail in both themes, without a weight change that would shift the label", () => {
     const current = rule('.item[aria-current="page"] {');
-    expect(current).toContain("background: var(--nt-color-bg)");
+    expect(current).toContain("background: var(--item-ground)");
+    expect(current).toContain("--item-ground: var(--nt-color-surface-raised)");
     expect(current).toMatch(/box-shadow:\s*0 0 0 var\(--nt-border-width\) var\(--nt-color-border\)/);
     expect(current).not.toContain("font-weight");
   });
@@ -47,8 +48,8 @@ describe("the rail's entries", () => {
 describe("the rail's footer", () => {
   it("names the workspace without a card around it", () => {
     const workspace = rule(".workspace {");
-    expect(workspace).not.toMatch(/border:/);
-    expect(workspace).not.toMatch(/background:/);
+    expect(workspace).not.toMatch(/border[a-z-]*:/);
+    expect(workspace).not.toMatch(/background[a-z-]*:/);
   });
 
   it("states read-only as quiet text: success green is for states", () => {
@@ -57,7 +58,13 @@ describe("the rail's footer", () => {
     expect(seal).toContain("color: var(--nt-color-text-muted)");
   });
 
-  it("rings the attention dot in the rail's colour, so it never melts into its icon", () => {
-    expect(rule(".badge {")).toMatch(/box-shadow:\s*0 0 0 var\(--nt-border-width-strong\) var\(--nt-color-surface\)/);
+  it("rings the attention dot in its entry's own ground, so it never melts into its icon at rest, on hover or current", () => {
+    expect(rule(".badge {")).toMatch(/box-shadow:\s*0 0 0 var\(--nt-border-width-strong\) var\(--item-ground\)/);
+    expect(rule(".item {")).toContain("--item-ground: var(--nt-color-surface)");
+    expect(rule(".item:hover {")).toContain("--item-ground: var(--nt-color-surface-hover)");
+  });
+
+  it("moves the bar clear of the focus ring while the current entry has focus, so the two oranges never merge", () => {
+    expect(rule('.item[aria-current="page"]:focus-visible::after {')).toMatch(/inset-inline-start:\s*calc\(2 \* var\(--nt-focus-width\)\)/);
   });
 });
