@@ -12,10 +12,16 @@
   flex-shrink: 0;
 }
 
+/* At most four lines: an error can name dozens of tables, and the run page ("Open run") shows it whole. */
 .failureText {
+  display: -webkit-box;
   flex: 1;
   min-inline-size: 0;
   margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
 }
 
 .failureMessage {

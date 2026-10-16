@@ -41,6 +41,16 @@
   overflow-wrap: anywhere;
 }
 
+/* Parameter names can be long (vacuum_retention_hours_by_schema): the name column stops at 40% and wraps, so the
+   value keeps most of the card. */
+.facts[data-mono] {
+  grid-template-columns: fit-content(40%) minmax(0, 1fr);
+}
+
+.facts[data-mono] dt {
+  overflow-wrap: anywhere;
+}
+
 .facts[data-mono] dt,
 .facts[data-mono] dd {
   font-family: var(--nt-font-family-mono);

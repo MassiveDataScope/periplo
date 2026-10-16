@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { CardFacts, EtlCard } from "./EtlCard";
-import { displayValue } from "./run-parameters";
+import { ParameterValue } from "./ParameterValue";
 import type { Etl } from "./useEtl";
 import styles from "./EtlCard.module.css";
 
@@ -27,11 +27,11 @@ export function ParametersCard({ parameters, trigger, onRunOnce }: ParametersCar
       name,
       Object.hasOwn(sets, name) ? (
         <>
-          {displayValue(value)}
+          <ParameterValue value={value} name={name} />
           <span className={styles.muted}> · {t("etl.runPage.setByAutomation")}</span>
         </>
       ) : (
-        displayValue(value)
+        <ParameterValue value={value} name={name} />
       ),
     ]);
   const fromUpstream = trigger !== null && passed.size > 0 ? { names: [...passed].join(", "), etl: trigger.etl } : null;

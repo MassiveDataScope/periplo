@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { isLongValue, ParameterValue } from "../ParameterValue";
 import { differingKeys, displayValue } from "../run-parameters";
 import type { RunDetail, RunLink } from "../useEtl";
 import { ChainedRun } from "./ChainedRun";
@@ -39,7 +40,15 @@ function UsualNote({ name, usual }: { readonly name: string; readonly usual: Rea
   const { t } = useTranslation();
   return (
     <span className={styles.usual}>
-      {Object.hasOwn(usual, name) ? t("etl.runPage.usually", { value: displayValue(usual[name]) }) : t("etl.runPage.notScheduled")}
+      {!Object.hasOwn(usual, name) ? (
+        t("etl.runPage.notScheduled")
+      ) : isLongValue(usual[name]) ? (
+        <>
+          {t("etl.runPage.usuallyBefore")} <ParameterValue value={usual[name]} name={t("etl.runPage.usualName", { name })} />
+        </>
+      ) : (
+        t("etl.runPage.usually", { value: displayValue(usual[name]) })
+      )}
     </span>
   );
 }
@@ -68,7 +77,7 @@ export function CalledWith({ trigger, createdBy, parameters, usual, runAgainHref
               <dt>{name}</dt>
               <dd>
                 <span className={styles.equals}>=</span>
-                {Object.hasOwn(parameters, name) ? displayValue(parameters[name]) : <span className={styles.muted}>{t("etl.runPage.notSet")}</span>}
+                {Object.hasOwn(parameters, name) ? <ParameterValue value={parameters[name]} name={name} /> : <span className={styles.muted}>{t("etl.runPage.notSet")}</span>}
                 {usual !== null && changed.has(name) ? <UsualNote name={name} usual={usual} /> : null}
                 {fromUpstream.includes(name) ? <span className={styles.fromChain}>{t("etl.runPage.fromUpstream")}</span> : null}
                 {setByAutomation.includes(name) ? <span className={styles.fromChain}>{t("etl.runPage.setByAutomation")}</span> : null}
