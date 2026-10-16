@@ -118,6 +118,44 @@ def test_refusals_are_logged_without_credentials() -> None:
 # --- route paths, shared with the conditional-GET middleware --------------------------------
 
 
+def test_the_request_context_carries_the_credentials_but_never_shows_them() -> None:
+    """An authorizer that asks another service on the caller's behalf needs the token it came
+    with; a log line or trace that prints the context must not reveal it."""
+    app = FastAPI()
+    seen: dict[str, str] = {}
+
+    @app.get("/api/v1/whoami")
+    def whoami() -> dict[str, str]:
+        context = current_context()
+        assert context.credentials is not None
+        seen["authorization"] = context.credentials.headers.get("authorization", "")
+        seen["repr"] = repr(context)
+        return {}
+
+    app.add_middleware(
+        RequestContextMiddleware, authenticator=AnonymousAuthenticator(), tenants=SingleTenant()
+    )
+    TestClient(app).get("/api/v1/whoami", headers={"Authorization": SECRET})
+
+    assert seen["authorization"] == SECRET
+    assert "do-not-log-this-token" not in seen["repr"]
+
+
+def test_a_request_context_built_without_credentials_still_compares_by_tenant_and_identity() -> (
+    None
+):
+    from loom.core.identity import ANONYMOUS
+
+    from periplo.tenancy import DEFAULT_TENANT, RequestContext
+
+    assert RequestContext(tenant=DEFAULT_TENANT, identity=ANONYMOUS).credentials is None
+    assert RequestContext(tenant=DEFAULT_TENANT, identity=ANONYMOUS) == RequestContext(
+        tenant=DEFAULT_TENANT,
+        identity=ANONYMOUS,
+        credentials=RequestCredentials(headers={"authorization": SECRET}, path="/api/v1/whoami"),
+    )
+
+
 def test_route_path_strips_the_root_path() -> None:
     scope: Scope = {"type": "http", "path": "/x/api/v1/etl", "root_path": "/x"}
 
