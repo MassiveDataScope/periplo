@@ -5,9 +5,10 @@ JSON.
 
 Authorization: ``POST /queries`` resolves the data plane of the request's tenant, then
 requires ``QUERY`` and ``READ_CATALOG`` on the whole resource, before doing anything
-else. It then asks about every table the query names, found or not, and refuses one the
-caller may not read exactly like one not in the catalog. The tenant's storage
-credentials are asked for last, once a slot is taken. A data plane that cannot be
+else. It then asks whether the caller may query every table the query names, found or not;
+when any is refused or missing, it asks whether the caller may see those: a table it sees
+answers ``403``, one it may not see answers exactly like one not in the catalog. The
+tenant's storage credentials are asked for last, once a slot is taken. A data plane that cannot be
 resolved answers the JSON ``500`` of any internal failure, audited as failed.
 ``GET``/``DELETE /queries/{id}`` authorize the action itself but never reach a data
 plane, and answer ``404`` for a query admitted by another tenant or by another person of
@@ -60,14 +61,15 @@ class QueryRequest(BaseModel):
 class Refused(Exception):
     """A query that will not run, with the answer the client gets. The message is safe.
 
-    ``hidden`` marks a refusal because a table the caller may not read was named: the
-    client gets the same answer as for a missing one, and the audit records a denial.
+    ``denial`` marks a refusal the audit records as a denial, with that code: ``hidden`` when
+    a table the caller may not see was named (the client gets the same answer as for a
+    missing one), ``forbidden`` when the caller sees a table but may not query it.
     """
 
-    def __init__(self, status: int, code: str, message: str, *, hidden: bool = False) -> None:
+    def __init__(self, status: int, code: str, message: str, *, denial: str | None = None) -> None:
         super().__init__(message)
         self.status, self.code, self.message = status, code, message
-        self.hidden = hidden
+        self.denial = denial
 
 
 def _error(status: int, code: str, message: str, **extra: Any) -> JSONResponse:
@@ -185,21 +187,38 @@ async def _validate(
         wanted = referenced_tables(body.sql)
     except InvalidQuery as error:
         raise Refused(400, "invalid_sql", str(error)) from error
-    shown = await _readable(access, wanted)
-    unknown = sorted(key for key in wanted if key not in catalog.tables or key not in shown)
+    queryable = await _allowed(access, Action.QUERY, wanted)
+    refused = wanted - queryable
+    # A refused or missing table asks again, to tell a table the caller sees (403) from one it
+    # may not even see, which answers exactly like a missing one (404). Missing tables are in
+    # that question too, so a hidden table and a missing one cost the same questions.
+    missing = {key for key in wanted if key not in catalog.tables}
+    seen = await _allowed(access, Action.READ_CATALOG, refused | missing)
+    unknown = sorted(key for key in wanted if key not in catalog.tables or key in refused - seen)
     if unknown:
         names = sorted(f"{db}.{table}" for db, table in unknown)
         hidden = any(key in catalog.tables for key in unknown)
-        raise Refused(404, "not_found", f"Not in the catalog: {', '.join(names)}", hidden=hidden)
+        raise Refused(
+            404,
+            "not_found",
+            f"Not in the catalog: {', '.join(names)}",
+            denial="hidden" if hidden else None,
+        )
+    if refused:
+        # Every refused table is in the catalog and seen here: the unknown ones raised above.
+        names = sorted(f"{db}.{table}" for db, table in refused)
+        raise Refused(
+            403, "forbidden", f"You may not query: {', '.join(names)}", denial="forbidden"
+        )
     return {key: catalog.tables[key] for key in wanted}
 
 
-async def _readable(access: Access, wanted: set[TableKey]) -> set[TableKey]:
-    """The tables of *wanted* the caller may read, asked about all of them, found or not."""
+async def _allowed(access: Access, action: Action, wanted: set[TableKey]) -> set[TableKey]:
+    """The tables of *wanted* the caller may *action*, asked about all of them, found or not."""
     if not wanted:
         return set()
     names = sorted(wanted)
-    shown = set(await access.visible(Action.READ_CATALOG, [table_target(*key) for key in names]))
+    shown = set(await access.visible(action, [table_target(*key) for key in names]))
     return {key for key in names if table_target(*key) in shown}
 
 
@@ -243,8 +262,8 @@ async def _credentials_failed(
 
 
 def _refused_event(ctx: RequestContext, sql: str, refusal: Refused) -> AuditEvent:
-    if refusal.hidden:
-        return _query_event(ctx, sql, outcome="denied", code="hidden")
+    if refusal.denial is not None:
+        return _query_event(ctx, sql, outcome="denied", code=refusal.denial)
     return _query_event(ctx, sql, outcome="failed", code=refusal.code)
 
 

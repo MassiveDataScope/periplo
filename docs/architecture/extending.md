@@ -147,9 +147,9 @@ uvicorn --factory shop_console.app:create_shop_app
 
 | Action | What it covers |
 |--------|----------------|
-| `read_catalog` | The catalog, a table's detail, statistics and history, and which tables a query may name. Also required, on `()`, to run a query and to reach the sources and discovery. |
+| `read_catalog` | The catalog, a table's detail, statistics and history. Also required, on `()`, to run a query and to reach the sources and discovery. For a table a query may not name, it decides the answer: `403` if the caller sees the table, `404` if not. |
 | `admin_catalog` | The sources, their discovery reports, and starting a discovery, in addition to `read_catalog`. |
-| `query` | Running a query, in addition to `read_catalog`; reading its status and cancelling it. |
+| `query` | Running a query, in addition to `read_catalog`; which tables a query may name (asked with `visible` on their targets); reading the status of one's own query and cancelling it. |
 | `view_etl` | The deployment list, a deployment's runs and grid, and a run with its tasks, steps and logs. |
 | `operate_etl` | Launching, cancelling or retrying a run, and pausing or resuming a schedule. |
 | `archive_etl` | Archiving or restoring an ETL in Periplo. |
@@ -194,9 +194,13 @@ What a caller cannot see does not count either:
 
 - **The catalog** lists the visible tables only, and reports a name conflict only when
   its name is visible. Groups and counts are computed from the tables it lists.
-- **A query** asks `visible` about every table it names, whether it exists or not, so a
-  refusal says nothing about which tables exist. A hidden table fails as if it were not
-  in the catalog, and the query is audited as denied with the code `hidden`.
+- **A query** asks `visible(query, …)` about every table it names, whether it exists or
+  not. When any is refused or missing, it asks `visible(read_catalog, …)` about those, again
+  existing or not, so a refusal says nothing about which tables exist. A table the caller
+  sees but may not query answers `403` with the code `forbidden`, audited as denied with
+  that code. A hidden table fails as if it were not in the catalog, and the query is
+  audited as denied with the code `hidden`. An authorizer that filtered only
+  `read_catalog` must now filter `query` too: tables a query may name are decided there.
 - **The deployment list** is asked again with only the visible names when anything is
   hidden, so its summary, running runs and histories cover those alone. If that answer
   names any other deployment, the route fails with `502` rather than trust its counts.

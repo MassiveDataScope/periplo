@@ -315,12 +315,17 @@ class _TableFilteringAuthorizer:
     """A ``FilteringAuthorizer`` that shows only ``shown``, and records what it is asked."""
 
     def __init__(
-        self, *, shown: frozenset[tuple[str, ...]] = frozenset(), error: Exception | None = None
+        self,
+        *,
+        shown: frozenset[tuple[str, ...]] = frozenset(),
+        error: Exception | None = None,
+        by_action: dict[StrEnum, frozenset[tuple[str, ...]]] | None = None,
     ) -> None:
         self.calls: list[tuple[StrEnum, tuple[str, ...]]] = []
         self.visible_calls: list[tuple[StrEnum, list[tuple[str, ...]]]] = []
         self._shown = shown
         self._error = error
+        self._by_action = by_action or {}
 
     async def authorize(
         self, context: RequestContext, action: StrEnum, target: tuple[str, ...]
@@ -333,7 +338,8 @@ class _TableFilteringAuthorizer:
         self.visible_calls.append((action, list(targets)))
         if self._error is not None:
             raise self._error
-        return [target for target in targets if target in self._shown]
+        shown = self._by_action.get(action, self._shown)
+        return [target for target in targets if target in shown]
 
 
 def test_a_filtering_authorizer_lists_exactly_its_tables(tmp_path: Path) -> None:
@@ -405,6 +411,69 @@ def test_a_query_on_a_hidden_table_answers_like_a_missing_one(tmp_path: Path) ->
     assert hidden.content == missing.content.replace(b"nope", b"orders")
     assert shown.status_code == 200
     assert (Action.READ_CATALOG, [ORDERS]) in authorizer.visible_calls
+
+
+def test_a_table_the_caller_sees_but_may_not_query_is_403_not_run(tmp_path: Path) -> None:
+    """Seeing a table in the catalog is not permission to query it."""
+    authorizer = _TableFilteringAuthorizer(
+        by_action={
+            Action.QUERY: frozenset({CUSTOMERS}),
+            Action.READ_CATALOG: frozenset({ORDERS, CUSTOMERS}),
+        }
+    )
+    app = _build_app(tmp_path, authorizer=authorizer)
+
+    with TestClient(app) as client:
+        wait_ready(client)
+        seen_only = client.post(
+            "/api/v1/queries", json={"sql": "SELECT * FROM landing_shop.orders"}
+        )
+        authorizer.visible_calls.clear()
+        queryable = client.post(
+            "/api/v1/queries", json={"sql": "SELECT * FROM curated_shop.customers"}
+        )
+
+    assert seen_only.status_code == 403
+    assert seen_only.json()["detail"] == {
+        "code": "forbidden",
+        "message": "You may not query: landing_shop.orders",
+        "retryable": False,
+    }
+    assert queryable.status_code == 200
+    # The common case asks one question: may the caller query these tables.
+    assert authorizer.visible_calls == [(Action.QUERY, [CUSTOMERS])]
+
+
+class _DenyListAuthorizer(_TableFilteringAuthorizer):
+    """Shows every target but ``hidden``, for any action."""
+
+    def __init__(self, hidden: frozenset[tuple[str, ...]]) -> None:
+        super().__init__()
+        self._hidden = hidden
+
+    async def visible(
+        self, context: RequestContext, action: StrEnum, targets: Sequence[tuple[str, ...]]
+    ) -> Collection[tuple[str, ...]]:
+        self.visible_calls.append((action, list(targets)))
+        return [target for target in targets if target not in self._hidden]
+
+
+def test_a_hidden_table_and_a_missing_one_cost_the_same_questions(tmp_path: Path) -> None:
+    """The number of questions must not tell a hidden table from a missing one."""
+    authorizer = _DenyListAuthorizer(hidden=frozenset({ORDERS}))
+    app = _build_app(tmp_path, authorizer=authorizer)
+
+    with TestClient(app) as client:
+        wait_ready(client)
+        client.post("/api/v1/queries", json={"sql": "SELECT * FROM landing_shop.orders"})
+        hidden_calls = list(authorizer.visible_calls)
+        authorizer.visible_calls.clear()
+        client.post("/api/v1/queries", json={"sql": "SELECT * FROM landing_shop.nope"})
+        missing_calls = list(authorizer.visible_calls)
+
+    nope = ("table", "landing_shop", "nope")
+    assert hidden_calls == [(Action.QUERY, [ORDERS]), (Action.READ_CATALOG, [ORDERS])]
+    assert missing_calls == [(Action.QUERY, [nope]), (Action.READ_CATALOG, [nope])]
 
 
 def test_a_query_refused_by_visible_is_a_denial(tmp_path: Path) -> None:
@@ -555,8 +624,8 @@ def test_a_refused_query_does_not_tell_existing_tables_from_missing_ones(tmp_pat
     assert existing.status_code == missing.status_code == 403
     assert existing.content == missing.content
     assert authorizer.visible_calls == [
-        (Action.READ_CATALOG, [ORDERS]),
-        (Action.READ_CATALOG, [("table", "landing_shop", "nope")]),
+        (Action.QUERY, [ORDERS]),
+        (Action.QUERY, [("table", "landing_shop", "nope")]),
     ]
 
 
