@@ -13,7 +13,7 @@ export const FROM_THE_LOG = "var(--nt-color-text-muted)";
 export const familyFill = (family: TypeFamily) => `var(--nt-color-type-${family})`;
 
 export const base = {
-  style: { fontFamily: "var(--nt-font-family-mono)", fontSize: "11px", color: "var(--nt-color-text-subtle)", background: "transparent", overflow: "visible" },
+  style: { fontFamily: "var(--nt-font-family-mono)", fontSize: "var(--nt-font-size-xs)", color: "var(--nt-color-text-subtle)", background: "transparent", overflow: "visible" },
 } as const;
 
 export const yCount = (format: (value: number) => string) => ({ ticks: 4, nice: true, zero: true, tickSize: 0, label: null, tickFormat: format });

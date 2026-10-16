@@ -109,7 +109,7 @@ tr:hover .ghost {
   border-block-end-color: var(--nt-color-border);
   color: var(--nt-color-text-muted);
   font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-2xs);
+  font-size: var(--nt-font-size-xs);
   font-weight: var(--nt-font-weight-medium);
   letter-spacing: var(--nt-font-tracking-wide);
   text-transform: uppercase;
@@ -148,7 +148,7 @@ tr:hover .ghost {
   overflow: hidden;
   color: var(--nt-color-text-subtle);
   font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-2xs);
+  font-size: var(--nt-font-size-xs);
   line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
