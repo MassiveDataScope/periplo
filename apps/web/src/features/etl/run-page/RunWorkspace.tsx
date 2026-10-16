@@ -7,8 +7,9 @@ import { SplitDivider } from "./SplitDivider";
 import { useTimelineReach } from "./useTimelineReach";
 import styles from "./RunWorkspace.module.css";
 
-/** Too short for a timeline and a log one above the other, or too narrow for either beside the shell: tabs instead. */
-const COMPACT_LAYOUT = "(max-height: 759px), (max-width: 719px)";
+/** Too narrow for the timeline and the log beside the shell: tabs instead. A short but wide screen (a laptop) keeps the
+ * log under the steps, so a selected step and its lines show together; the pair then scrolls with the page. */
+const COMPACT_LAYOUT = "(max-width: 719px)";
 
 interface RunWorkspaceProps {
   readonly logsOpen: boolean;
