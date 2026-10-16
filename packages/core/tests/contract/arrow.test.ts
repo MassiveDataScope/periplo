@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { tableFromArrays, tableToIPC, type RecordBatch } from "apache-arrow";
 import { openArrowStream, ArrowStreamLimitError, ArrowStreamTruncatedError } from "../../src/arrow";
-import { mulberry32 } from "../../src/arrow/test-vectors";
+import { mulberry32 } from "../support/test-vectors";
 
 function responseFromChunks(bytes: Uint8Array, chunkSize: number): Response {
   const chunks: Uint8Array[] = [];

@@ -72,7 +72,8 @@ and never skip, weaken or delete a test to make a check pass.
 
 Tests never live next to the code they test. Each package keeps them under its own `tests/`:
 `apps/api/tests`, and for the UI `tests/unit/` mirrors `src/` (`src/features/shell/NavRail.tsx` is tested in
-`tests/unit/features/shell/NavRail.test.tsx`). A test in `src/` fails the build.
+`tests/unit/features/shell/NavRail.test.tsx`), and test helpers live under `tests/` too. A layout test fails the
+test suite when a `*.test.*`, `*.spec.*` or `*.test-utils.*` file appears in `src/`.
 
 ## Branches
 

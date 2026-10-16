@@ -15,7 +15,7 @@ import {
   vectorFromArray,
 } from "apache-arrow";
 import { formatCell } from "../../../src/arrow/cell-format";
-import { decimalVector, timestampVector } from "../../../src/arrow/test-vectors";
+import { decimalVector, timestampVector } from "../../support/test-vectors";
 
 describe("formatCell", () => {
   it("renders 64-bit integers beyond the safe integer range exactly", () => {

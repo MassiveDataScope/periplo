@@ -12,7 +12,7 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.browser, ...globals.node } },
   },
   {
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
     plugins: { "react-hooks": reactHooks },
     rules: reactHooks.configs.recommended.rules,
   },
@@ -20,7 +20,6 @@ export default tseslint.config(
     // Every visible string comes from src/i18n/en.json, so any language is one catalog away.
     ...i18next.configs["flat/recommended"],
     files: ["src/**/*.tsx"],
-    ignores: ["**/*.test.tsx"],
   },
   {
     // The core is consumed only through its public entry points.
@@ -36,7 +35,6 @@ export default tseslint.config(
   {
     // Screens compose the core; decoding, HTTP parsing and virtualization live and are tested there, once.
     files: ["src/features/**", "src/app/**"],
-    ignores: ["**/*.test.{ts,tsx}"],
     rules: {
       "@typescript-eslint/no-restricted-imports": [
         "error",
@@ -52,7 +50,6 @@ export default tseslint.config(
   {
     // `lake` owns the facts of the lake; `home` and `table` build screens on top of it, never the reverse (no cycle).
     files: ["src/features/lake/**"],
-    ignores: ["**/*.test.{ts,tsx}"],
     rules: {
       "@typescript-eslint/no-restricted-imports": [
         "error",
@@ -65,7 +62,6 @@ export default tseslint.config(
   {
     // The catalog tree is a leaf: any feature can use it, so it must not depend on another feature.
     files: ["src/features/catalog-tree/**"],
-    ignores: ["**/*.test.{ts,tsx}"],
     rules: {
       "@typescript-eslint/no-restricted-imports": [
         "error",

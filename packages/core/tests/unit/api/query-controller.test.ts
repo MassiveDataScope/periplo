@@ -3,7 +3,7 @@ import { tableFromArrays, type RecordBatch, type Schema } from "apache-arrow";
 import type { BatchSink } from "../../../src/arrow";
 import { ApiError } from "../../../src/api/errors";
 import { createQueryController, settled, type QueryStatus, type QueryTransport } from "../../../src/api/query-controller";
-import { mulberry32 } from "../../../src/arrow/test-vectors";
+import { mulberry32 } from "../../support/test-vectors";
 
 function batch(tag: number): RecordBatch {
   const result = tableFromArrays({ id: new BigInt64Array([BigInt(tag)]) }).batches[0];

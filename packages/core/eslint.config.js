@@ -48,7 +48,6 @@ export default tseslint.config(
     { files: ["playground/**", "tests/**"], patterns: [] },
   ].map(({ files, patterns }) => ({
     files,
-    ignores: patterns.length > 0 ? ["**/*.test.{ts,tsx}"] : [],
     rules: {
       "@typescript-eslint/no-restricted-imports": [
         "error",
@@ -63,7 +62,7 @@ export default tseslint.config(
     },
   })),
   {
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
     plugins: { "react-hooks": reactHooks },
     rules: { ...reactHooks.configs.recommended.rules },
   },
