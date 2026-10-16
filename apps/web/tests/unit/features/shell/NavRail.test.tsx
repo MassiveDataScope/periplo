@@ -69,7 +69,7 @@ describe("NavRail", () => {
 describe("the rail's tools", () => {
   it("names each icon button, since no label shows beside it", () => {
     renderRail({ kind: "home" }, false);
-    expect(screen.getByRole("button", { name: "Search or jump to a table" }).getAttribute("aria-keyshortcuts")).toBe("Control+K");
+    expect(screen.getByRole("button", { name: "Search or jump to a table" }).getAttribute("aria-keyshortcuts")).toBe("Control+K Meta+K");
     expect(screen.getByRole("button", { name: "Theme: system" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Collapse menu" })).toBeTruthy();
   });

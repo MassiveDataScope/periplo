@@ -14,7 +14,8 @@ describe("the unfolded database row", () => {
     expect(css.slice(start, css.indexOf("}", start))).toMatch(/color:\s*inherit/);
   });
 
-  it("gives the last write a 10rem column", () => {
+  it("gives the last write a 10rem column, in database rows and in their child rows", () => {
     expect(css).toMatch(/--cols:\s*minmax\(0, 1fr\) 4rem 6rem 10rem/);
+    expect(css).toMatch(/--cols:\s*minmax\(0, 1fr\) 5\.5rem 6rem 10rem 4\.5rem/);
   });
 });
