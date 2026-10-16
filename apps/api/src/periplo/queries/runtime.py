@@ -36,6 +36,8 @@ class QueryStatus:
     """Monotonic clock reading at admission: the timeout counts planning too."""
     tenant: str = ""
     """The tenant that admitted the query, set by the router right after admission."""
+    subject: str = ""
+    """Who admitted the query, set with ``tenant``: only they may read its status or cancel it."""
 
 
 class TooManyQueries(Exception):

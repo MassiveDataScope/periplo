@@ -17,7 +17,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from loom.core.errors import Forbidden, Unauthenticated
 from loom.core.identity import Identity
-from loom.rest.auth.abc import RequestCredentials
+from loom.rest.auth.abc import Authenticator, RequestCredentials
 from pyarrow import ipc
 from starlette.requests import ClientDisconnect
 from starlette.types import Message, Scope
@@ -159,9 +159,23 @@ class _HeaderTenants:
         return Tenant(credentials.headers.get("x-tenant", DEFAULT_TENANT.id))
 
 
+class _HeaderSubjects:
+    """An ``Authenticator`` that names the caller after an ``X-Subject`` header.
+
+    Only used to make two different people of one tenant reachable from one test client.
+    """
+
+    name = "header-subjects"
+    provides_roles = False
+
+    async def authenticate(self, credentials: RequestCredentials) -> Identity | None:
+        return Identity(subject=credentials.headers.get("x-subject", "anonymous"))
+
+
 def _make_app(
     engine: QueryEngine,
     *,
+    authenticator: Authenticator | None = None,
     authorizer: Authorizer | None = None,
     audit: AuditSink | None = None,
     tenants: TenantResolver | None = None,
@@ -183,7 +197,7 @@ def _make_app(
     app.include_router(create_router(planes, runtime, access=access, credentials=gate))
     app.add_middleware(
         RequestContextMiddleware,
-        authenticator=AnonymousAuthenticator(),
+        authenticator=authenticator or AnonymousAuthenticator(),
         tenants=tenants or SingleTenant(),
     )
     return app
@@ -192,11 +206,16 @@ def _make_app(
 def _client(
     engine: FakeEngine,
     *,
+    authenticator: Authenticator | None = None,
     authorizer: Authorizer | None = None,
     audit: AuditSink | None = None,
     tenants: TenantResolver | None = None,
 ) -> TestClient:
-    return TestClient(_make_app(engine, authorizer=authorizer, audit=audit, tenants=tenants))
+    return TestClient(
+        _make_app(
+            engine, authenticator=authenticator, authorizer=authorizer, audit=audit, tenants=tenants
+        )
+    )
 
 
 # --- POST /queries: denial before ``_validate``, audited ---------------------------
@@ -319,6 +338,29 @@ def test_foreign_query_status_and_cancel_are_404() -> None:
         "detail": {"code": "not_found", "message": "Unknown query", "retryable": False}
     }
     assert foreign_cancel.status_code == 404
+
+
+def test_another_persons_query_status_and_cancel_are_404_in_the_same_tenant() -> None:
+    """Allowed to query is not allowed to watch or stop someone else's query."""
+    client = _client(FakeEngine(), authenticator=_HeaderSubjects(), authorizer=_FixedAuthorizer())
+
+    admitted = client.post(
+        "/api/v1/queries", json={"sql": "SELECT n FROM shop.orders"}, headers={"X-Subject": "ana"}
+    )
+    query_id = admitted.headers["X-Query-Id"]
+
+    own_status = client.get(f"/api/v1/queries/{query_id}", headers={"X-Subject": "ana"})
+    other_status = client.get(f"/api/v1/queries/{query_id}", headers={"X-Subject": "bea"})
+    other_cancel = client.delete(f"/api/v1/queries/{query_id}", headers={"X-Subject": "bea"})
+    own_cancel = client.delete(f"/api/v1/queries/{query_id}", headers={"X-Subject": "ana"})
+
+    assert own_status.status_code == 200
+    assert other_status.status_code == 404
+    assert other_status.json() == {
+        "detail": {"code": "not_found", "message": "Unknown query", "retryable": False}
+    }
+    assert other_cancel.status_code == 404
+    assert own_cancel.status_code == 202
 
 
 # --- manual ASGI: a disconnect mid-stream still closes and audits ------------------

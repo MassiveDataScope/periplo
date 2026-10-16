@@ -10,8 +10,8 @@ caller may not read exactly like one not in the catalog. The tenant's storage
 credentials are asked for last, once a slot is taken. A data plane that cannot be
 resolved answers the JSON ``500`` of any internal failure, audited as failed.
 ``GET``/``DELETE /queries/{id}`` authorize the action itself but never reach a data
-plane, and answer ``404`` for a query admitted by another tenant, indistinguishable from
-an unknown id.
+plane, and answer ``404`` for a query admitted by another tenant or by another person of
+the same tenant, indistinguishable from an unknown id.
 """
 
 from __future__ import annotations
@@ -296,6 +296,7 @@ def create_router(
             )
             return _error(429, "capacity", "Too many queries are running")
         status.tenant = ctx.tenant.id
+        status.subject = ctx.identity.subject
         # After admission: a flood refused for capacity never reaches the provider.
         try:
             read_with = await credentials.for_tenant(ctx.tenant)
@@ -366,8 +367,8 @@ def create_router(
             ctx = await access.require(Action.QUERY, query_target(query_id))
         except (Forbidden, Unauthenticated) as error:
             return denial_response(error)
-        status = runtime.status(query_id)
-        if status is None or status.tenant != ctx.tenant.id:
+        status = _own(runtime.status(query_id), ctx)
+        if status is None:
             return _error(404, "not_found", "Unknown query")
         return _status_body(status)
 
@@ -377,14 +378,22 @@ def create_router(
             ctx = await access.require(Action.QUERY, query_target(query_id))
         except (Forbidden, Unauthenticated) as error:
             return denial_response(error)
-        status = runtime.status(query_id)
-        if status is None or status.tenant != ctx.tenant.id:
+        status = _own(runtime.status(query_id), ctx)
+        if status is None:
             return _error(404, "not_found", "Unknown query")
         status.cancel_requested = True
         _log.info("query.cancel_requested", query_id=query_id, state=status.state)
         return Response(status_code=202)
 
     return router
+
+
+def _own(status: QueryStatus | None, ctx: RequestContext) -> QueryStatus | None:
+    """The query if the caller admitted it, else ``None``: another tenant's or another person's
+    query answers the same 404 as one that does not exist."""
+    if status is None or status.tenant != ctx.tenant.id or status.subject != ctx.identity.subject:
+        return None
+    return status
 
 
 def _status_body(status: QueryStatus) -> JSONResponse:
