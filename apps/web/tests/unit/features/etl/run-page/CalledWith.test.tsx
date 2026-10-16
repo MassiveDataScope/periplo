@@ -139,6 +139,7 @@ describe("CalledWith a chained run's values", () => {
     renderBlock({ parameters: { schemas: long("run") }, usual: { schemas: long("usual") } });
     const row = rowOf("schemas");
     if (row === null) throw new Error("no schemas row");
-    expect(within(row).getAllByRole("button", { name: "Show all of schemas" })).toHaveLength(2);
+    expect(within(row).getAllByRole("button", { name: "Show all of schemas" })).toHaveLength(1);
+    expect(within(row).getAllByRole("button", { name: "Show all of the usual schemas" })).toHaveLength(1);
   });
 });

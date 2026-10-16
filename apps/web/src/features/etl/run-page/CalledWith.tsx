@@ -44,7 +44,7 @@ function UsualNote({ name, usual }: { readonly name: string; readonly usual: Rea
         t("etl.runPage.notScheduled")
       ) : isLongValue(usual[name]) ? (
         <>
-          {t("etl.runPage.usuallyBefore")} <ParameterValue value={usual[name]} name={name} />
+          {t("etl.runPage.usuallyBefore")} <ParameterValue value={usual[name]} name={t("etl.runPage.usualName", { name })} />
         </>
       ) : (
         t("etl.runPage.usually", { value: displayValue(usual[name]) })

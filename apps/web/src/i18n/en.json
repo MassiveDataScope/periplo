@@ -871,7 +871,8 @@
       "stateNow": "The run is now {{state}}",
       "stateAfterAttempts": "{{state}} after {{count}} attempts",
       "stateAttempt": "{{state}} · attempt {{count}}",
-      "usuallyBefore": "usually"
+      "usuallyBefore": "usually",
+      "usualName": "the usual {{name}}"
     },
     "retry": {
       "mark": "↻ {{count}}",
