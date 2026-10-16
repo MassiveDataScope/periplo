@@ -33,7 +33,7 @@
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.2",
-    "@vitest/coverage-v8": "~4.1.11",
+    "@vitest/coverage-v8": "~5.0.4",
     "apache-arrow": "^18.1.0",
     "eslint": "^10.11.0",
     "eslint-plugin-i18next": "6.1.5",
