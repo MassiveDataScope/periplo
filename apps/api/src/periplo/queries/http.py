@@ -66,9 +66,7 @@ class Refused(Exception):
     missing one), ``forbidden`` when the caller sees a table but may not query it.
     """
 
-    def __init__(
-        self, status: int, code: str, message: str, *, denial: str | None = None
-    ) -> None:
+    def __init__(self, status: int, code: str, message: str, *, denial: str | None = None) -> None:
         super().__init__(message)
         self.status, self.code, self.message = status, code, message
         self.denial = denial
