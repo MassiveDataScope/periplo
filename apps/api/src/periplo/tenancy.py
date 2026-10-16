@@ -13,7 +13,7 @@ belongs to :data:`DEFAULT_TENANT`.
 from __future__ import annotations
 
 from contextvars import ContextVar, Token
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Final, Protocol
 
 from loom.core.identity import ANONYMOUS, Identity
@@ -45,6 +45,9 @@ class RequestContext:
 
     tenant: Tenant
     identity: Identity
+    credentials: RequestCredentials | None = field(default=None, repr=False, compare=False)
+    """What the request presented, for an authorizer that asks another service on the caller's
+    behalf. Never printed and not part of equality; ``None`` outside an HTTP request."""
 
 
 _context: ContextVar[RequestContext] = ContextVar("_context")

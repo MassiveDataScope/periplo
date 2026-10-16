@@ -122,7 +122,9 @@ class RequestContextMiddleware:
             return
 
         identity_token = set_identity(identity)
-        context_token = set_context(RequestContext(tenant=tenant, identity=identity))
+        context_token = set_context(
+            RequestContext(tenant=tenant, identity=identity, credentials=credentials)
+        )
         try:
             await self._app(scope, receive, send)
         finally:
