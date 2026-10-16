@@ -142,6 +142,7 @@
   --nt-size-guide: 1px; /* tree guide line */
   --nt-size-gutter: 3rem; /* 48 — grid row-number gutter, matches ResultsGrid's GUTTER_WIDTH */
   --nt-size-glyph: 0.5625rem; /* 9 — grid NULL ring / boolean dot */
+  --nt-size-swatch-glyph: 0.75rem; /* 12 — the largest a state's cross or stop square grows, even in a tall bar */
   --nt-size-spine: 3px; /* current-row ink spine on listings */
   --nt-size-stripe: 10px; /* one marching-stripe tile (period) on a running bar */
   --nt-size-step-bar: 0.625rem; /* 10px step timeline bar height */

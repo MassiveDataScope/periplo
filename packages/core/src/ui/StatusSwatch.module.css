@@ -14,11 +14,19 @@
   vertical-align: middle;
 }
 
-/* A glyph keeps its square in the middle of any box: the icon's viewBox meets it. */
+/* A glyph is a mark, not a fill: it fills a small box (a calendar day) and stops at a fixed size in a tall one (a
+   chart bar), in the middle of either. */
+.swatch:has(> .glyph) {
+  display: grid;
+  place-items: center;
+}
+
 .swatch > .glyph {
   display: block;
   inline-size: 100%;
   block-size: 100%;
+  max-inline-size: var(--nt-size-swatch-glyph);
+  max-block-size: var(--nt-size-swatch-glyph);
   stroke-width: 3;
 }
 
