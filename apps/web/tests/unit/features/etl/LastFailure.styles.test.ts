@@ -19,5 +19,6 @@ describe("the last failure's banner", () => {
     const text = rule(".failureText");
     expect(text).toMatch(/-webkit-line-clamp:\s*4/);
     expect(text).toMatch(/overflow:\s*hidden/);
+    expect(text).toMatch(/display:\s*-webkit-box/);
   });
 });

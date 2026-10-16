@@ -27,11 +27,11 @@ export function ParametersCard({ parameters, trigger, onRunOnce }: ParametersCar
       name,
       Object.hasOwn(sets, name) ? (
         <>
-          <ParameterValue value={value} />
+          <ParameterValue value={value} name={name} />
           <span className={styles.muted}> · {t("etl.runPage.setByAutomation")}</span>
         </>
       ) : (
-        <ParameterValue value={value} />
+        <ParameterValue value={value} name={name} />
       ),
     ]);
   const fromUpstream = trigger !== null && passed.size > 0 ? { names: [...passed].join(", "), etl: trigger.etl } : null;

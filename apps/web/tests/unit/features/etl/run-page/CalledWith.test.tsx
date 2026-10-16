@@ -133,4 +133,12 @@ describe("CalledWith a chained run's values", () => {
     });
     expect(screen.getByText("from upstream").className).not.toBe(screen.getByText("usually us").className);
   });
+
+  it("folds a long changed value and the schedule's usual one beside it", () => {
+    const long = (prefix: string) => Array.from({ length: 12 }, (_, index) => `${prefix}_schema_${index}`);
+    renderBlock({ parameters: { schemas: long("run") }, usual: { schemas: long("usual") } });
+    const row = rowOf("schemas");
+    if (row === null) throw new Error("no schemas row");
+    expect(within(row).getAllByRole("button", { name: "Show all of schemas" })).toHaveLength(2);
+  });
 });

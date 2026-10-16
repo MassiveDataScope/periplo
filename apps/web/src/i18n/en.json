@@ -870,7 +870,8 @@
       "stepLastLines": "Showing the last {{count}} of this step's lines",
       "stateNow": "The run is now {{state}}",
       "stateAfterAttempts": "{{state}} after {{count}} attempts",
-      "stateAttempt": "{{state}} · attempt {{count}}"
+      "stateAttempt": "{{state}} · attempt {{count}}",
+      "usuallyBefore": "usually"
     },
     "retry": {
       "mark": "↻ {{count}}",
@@ -928,7 +929,9 @@
     },
     "parameters": {
       "showAll": "Show all",
-      "showLess": "Show less"
+      "showLess": "Show less",
+      "showAllOf": "Show all of {{name}}",
+      "showLessOf": "Show less of {{name}}"
     }
   }
 }

@@ -12,10 +12,10 @@ afterEach(cleanup);
 /** A list like the one that stretched a maintenance ETL's page past 3,000px: 18 schema names, 400-odd characters. */
 const SCHEMAS = Array.from({ length: 18 }, (_, index) => `example_schema_number_${index}`);
 
-function renderValue(value: unknown) {
+function renderValue(value: unknown, name?: string) {
   return render(
     <I18nextProvider i18n={i18n}>
-      <ParameterValue value={value} />
+      <ParameterValue value={value} name={name} />
     </I18nextProvider>,
   );
 }
@@ -46,12 +46,25 @@ describe("ParameterValue", () => {
     expect(screen.getByRole("button", { name: "Show all" })).toBeTruthy();
   });
 
+  it("folds from 101 characters, not at 100", () => {
+    renderValue("x".repeat(100));
+    expect(screen.queryByRole("button")).toBeNull();
+    cleanup();
+    renderValue("x".repeat(101));
+    expect(screen.queryByRole("button")).not.toBeNull();
+  });
+
+  it("names its button after the parameter, so several read apart in a screen reader's list", () => {
+    renderValue(SCHEMAS, "schemas");
+    expect(screen.getByRole("button", { name: "Show all of schemas" }).textContent).toBe("Show all");
+  });
+
   it("is what the ETL's parameters card shows for each value", () => {
     render(
       <I18nextProvider i18n={i18n}>
         <ParametersCard parameters={{ schemas: SCHEMAS, compact: true }} trigger={null} />
       </I18nextProvider>,
     );
-    expect(screen.getAllByRole("button", { name: "Show all" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Show all of schemas" })).toHaveLength(1);
   });
 });
