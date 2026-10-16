@@ -45,7 +45,7 @@ export default tseslint.config(
       files: ["src/ui/**"],
       patterns: [{ group: ["**/arrow", "**/arrow/*", "**/api", "**/api/*", "**/grid", "**/grid/*"], message: "ui depends on no other core area." }],
     },
-    { files: ["playground/**", "tests/**", "src/**/*.test.{ts,tsx}"], patterns: [] },
+    { files: ["playground/**", "tests/**"], patterns: [] },
   ].map(({ files, patterns }) => ({
     files,
     ignores: patterns.length > 0 ? ["**/*.test.{ts,tsx}"] : [],

@@ -21,12 +21,12 @@ export default defineConfig({
       reporter: ["lcov", "text-summary"],
       reportsDirectory: "coverage",
       include: ["src/**/*.{ts,tsx}"],
-      exclude: ["**/*.test.{ts,tsx}", "**/*.test-utils.{ts,tsx}", "**/*.d.ts"],
+      exclude: ["**/*.d.ts"],
     },
     projects: [
       {
         extends: true,
-        test: { name: "unit", environment: "node", include: ["tests/**/*.test.ts", "src/**/*.test.ts"] },
+        test: { name: "unit", environment: "node", include: ["tests/**/*.test.ts"] },
       },
       {
         extends: true,
@@ -36,7 +36,7 @@ export default defineConfig({
           environment: "./tests/jsdom-with-node-fetch.ts",
           setupFiles: ["./tests/testing-library.ts"],
           testTimeout: 15_000,
-          include: ["src/**/*.test.tsx"],
+          include: ["tests/**/*.test.tsx"],
         },
       },
     ],

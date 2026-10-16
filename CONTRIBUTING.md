@@ -70,6 +70,10 @@ The workflow contract test reads the reusable workflows the CI pins from GitHub;
 Every pull request must keep all checks green. Add or update tests for any behavior you change,
 and never skip, weaken or delete a test to make a check pass.
 
+Tests never live next to the code they test. Each package keeps them under its own `tests/`:
+`apps/api/tests`, and for the UI `tests/unit/` mirrors `src/` (`src/features/shell/NavRail.tsx` is tested in
+`tests/unit/features/shell/NavRail.test.tsx`). A test in `src/` fails the build.
+
 ## Branches
 
 Branch names decide how a change affects the next version:

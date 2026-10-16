@@ -24,7 +24,7 @@ describe("area boundaries", () => {
     ["src/ui/x.ts", 'import { formatCell } from "../arrow";\nexport const a = formatCell;'],
     ["src/ui/x.ts", 'import { App } from "../../../../apps/web/src/app/App";\nexport const a = App;'],
     ["playground/x.ts", 'import { App } from "../../../apps/web/src/app/App";\nexport const a = App;'],
-    ["src/grid/x.test.ts", 'import { App } from "periplo-web/src/app/App";\nexport const a = App;'],
+    ["tests/unit/grid/x.test.ts", 'import { App } from "periplo-web/src/app/App";\nexport const a = App;'],
   ])("rejects a forbidden import in %s", async (file, code) => {
     expect(await restricted(file, code)).not.toEqual([]);
   });
