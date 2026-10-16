@@ -153,8 +153,8 @@ nav.items {
   inline-size: var(--nt-space-2);
   block-size: var(--nt-space-2);
   border-radius: var(--nt-radius-full);
-  /* A warning, so the warning colour: the orange is action and signature, never a status. The ring in the
-     rail's own colour cuts the dot out of the icon under it. */
+  /* A warning, so the warning colour: the orange is action and signature, never a status. A ring in its
+     entry's own ground cuts the dot out of the icon under it. */
   background: var(--nt-color-warning);
   box-shadow: 0 0 0 var(--nt-border-width-strong) var(--item-ground);
 }
