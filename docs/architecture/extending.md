@@ -147,9 +147,9 @@ uvicorn --factory shop_console.app:create_shop_app
 
 | Action | What it covers |
 |--------|----------------|
-| `read_catalog` | The catalog, a table's detail, statistics and history, and which tables a query may name. Also required, on `()`, to run a query and to reach the sources and discovery. |
+| `read_catalog` | The catalog, a table's detail, statistics and history. Also required, on `()`, to run a query and to reach the sources and discovery. For a table a query may not name, it decides the answer: `403` if the caller sees the table, `404` if not. |
 | `admin_catalog` | The sources, their discovery reports, and starting a discovery, in addition to `read_catalog`. |
-| `query` | Running a query, in addition to `read_catalog`; reading its status and cancelling it. |
+| `query` | Running a query, in addition to `read_catalog`; which tables a query may name (asked with `visible` on their targets); reading the status of one's own query and cancelling it. |
 | `view_etl` | The deployment list, a deployment's runs and grid, and a run with its tasks, steps and logs. |
 | `operate_etl` | Launching, cancelling or retrying a run, and pausing or resuming a schedule. |
 | `archive_etl` | Archiving or restoring an ETL in Periplo. |
