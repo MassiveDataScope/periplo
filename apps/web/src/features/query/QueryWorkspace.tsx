@@ -75,8 +75,8 @@ export function QueryWorkspace({ dependencies, editorRef, catalog, sql, onSqlCha
       <StatusBar label={t("data.queryStatus")} tone={toneOf(state)} items={statusItems(state, rowsOnScreen, t, i18n.language)} />
       {state.kind === "failed" ? <ErrorNotice title={t("data.queryFailed")} error={state.error} onRetry={state.error.retryable ? runQuery : undefined} /> : null}
 
-      <Panel title={t("query.results")} className={styles.results}>
-        {buffer ? <ResultsGrid buffer={buffer} status={toGridStatus(state)} /> : null}
+      <Panel title={t("query.results")} className={styles.results} flush>
+        {buffer ? <ResultsGrid buffer={buffer} status={toGridStatus(state)} framed={false} /> : null}
       </Panel>
     </div>
   );

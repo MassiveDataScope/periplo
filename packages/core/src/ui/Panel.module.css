@@ -6,7 +6,6 @@
   border: var(--nt-border-width) solid var(--nt-color-border);
   border-radius: var(--nt-radius-md);
   background: var(--nt-color-surface-raised);
-  box-shadow: var(--nt-shadow-raised);
 }
 
 .header {
@@ -20,7 +19,7 @@
 
 .title {
   margin: 0;
-  font-size: var(--nt-font-size-md);
+  font-size: var(--nt-font-size-lg);
   font-weight: var(--nt-font-weight-strong);
 }
 
@@ -34,4 +33,9 @@
   min-height: 0;
   padding: var(--nt-space-3);
   overflow: auto;
+}
+
+/* Content that draws its own frame (a sheet) sits edge to edge, so the panel's border is the only one. */
+.panel[data-flush] > .body {
+  padding: 0;
 }

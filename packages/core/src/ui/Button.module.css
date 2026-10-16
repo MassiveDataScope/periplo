@@ -24,10 +24,6 @@
   outline-offset: var(--nt-focus-offset);
 }
 
-.button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
 
 .button[data-variant="primary"] {
   border-color: var(--nt-color-accent);
@@ -53,4 +49,13 @@
 
 .link {
   text-decoration: none;
+}
+
+/* Disabled in quiet greys for every variant, never by fading the fill: a faded crimson or orange reads as a broken
+   colour. [data-variant] lifts it above each variant's own fill. */
+.button[data-variant]:disabled {
+  cursor: not-allowed;
+  border-color: var(--nt-color-border);
+  background: var(--nt-color-surface-sunken);
+  color: var(--nt-color-text-subtle);
 }

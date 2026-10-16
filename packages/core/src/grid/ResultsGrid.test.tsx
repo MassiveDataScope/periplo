@@ -40,6 +40,13 @@ function filledBuffer(rows: number): ResultBuffer {
 }
 
 describe("ResultsGrid", () => {
+  it("draws its own frame unless its container already draws one", () => {
+    const { container, rerender } = render(<ResultsGrid buffer={filledBuffer(3)} status={{ kind: "complete" }} />);
+    expect(container.firstElementChild?.getAttribute("data-framed")).toBeNull();
+    rerender(<ResultsGrid buffer={filledBuffer(3)} status={{ kind: "complete" }} framed={false} />);
+    expect(container.firstElementChild?.getAttribute("data-framed")).toBe("false");
+  });
+
   it("exposes total dimensions while rendering only a window of rows", () => {
     const buffer = filledBuffer(5000);
     render(<ResultsGrid buffer={buffer} status={{ kind: "complete" }} />);

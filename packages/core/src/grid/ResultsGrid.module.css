@@ -20,6 +20,13 @@
   line-height: var(--nt-font-line-height-tight);
 }
 
+/* Inside a container that already draws the frame (a flush panel), the sheet drops its own. */
+.wrapper[data-framed="false"] > .scroll {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
 .canvas {
   position: relative;
   min-inline-size: 100%;
@@ -211,15 +218,13 @@
   color: var(--nt-color-text);
 }
 
-/* Mono because it is an identifier the analyst will type; caps read like a dial's label. */
+/* Mono and spelled as stored, because it is an identifier the analyst will type. */
 .columnName {
   overflow: hidden;
   font-family: var(--nt-font-family-mono);
-  font-size: var(--nt-font-size-xs);
+  font-size: var(--nt-font-size-sm);
   font-weight: var(--nt-font-weight-medium);
-  letter-spacing: 0.06em;
   text-overflow: ellipsis;
-  text-transform: uppercase;
 }
 
 .headerCell:focus-visible,
