@@ -58,24 +58,29 @@ nav.items {
   gap: var(--nt-space-3);
   box-sizing: border-box;
   inline-size: 100%;
-  min-block-size: var(--nt-size-control-xl);
+  /* The ground the entry is drawn on, so a mark inside it (the attention dot) can ring itself in it. */
+  --item-ground: var(--nt-color-surface);
+  min-block-size: var(--nt-size-rail-item);
   padding: 0 var(--nt-space-2-5);
   border: 0;
   border-radius: var(--nt-radius-md);
   background: none;
   color: var(--nt-color-text-muted);
   font: inherit;
-  font-size: var(--nt-font-size-lg);
+  font-size: var(--nt-font-size-md);
   font-weight: var(--nt-font-weight-medium);
   text-align: start;
   text-decoration: none;
   cursor: pointer;
+  transition:
+    background-color var(--nt-motion-fast),
+    color var(--nt-motion-fast);
 }
 
 .item svg {
   flex: none;
-  inline-size: var(--nt-space-5);
-  block-size: var(--nt-space-5);
+  inline-size: var(--nt-size-icon-lg);
+  block-size: var(--nt-size-icon-lg);
 }
 
 .label {
@@ -96,7 +101,8 @@ nav.items {
 }
 
 .item:hover {
-  background: var(--nt-color-surface-hover);
+  --item-ground: var(--nt-color-surface-hover);
+  background: var(--item-ground);
   color: var(--nt-color-text);
 }
 
@@ -108,35 +114,30 @@ nav.items {
   cursor: not-allowed;
 }
 
-/* Where you are: a bar in the indicator token at the entry's inline start, kept when the rail is collapsed
-   and the label is gone, plus the strong weight and the hover surface while it is expanded. The brand's dot
-   outside the entry's edge is the periscope's lens saying "here": a signature, not the signal. */
+/* Where you are: a raised tab on the rail (lighter than the rail in both themes) and one bar in the brand orange
+   at its edge, the periscope's lens saying "here". The bar is the cue that meets 3:1; the tab reinforces it. The
+   bar stays when the rail is collapsed and the label is gone. The weight does not change, so the label does not
+   shift. */
 .item[aria-current="page"] {
-  background: var(--nt-color-surface-hover);
+  --item-ground: var(--nt-color-surface-raised);
+  background: var(--item-ground);
+  box-shadow: 0 0 0 var(--nt-border-width) var(--nt-color-border);
   color: var(--nt-color-text);
-  font-weight: var(--nt-font-weight-strong);
-}
-
-.item[aria-current="page"]::before {
-  content: "";
-  position: absolute;
-  inset-inline-start: calc(-1 * var(--nt-space-1-5));
-  inset-block-start: 50%;
-  inline-size: var(--nt-space-1-5);
-  block-size: var(--nt-space-1-5);
-  border-radius: var(--nt-radius-full);
-  background: var(--nt-color-brand);
-  transform: translateY(-50%);
 }
 
 .item[aria-current="page"]::after {
   content: "";
   position: absolute;
-  inset-block: var(--nt-space-2);
-  inset-inline-start: var(--nt-space-1);
-  inline-size: var(--nt-space-0-5);
+  inset-block: var(--nt-space-2-5);
+  inset-inline-start: 0;
+  inline-size: var(--nt-size-spine);
   border-radius: var(--nt-radius-full);
-  background: var(--nt-color-indicator);
+  background: var(--nt-color-brand);
+}
+
+/* With focus, the inset ring takes the entry's edge: the bar steps in so the two oranges never merge. */
+.item[aria-current="page"]:focus-visible::after {
+  inset-inline-start: calc(2 * var(--nt-focus-width));
 }
 
 .brand:focus-visible,
@@ -152,9 +153,10 @@ nav.items {
   inline-size: var(--nt-space-2);
   block-size: var(--nt-space-2);
   border-radius: var(--nt-radius-full);
-  /* A warning, so the warning colour: the brand's orange marks the logo, title stops, the current entry
-     and "now" on a timeline, never a status. */
+  /* A warning, so the warning colour: the orange is action and signature, never a status. A ring in its
+     entry's own ground cuts the dot out of the icon under it. */
   background: var(--nt-color-warning);
+  box-shadow: 0 0 0 var(--nt-border-width-strong) var(--item-ground);
 }
 
 /* Whose lake this is: the company's name under the product mark. */
@@ -162,19 +164,16 @@ nav.items {
   display: flex;
   align-items: center;
   gap: var(--nt-space-2);
-  min-block-size: var(--nt-size-control-xl);
-  padding-inline: var(--nt-space-2);
-  border: var(--nt-border-width) solid var(--nt-color-border);
-  border-radius: var(--nt-radius-md);
-  background: var(--nt-color-bg);
+  min-block-size: var(--nt-size-rail-item);
+  padding-inline: var(--nt-space-2-5);
   font-weight: var(--nt-font-weight-medium);
 }
 
 .workspaceLogo,
 .workspaceInitial {
   flex: none;
-  inline-size: var(--nt-space-6);
-  block-size: var(--nt-space-6);
+  inline-size: var(--nt-space-5);
+  block-size: var(--nt-space-5);
   border-radius: var(--nt-radius-sm);
   object-fit: contain;
 }
@@ -183,22 +182,22 @@ nav.items {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--nt-color-accent);
-  color: var(--nt-color-on-accent);
+  background: var(--nt-color-surface-sunken);
+  color: var(--nt-color-text);
+  font-size: var(--nt-font-size-xs);
   font-weight: var(--nt-font-weight-strong);
   text-transform: uppercase;
 }
 
-/* A promise, always in sight: this tool cannot damage the lake. */
+/* A promise, always in sight: this tool cannot damage the lake. Quiet text with its lock, not a green chip:
+   success green is for states. */
 .seal {
   display: flex;
   align-items: center;
   gap: var(--nt-space-2);
   margin: 0;
   padding: var(--nt-space-1-5) var(--nt-space-2-5);
-  border-radius: var(--nt-radius-md);
-  background: var(--nt-color-success-surface);
-  color: var(--nt-color-success);
+  color: var(--nt-color-text-muted);
   font-size: var(--nt-font-size-sm);
   font-weight: var(--nt-font-weight-medium);
 }

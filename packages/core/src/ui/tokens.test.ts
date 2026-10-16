@@ -189,7 +189,7 @@ describe("design tokens", () => {
     for (const theme of themes) expect(isBlue(running[theme]), `running, ${theme}`).toBe(true);
   });
 
-  it("keeps the current-entry indicator visible (>= 3:1) on the entry's hover surface and the chrome surface, in both themes", () => {
+  it("keeps the ink indicator visible (>= 3:1) on the hover surface and the chrome surface, in both themes", () => {
     const indicator = lightDark("--nt-color-indicator");
     const hover = lightDark("--nt-color-surface-hover");
     const surface = lightDark("--nt-color-surface");

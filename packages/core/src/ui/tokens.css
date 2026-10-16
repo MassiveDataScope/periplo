@@ -2,7 +2,7 @@
  * Periplo design tokens — "Chart room, softened": ink on white over cool green-grey chrome, one orange accent,
  * names and figures in mono, with thin borders and 6 px corners. Neutrals match massivedatascope.info.
  * The orange is the action and the signature: buttons, links and focus in --nt-color-accent (a darker orange that
- * reads as text on every surface), and the brand orange for the logo's lens, the full stop of page titles, the dot
+ * reads as text on every surface), and the brand orange for the logo's lens, the full stop of page titles, the bar
  * of the current rail entry and the "now" line of the ETL chart. Neither orange is ever a state.
  * The frame stays quiet so the data carries the contrast: colour means action, data type or state, never decoration.
  * Status colours keep one meaning each: blue only means "running" and crimson only means failure or danger, kept
@@ -37,7 +37,7 @@
   --nt-color-border-subtle: light-dark(#e4e9e7, #1f2627); /* grid row lines (decorative) */
   --nt-color-border: light-dark(#d3dad8, #2a3334); /* region separators (decorative)  */
   --nt-color-border-strong: light-dark(#7b8583, #6c7876); /* control outlines, ≥3:1          */
-  /* the current entry's bar in a navigation list: "you are here" without colour or a label, ≥3:1 on surface and surface-hover; the text's ink */
+  /* an ink marker for a selected or changed item (a log step, a changed field): told without colour, ≥3:1 on surface and surface-hover; the text's ink */
   --nt-color-indicator: light-dark(#141819, #e6ebea);
 
   /* ── Accent (orange, shared with massivedatascope.info): buttons, links, focus ─ */
@@ -45,7 +45,7 @@
   --nt-color-accent-hover: light-dark(#9e2f0f, #ff8a6b);
   --nt-color-on-accent: light-dark(#ffffff, #0e1213);
   --nt-color-focus: light-dark(#bd3812, #ff8a6b);
-  /* the brand's signature, never a state: the logo's lens, the full stop of page titles, the current rail entry's dot, the ETL chart's "now" */
+  /* the brand's signature, never a state: the logo's lens, the full stop of page titles, the current rail entry's bar, the ETL chart's "now" */
   --nt-color-brand: light-dark(#ff441e, #ff5a36);
 
   /* ── Semantic ─────────────────────────────────────────────────────────── */
@@ -104,7 +104,7 @@
   --nt-font-size-xs: 0.6875rem; /* 11 — the smallest size: badges, overlines, status bar keys, sheet headers, figures keys */
   --nt-font-size-sm: 0.75rem; /* 12 (was 13) — types, counters, meta */
   --nt-font-size-md: 0.8125rem; /* 13 (was 14) — body, tree, grid, controls */
-  --nt-font-size-lg: 0.875rem; /* 14 (was 15) — section, panel and dialog titles, rail entries, the palette input */
+  --nt-font-size-lg: 0.875rem; /* 14 (was 15) — section, panel and dialog titles, the palette input */
   --nt-font-size-xl: 1.25rem; /* 20 — table name */
   --nt-font-size-2xl: 1.75rem; /* 28 — Home title */
   --nt-font-size-figure: 1.125rem; /* 18 — figures strip values */
@@ -121,12 +121,15 @@
   --nt-radius-md: 6px; /* was 8 */
   --nt-radius-full: 999px; /* pills, mini-bars */
   --nt-border-width: 1px;
+  --nt-border-width-strong: 2px; /* a ring that cuts a mark out of what is behind it */
   --nt-focus-width: 2px;
   --nt-focus-offset: 2px;
   --nt-size-control: 1.75rem; /* 28 (was 32) */
   --nt-size-control-lg: 2rem; /* 32: Run, search */
-  --nt-size-control-xl: 2.5rem; /* 40: rail entries */
+  --nt-size-control-xl: 2.5rem; /* 40: tall rows and toolbars */
+  --nt-size-rail-item: 2.25rem; /* 36: rail entries and the workspace row */
   --nt-size-icon: 1rem; /* 16 */
+  --nt-size-icon-lg: 1.125rem; /* 18: rail entries */
   --nt-size-type-badge: 1.125rem; /* 18 */
   --nt-size-row: 1.75rem; /* 28: tree, schema, grid row */
   --nt-size-header: 2.75rem; /* 44: global header */
@@ -143,7 +146,7 @@
   --nt-size-gutter: 3rem; /* 48 — grid row-number gutter, matches ResultsGrid's GUTTER_WIDTH */
   --nt-size-glyph: 0.5625rem; /* 9 — grid NULL ring / boolean dot */
   --nt-size-swatch-glyph: 0.75rem; /* 12 — the largest a state's cross or stop square grows, even in a tall bar */
-  --nt-size-spine: 3px; /* current-row ink spine on listings */
+  --nt-size-spine: 3px; /* a spine that marks the current item: a listing's current row, the rail's current entry */
   --nt-size-stripe: 10px; /* one marching-stripe tile (period) on a running bar */
   --nt-size-step-bar: 0.625rem; /* 10px step timeline bar height */
   --nt-size-log-line: 1.25rem; /* 20px log line height, 5x the 4px ruled-paper hairline */
