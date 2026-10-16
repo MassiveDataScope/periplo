@@ -192,8 +192,10 @@ async def _validate(
     queryable = await _allowed(access, Action.QUERY, wanted)
     refused = wanted - queryable
     # Only a refusal asks again, to tell a table the caller sees (403) from one it may not
-    # even see, which answers exactly like a missing one (404).
-    seen = await _allowed(access, Action.READ_CATALOG, refused)
+    # even see, which answers exactly like a missing one (404). Tables not in the catalog
+    # are asked about too, so a hidden table and a missing one cost the same questions.
+    missing = {key for key in wanted if key not in catalog.tables}
+    seen = await _allowed(access, Action.READ_CATALOG, refused | missing)
     unknown = sorted(key for key in wanted if key not in catalog.tables or key in refused - seen)
     if unknown:
         names = sorted(f"{db}.{table}" for db, table in unknown)

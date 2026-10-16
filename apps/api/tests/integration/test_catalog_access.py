@@ -444,6 +444,36 @@ def test_a_table_the_caller_sees_but_may_not_query_is_403_not_run(tmp_path: Path
     assert authorizer.visible_calls == [(Action.QUERY, [CUSTOMERS])]
 
 
+class _DenyListAuthorizer(_TableFilteringAuthorizer):
+    """Shows every target but ``hidden``, for any action."""
+
+    def __init__(self, hidden: frozenset[tuple[str, ...]]) -> None:
+        super().__init__()
+        self._hidden = hidden
+
+    async def visible(
+        self, context: RequestContext, action: StrEnum, targets: Sequence[tuple[str, ...]]
+    ) -> Collection[tuple[str, ...]]:
+        self.visible_calls.append((action, list(targets)))
+        return [target for target in targets if target not in self._hidden]
+
+
+def test_a_hidden_table_and_a_missing_one_cost_the_same_questions(tmp_path: Path) -> None:
+    """The number of questions must not tell a hidden table from a missing one."""
+    authorizer = _DenyListAuthorizer(hidden=frozenset({ORDERS}))
+    app = _build_app(tmp_path, authorizer=authorizer)
+
+    with TestClient(app) as client:
+        wait_ready(client)
+        client.post("/api/v1/queries", json={"sql": "SELECT * FROM landing_shop.orders"})
+        hidden_calls = [action for action, _ in authorizer.visible_calls]
+        authorizer.visible_calls.clear()
+        client.post("/api/v1/queries", json={"sql": "SELECT * FROM landing_shop.nope"})
+        missing_calls = [action for action, _ in authorizer.visible_calls]
+
+    assert hidden_calls == missing_calls == [Action.QUERY, Action.READ_CATALOG]
+
+
 def test_a_query_refused_by_visible_is_a_denial(tmp_path: Path) -> None:
     authorizer = _TableFilteringAuthorizer(error=Denied("no", code="plan_limit"))
     app = _build_app(tmp_path, authorizer=authorizer)

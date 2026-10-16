@@ -194,9 +194,13 @@ What a caller cannot see does not count either:
 
 - **The catalog** lists the visible tables only, and reports a name conflict only when
   its name is visible. Groups and counts are computed from the tables it lists.
-- **A query** asks `visible` about every table it names, whether it exists or not, so a
-  refusal says nothing about which tables exist. A hidden table fails as if it were not
-  in the catalog, and the query is audited as denied with the code `hidden`.
+- **A query** asks `visible(query, …)` about every table it names, whether it exists or
+  not. When any is refused or missing, it asks `visible(read_catalog, …)` about those, again
+  existing or not, so a refusal says nothing about which tables exist. A table the caller
+  sees but may not query answers `403` with the code `forbidden`, audited as denied with
+  that code. A hidden table fails as if it were not in the catalog, and the query is
+  audited as denied with the code `hidden`. An authorizer that filtered only
+  `read_catalog` must now filter `query` too: tables a query may name are decided there.
 - **The deployment list** is asked again with only the visible names when anything is
   hidden, so its summary, running runs and histories cover those alone. If that answer
   names any other deployment, the route fails with `502` rather than trust its counts.
