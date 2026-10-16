@@ -6,13 +6,15 @@ export interface PanelProps {
   readonly actions?: ReactNode;
   readonly children: ReactNode;
   readonly className?: string;
+  /** Lays the content edge to edge, for content that is itself a framed surface (a results sheet). */
+  readonly flush?: boolean;
 }
 
 /** A titled surface; exposed as a landmark region named by its heading. */
-export function Panel({ title, actions, children, className }: PanelProps) {
+export function Panel({ title, actions, children, className, flush = false }: PanelProps) {
   const headingId = useId();
   return (
-    <section aria-labelledby={headingId} className={[styles.panel, className].filter(Boolean).join(" ")}>
+    <section aria-labelledby={headingId} data-flush={flush || undefined} className={[styles.panel, className].filter(Boolean).join(" ")}>
       <header className={styles.header}>
         <h2 id={headingId} className={styles.title}>
           {title}

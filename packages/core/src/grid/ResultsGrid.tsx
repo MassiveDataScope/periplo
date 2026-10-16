@@ -38,6 +38,8 @@ export interface ResultsGridProps {
   readonly renderHeaderMenu?: (column: GridColumn) => ReactNode;
   readonly onCopyCell?: (text: string) => void;
   readonly labels?: Partial<GridLabels>;
+  /** Draws its own frame (the default); false inside a container that already draws one. */
+  readonly framed?: boolean;
 }
 
 const HEADER_ROW = -1;
@@ -84,7 +86,7 @@ function clamp(value: number, min: number, max: number): number {
  * mounted. It never sorts or filters, because the rows may be a partial result
  * and any local order would pass for a global one.
  */
-export function ResultsGrid({ ref, buffer, status, renderHeaderMenu, onCopyCell, labels: labelOverrides }: ResultsGridProps) {
+export function ResultsGrid({ ref, buffer, status, renderHeaderMenu, onCopyCell, labels: labelOverrides, framed = true }: ResultsGridProps) {
   const labels = useMemo(() => ({ ...DEFAULT_GRID_LABELS, ...labelOverrides }), [labelOverrides]);
   const snapshot = useSyncExternalStore(buffer.subscribe, buffer.getSnapshot, buffer.getSnapshot);
   const schema = buffer.schema;
@@ -240,7 +242,7 @@ export function ResultsGrid({ ref, buffer, status, renderHeaderMenu, onCopyCell,
 
   if (columnCount === 0) {
     return (
-      <div className={styles.wrapper}>
+      <div className={styles.wrapper} data-framed={framed ? undefined : "false"}>
         <GridStatus status={status} labels={labels} />
         {status.kind === "idle" ? <EmptyState title={labels.idleTitle} description={labels.idleDescription} /> : null}
       </div>
@@ -257,7 +259,7 @@ export function ResultsGrid({ ref, buffer, status, renderHeaderMenu, onCopyCell,
   const emptyResult = rowCount === 0 && status.kind === "complete";
 
   return (
-    <div className={styles.wrapper}>
+    <div className={styles.wrapper} data-framed={framed ? undefined : "false"}>
       <GridStatus status={status} labels={labels} />
       <div
         ref={scrollRef}

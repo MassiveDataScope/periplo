@@ -65,6 +65,21 @@ describe("Panel", () => {
     expect(within(region).getByRole("button", { name: "Refresh" })).toBeTruthy();
     expect(within(region).getByText("content")).toBeTruthy();
   });
+
+  it("marks itself flush only when asked, so its content can draw the only frame", () => {
+    render(
+      <>
+        <Panel title="Framed">
+          <p>a</p>
+        </Panel>
+        <Panel title="Flush" flush>
+          <p>b</p>
+        </Panel>
+      </>,
+    );
+    expect(screen.getByRole("region", { name: "Framed" }).hasAttribute("data-flush")).toBe(false);
+    expect(screen.getByRole("region", { name: "Flush" }).hasAttribute("data-flush")).toBe(true);
+  });
 });
 
 describe("StatusBar", () => {
