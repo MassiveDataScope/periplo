@@ -22,7 +22,11 @@ describe("a state glyph inside a swatch", () => {
     expect(tokens).toMatch(/--nt-size-swatch-glyph:\s*0\.75rem;/);
   });
 
-  it("sits in the middle of its box once it is smaller than the box", () => {
-    expect(rule(".swatch:has(> .glyph)")).toMatch(/place-items:\s*center/);
+  it("sits in the middle of a bar once it is smaller than the bar", () => {
+    expect(rule('.swatch[data-shape="bar"]:has(> .glyph)')).toMatch(/place-items:\s*center/);
+  });
+
+  it("leaves a dot inline, so a failed dot sits on the same line as a completed one", () => {
+    expect(css).not.toMatch(/(^|})\s*\.swatch:has\(/);
   });
 });

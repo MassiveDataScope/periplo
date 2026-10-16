@@ -14,9 +14,9 @@
   vertical-align: middle;
 }
 
-/* A glyph is a mark, not a fill: it fills a small box (a calendar day) and stops at a fixed size in a tall one (a
-   chart bar), in the middle of either. */
-.swatch:has(> .glyph) {
+/* A glyph is a mark, not a fill: it stops at a fixed size, and in a bar larger than that (a chart bar) it sits in
+   the middle. A dot keeps its inline-block, so it stays on the line of its words. */
+.swatch[data-shape="bar"]:has(> .glyph) {
   display: grid;
   place-items: center;
 }
