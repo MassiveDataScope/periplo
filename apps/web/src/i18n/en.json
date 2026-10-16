@@ -925,6 +925,10 @@
       "bulkFailed": "Could not cancel {{runs}}.",
       "retryRunOf": "Retry the {{time}} run of {{etl}}",
       "retryRunOfTitle": "Retry the {{time}} run of {{etl}}?"
+    },
+    "parameters": {
+      "showAll": "Show all",
+      "showLess": "Show less"
     }
   }
 }

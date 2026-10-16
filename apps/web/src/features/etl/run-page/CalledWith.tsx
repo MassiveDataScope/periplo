@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { ParameterValue } from "../ParameterValue";
 import { differingKeys, displayValue } from "../run-parameters";
 import type { RunDetail, RunLink } from "../useEtl";
 import { ChainedRun } from "./ChainedRun";
@@ -68,7 +69,7 @@ export function CalledWith({ trigger, createdBy, parameters, usual, runAgainHref
               <dt>{name}</dt>
               <dd>
                 <span className={styles.equals}>=</span>
-                {Object.hasOwn(parameters, name) ? displayValue(parameters[name]) : <span className={styles.muted}>{t("etl.runPage.notSet")}</span>}
+                {Object.hasOwn(parameters, name) ? <ParameterValue value={parameters[name]} /> : <span className={styles.muted}>{t("etl.runPage.notSet")}</span>}
                 {usual !== null && changed.has(name) ? <UsualNote name={name} usual={usual} /> : null}
                 {fromUpstream.includes(name) ? <span className={styles.fromChain}>{t("etl.runPage.fromUpstream")}</span> : null}
                 {setByAutomation.includes(name) ? <span className={styles.fromChain}>{t("etl.runPage.setByAutomation")}</span> : null}
