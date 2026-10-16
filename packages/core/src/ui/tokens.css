@@ -1,12 +1,13 @@
 /*
- * Periplo design tokens — "Chart room, softened": ink on white over cool green-grey chrome, one sea-teal accent,
- * names and figures in mono, with thin borders and 6 px corners. Neutrals and accent match massivedatascope.info.
- * The orange brand colour is a signature, never a state: the logo's lens, the full stop of page titles, the dot of
- * the current rail entry and the "now" line of the ETL chart.
- * The frame stays quiet so the data carries the contrast: colour means data type or state, and apart from that
- * one orange signature it is never decoration.
- * Status colours keep one meaning each: blue only means "running", the sea teal stays the interactive accent (buttons,
- * links, focus) and never a state, and the orange only signs. No state is told by colour alone: see StatusSwatch.
+ * Periplo design tokens — "Chart room, softened": ink on white over cool green-grey chrome, one orange accent,
+ * names and figures in mono, with thin borders and 6 px corners. Neutrals match massivedatascope.info.
+ * The orange is the action and the signature: buttons, links and focus in --nt-color-accent (a darker orange that
+ * reads as text on every surface), and the brand orange for the logo's lens, the full stop of page titles, the dot
+ * of the current rail entry and the "now" line of the ETL chart. Neither orange is ever a state.
+ * The frame stays quiet so the data carries the contrast: colour means action, data type or state, never decoration.
+ * Status colours keep one meaning each: blue only means "running" and crimson only means failure or danger, kept
+ * at least 30 degrees of hue from the orange so an error never reads as a link. Teal marks the selection (a selected
+ * row, tree item or log step) and the boolean type. No state is told by colour alone: see StatusSwatch.
  * Components use only these custom properties: literal colours and pixel values live here and nowhere else.
  * Theme resolution: explicit [data-theme] wins, otherwise the system preference.
  * Each colour is declared once with light-dark(), so the two themes cannot drift apart.
@@ -23,7 +24,7 @@
   --nt-color-surface-hover: light-dark(#e6ebe9, #212829); /* row/button hover           */
   --nt-color-row-alt: light-dark(#f8faf9, #111617); /* grid zebra (opt-in)            */
   --nt-color-selection: light-dark(#d9ebe7, #173230); /* selected row/cell/tree item    */
-  --nt-color-accent-surface: light-dark(#e3eeec, #17292a); /* soft accent fill           */
+  --nt-color-accent-surface: light-dark(#fdece6, #2a1712); /* soft accent fill           */
 
   /* ── Text ─────────────────────────────────────────────────────────────── */
   --nt-color-text: light-dark(#141819, #e6ebea);
@@ -39,11 +40,11 @@
   /* the current entry's bar in a navigation list: "you are here" without colour or a label, ≥3:1 on surface and surface-hover; the text's ink */
   --nt-color-indicator: light-dark(#141819, #e6ebea);
 
-  /* ── Accent (sea teal, shared with massivedatascope.info) ──────────────── */
-  --nt-color-accent: light-dark(#2b6b65, #7dbdb3);
-  --nt-color-accent-hover: light-dark(#1f524d, #9fd3c9);
+  /* ── Accent (orange, shared with massivedatascope.info): buttons, links, focus ─ */
+  --nt-color-accent: light-dark(#bd3812, #ff6a48);
+  --nt-color-accent-hover: light-dark(#9e2f0f, #ff8a6b);
   --nt-color-on-accent: light-dark(#ffffff, #0e1213);
-  --nt-color-focus: light-dark(#2b6b65, #9fd3c9);
+  --nt-color-focus: light-dark(#bd3812, #ff8a6b);
   /* the brand's signature, never a state: the logo's lens, the full stop of page titles, the current rail entry's dot, the ETL chart's "now" */
   --nt-color-brand: light-dark(#ff441e, #ff5a36);
 
@@ -52,17 +53,17 @@
   --nt-color-success-surface: light-dark(#e5f3e8, #12291a);
   --nt-color-warning: light-dark(#875000, #efb65c);
   --nt-color-warning-surface: light-dark(#fbf0dc, #2e2210);
-  --nt-color-danger: light-dark(#b3261e, #ff8f85);
-  --nt-color-danger-hover: light-dark(#8c1d17, #ffaaa3);
+  --nt-color-danger: light-dark(#ad1446, #ff80ab); /* crimson: far enough in hue from the orange accent */
+  --nt-color-danger-hover: light-dark(#8c1138, #ff9fbf);
   --nt-color-on-danger: light-dark(#ffffff, #2a0907);
-  --nt-color-danger-surface: light-dark(#fdecea, #351513);
+  --nt-color-danger-surface: light-dark(#fbe9ee, #3a1220);
 
   /* ── Run, process and step states ─────────────────────────────────────────
      Each ≥ 3:1 on bg, surface and surface-sunken in both themes, and the running stripes ≥ 3:1 on the running fill.
      StatusSwatch adds the cue that is not colour (× failed, stripes running, dashed outline scheduled, a stop square
      stopped): scheduled and stopped are close greys on purpose and told apart by that shape. */
   --nt-color-state-completed: light-dark(#3d9461, #5cbf80);
-  --nt-color-state-failed: light-dark(#b42318, #f2685a);
+  --nt-color-state-failed: light-dark(#ad1446, #f5679a);
   --nt-color-state-running: light-dark(#2f62b3, #79a6ee);
   --nt-color-state-running-stripe: light-dark(#b3c9ee, #2c4670); /* the diagonal stripes over a running fill */
   --nt-color-state-scheduled: light-dark(#7b8684, #6b7674); /* outline only: a hole where a run will be */
@@ -75,10 +76,10 @@
   --nt-color-type-decimal-surface: light-dark(#eee9f9, #241c3d);
   --nt-color-type-text: light-dark(#2a6b3a, #7fcf95); /* green   glyph "Aa"  */
   --nt-color-type-text-surface: light-dark(#e6f1e8, #14291b);
-  --nt-color-type-temporal: light-dark(#a02c6c, #f08cc0); /* magenta glyph clock */
-  --nt-color-type-temporal-surface: light-dark(#f8e8f0, #38172a);
-  --nt-color-type-boolean: light-dark(#9a4410, #f0a070); /* rust    glyph "tf"  */
-  --nt-color-type-boolean-surface: light-dark(#f8ebe2, #35200f);
+  --nt-color-type-temporal: light-dark(#8a2a9c, #dd94ee); /* plum    glyph clock (not magenta: magenta reads as a failure) */
+  --nt-color-type-temporal-surface: light-dark(#f4e6f7, #33183b);
+  --nt-color-type-boolean: light-dark(#1d6874, #7cc4cf); /* teal    glyph "tf"  (not rust: rust reads as the accent) */
+  --nt-color-type-boolean-surface: light-dark(#e6f0f1, #122a2e);
   --nt-color-type-nested: light-dark(#4d5863, #a6b0ba); /* slate   glyph "{}"  (binary, struct, list, map) */
   --nt-color-type-nested-surface: light-dark(#eaedef, #22282e);
 
@@ -188,6 +189,20 @@ body {
   font-feature-settings: var(--nt-font-features);
   line-height: var(--nt-font-line-height);
   -webkit-font-smoothing: antialiased;
+}
+
+/* A link nobody styled still reads as a link in the product's accent, never the browser's blue and purple.
+   :where() keeps it at zero specificity: a component's own rule wins for every property it sets, and the underline
+   thickness and offset below apply wherever a component leaves them unset. */
+:where(a) {
+  color: var(--nt-color-accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+:where(a):hover {
+  color: var(--nt-color-accent-hover);
+  text-decoration-thickness: 2px;
 }
 
 /* ── Utilities: shared across the app so no module repeats them ─────────── */
