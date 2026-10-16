@@ -103,7 +103,7 @@ export function NavRail({ preferences, route, troubled, etl, theme, brand, onThe
         <span className={styles.label}>{t("nav.readOnly")}</span>
       </p>
       <div className={styles.tools}>
-        <button type="button" className={styles.tool} aria-label={t("nav.search")} title={t("nav.commandPalette")} onClick={onSearch}>
+        <button type="button" className={styles.tool} aria-label={t("nav.search")} aria-keyshortcuts="Control+K" title={t("nav.commandPalette")} onClick={onSearch}>
           <Icon name="search" />
         </button>
         <button type="button" className={styles.tool} aria-label={t("nav.theme", { theme })} title={t("nav.theme", { theme })} onClick={onThemeToggle}>

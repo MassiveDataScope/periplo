@@ -45,7 +45,7 @@ describe("the rail's entries", () => {
   });
 });
 
-describe("the rail's footer", () => {
+describe("the rail's workspace, seal and badge", () => {
   it("names the workspace without a card around it", () => {
     const workspace = rule(".workspace {");
     expect(workspace).not.toMatch(/border[a-z-]*:/);
@@ -69,7 +69,7 @@ describe("the rail's footer", () => {
   });
 });
 
-describe("the rail's footer", () => {
+describe("the rail's tools", () => {
   it("lays search, theme and collapse out as one row of 28px icon buttons", () => {
     const tools = rule(".tools {");
     expect(tools).toMatch(/display:\s*flex/);

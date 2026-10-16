@@ -136,7 +136,6 @@ nav.items {
   white-space: nowrap;
 }
 
-
 .item:hover {
   --item-ground: var(--nt-color-surface-hover);
   background: var(--item-ground);

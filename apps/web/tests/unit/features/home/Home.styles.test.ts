@@ -18,6 +18,12 @@ describe("the home page's header", () => {
   it("keeps the logo beside the title no taller than the title and its summary", () => {
     const logo = rule(".homeLogo");
     expect(logo).toMatch(/block-size:\s*2\.5rem/);
-    expect(logo).not.toMatch(/4rem/);
+    expect(logo).toMatch(/inline-size:\s*2\.5rem/);
+  });
+
+  it("keeps a workspace logo at the same height, with room across", () => {
+    const logo = rule(".brandLogo");
+    expect(logo).toMatch(/block-size:\s*2\.5rem/);
+    expect(logo).toMatch(/max-inline-size:\s*7rem/);
   });
 });
