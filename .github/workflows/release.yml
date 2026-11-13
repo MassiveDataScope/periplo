@@ -30,7 +30,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: read # the planner reads the pull request of each merged commit
-    uses: MassiveDataScope/loom-actions/.github/workflows/release-on-label.yml@162f79c6b75e77b9f090df823db968cbb93fa817 # v1.13.3
+    uses: MassiveDataScope/loom-actions/.github/workflows/release-on-label.yml@f7962d315cd061c8d0d1b0b0ad4fe531bc980d7d # v1.13.6
     with:
       build-distribution: true
       package-name: periplo
