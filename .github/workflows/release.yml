@@ -48,7 +48,7 @@ jobs:
       packages: write
       id-token: write
       attestations: write
-    uses: MassiveDataScope/loom-actions/.github/workflows/image-release.yml@162f79c6b75e77b9f090df823db968cbb93fa817 # v1.13.3
+    uses: MassiveDataScope/loom-actions/.github/workflows/image-release.yml@f7962d315cd061c8d0d1b0b0ad4fe531bc980d7d # v1.13.6
     with:
       version: ${{ needs.release.outputs.version }}
       expected-sha: ${{ github.event.pull_request.merge_commit_sha || inputs.merge_sha }}
